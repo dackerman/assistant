@@ -1,0 +1,75 @@
+
+
+I want to make an app that combines claude code and librechat, but more powerful.
+
+Features
+* the agent behind the app controls its entire machine (can run any bash command)
+* the agent operates via a webapp (like librechat)
+* you connect mcp servers for various bits of functionality
+  - postgres mcp
+  - subagents mcp
+  - MCP client renders frontend components
+
+
+# how the frontend piece works
+* probably don't want to have to literally build separate repos with all their own infra for each thing. too laborious
+* instead, have a single mega webapp that hosts a bunch of disparate sites. the webapp is hooked up to postgres and whatever else.
+
+oh wow, should the app itself be the webapp? like the agent is editing its own app? and the chatbot interface is just one of the apps that can itself be modified? holy shit
+
+it could run itself in dev mode so that it auto-reloads
+
+but i guess the issue is what if it borks itself or can't restart (probably common). maybe it could be two sub-apps somehow with a plugin system so that it doesn't do that?
+
+i guess you could drop down into regular opencode/claude code if that happens. but the server does need to restart frequently.
+
+yeah maybe it's just two apps and the agent is running in the directory that owns both. that way it doesn't risk killing itself.
+
+I guess another way to do it is that it could be running the "production" version of itself, and then spin up a "dev" version at a different port. then it can run/test/etc without affecting
+its own code - it wouldn't immediately change the current app.  Then it could essentially "deploy" itself which would then apply the updates, only when everything is passing.
+
+yeah, I like that idea. Basically it has its own dev and/or staging areas it can spin up.
+
+# interaction with UIs
+
+probably want to set up the web app to be easily extended with various libraries in typescript for:
+* making components (likely shadcn)
+* connecting to postgres via ORM or just queries
+* react
+
+might also help to have some frameworks for simpler things like
+* simple forms
+* various basic interactive elements?
+* reporting
+
+## How does the chat interface look?
+Why does the main interface always have to be a textbox?
+can we just have the LLM return UI and render that inline?
+
+### Examples
+* entering in calories. give me a food picker of recent foods i can just select
+* recording pushups - have a little ui where you can click plus or minus and it keeps count and writes it into the database for the current time.
+
+# connections
+Definitely want postgres
+should use ntfy.sh for notifications
+runs little bash scripts for various things
+
+i guess it can have a bunch of api keys for various things
+* asana
+* google calendar, gmail, etc
+* github
+* aws
+* cloudflare
+* openai, claude, gemini
+what else?
+
+# hosting
+
+I want to be able to add new subdomains via cloudflare that point to various apps on the computer.
+
+probably do need to have the agent be able to edit code in any directory, not just its own. I don't think I necessarily want one huge mega app for everything i'm building.
+I do want my projects to be separate github repos
+
+Maybe it's more that I just want the local, agent-specific UIs on top of the postgres database to all be located on the same server, because it's easier than managing a bunch
+of projects
