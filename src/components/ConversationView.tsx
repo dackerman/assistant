@@ -160,9 +160,6 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         >
           <span>{getToolStatusIcon(toolCall.status)}</span>
           <span>🛠️ {getToolTitle(toolCall)}</span>
-          <span style={{ fontSize: '0.8em', opacity: 0.7 }}>
-            ({toolCall.status})
-          </span>
           {toolCall.sequence !== undefined && (
             <span
               style={{ fontSize: '0.7em', opacity: 0.5, marginLeft: '5px' }}
