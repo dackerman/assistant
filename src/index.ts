@@ -168,7 +168,7 @@ app.get('/api/sessions', async (_req: Request, res: Response) => {
     const sessions = sessionList.map(session => ({
       id: session.id,
       title: session.title || `Session ${session.id.slice(-6)}`,
-      created: (session as any).created || Date.now(),
+      created: (session as any).time?.created || Date.now(),
     }));
     res.json({ sessions });
   } catch (error: any) {

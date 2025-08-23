@@ -114,6 +114,21 @@ const SessionPicker: React.FC<SessionPickerProps> = ({ onSessionSelect }) => {
       </div>
 
       <style>{`
+        * {
+          box-sizing: border-box;
+        }
+        
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
+        }
+        
+        #root {
+          height: 100%;
+        }
+        
         .session-picker {
           height: 100vh;
           display: flex;
@@ -121,6 +136,8 @@ const SessionPicker: React.FC<SessionPickerProps> = ({ onSessionSelect }) => {
           background: #0d1117;
           color: #e6edf3;
           font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          margin: 0;
+          padding: 0;
         }
         
         .session-picker-header {
