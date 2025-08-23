@@ -33,8 +33,8 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
         } else if (part?.type === 'tool') {
           return (
             <div style={{ marginLeft: '1rem' }}>
-              <strong>Tool:</strong> {part.tool} |<strong> Status:</strong>{' '}
-              {part.state?.status} |<strong> Call ID:</strong> {part.callID}
+              <strong>Tool:</strong> {part.tool} | <strong>Status:</strong>{' '}
+              {part.state?.status} | <strong>Call ID:</strong> {part.callID}
               {part.state?.input && (
                 <div
                   style={{
@@ -43,8 +43,25 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
                     opacity: 0.8,
                   }}
                 >
-                  <strong>Input:</strong>{' '}
-                  {JSON.stringify(part.state.input, null, 2)}
+                  <strong>Input:</strong>
+                  <pre
+                    style={{
+                      margin: '0.25rem 0 0 0',
+                      whiteSpace: 'pre-wrap',
+                      fontSize: '0.75em',
+                      color: '#ffffff',
+                      fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                      lineHeight: '1.4',
+                      background: '#1e1e1e',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      border: '1px solid #444',
+                      overflow: 'auto',
+                      maxHeight: '200px',
+                    }}
+                  >
+                    {JSON.stringify(part.state.input, null, 2)}
+                  </pre>
                 </div>
               )}
               {part.state?.output && (
@@ -53,27 +70,39 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
                     marginTop: '0.5rem',
                     fontSize: '0.9em',
                     opacity: 0.8,
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    backgroundColor: '#2d2d30',
-                    padding: '0.5rem',
-                    borderRadius: '4px',
                   }}
                 >
                   <strong>Output:</strong>
-                  <br />
-                  <pre
+                  <div
                     style={{
-                      margin: 0,
-                      whiteSpace: 'pre-wrap',
-                      color: '#ffffff',
+                      marginTop: '0.25rem',
+                      maxHeight: '200px',
+                      overflow: 'auto',
+                      backgroundColor: '#1e1e1e',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      border: '1px solid #444',
                     }}
                   >
-                    {typeof part.state.output === 'string'
-                      ? part.state.output.substring(0, 500) +
-                        (part.state.output.length > 500 ? '...' : '')
-                      : JSON.stringify(part.state.output, null, 2)}
-                  </pre>
+                    <pre
+                      style={{
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                        fontSize: '0.75em',
+                        color: '#ffffff',
+                        fontFamily:
+                          'Monaco, Consolas, "Courier New", monospace',
+                        lineHeight: '1.4',
+                      }}
+                    >
+                      {typeof part.state.output === 'string'
+                        ? part.state.output.substring(0, 1000) +
+                          (part.state.output.length > 1000
+                            ? '\n\n... (truncated)'
+                            : '')
+                        : JSON.stringify(part.state.output, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>
@@ -91,15 +120,75 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
       case 'step-finish':
         const tokens = event.properties?.tokens;
         return (
-          <div style={{ marginLeft: '1rem', color: '#9C27B0' }}>
-            Step finished - Input: {tokens?.input}, Output: {tokens?.output}
+          <div style={{ marginLeft: '1rem', fontSize: '0.9em', opacity: 0.7 }}>
+            <div style={{ marginBottom: '0.5rem', color: '#9C27B0' }}>
+              Step finished - Input: {tokens?.input}, Output: {tokens?.output}
+            </div>
+            <details style={{ marginTop: '0.5rem' }}>
+              <summary
+                style={{
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  fontSize: '0.8em',
+                }}
+              >
+                View raw event data
+              </summary>
+              <pre
+                style={{
+                  margin: '0.5rem 0 0 0',
+                  whiteSpace: 'pre-wrap',
+                  fontSize: '0.75em',
+                  color: '#ffffff',
+                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                  lineHeight: '1.4',
+                  background: '#1e1e1e',
+                  padding: '0.75rem',
+                  borderRadius: '4px',
+                  border: '1px solid #444',
+                  overflow: 'auto',
+                  maxHeight: '300px',
+                }}
+              >
+                {JSON.stringify(event.properties, null, 2)}
+              </pre>
+            </details>
           </div>
         );
 
       default:
         return (
           <div style={{ marginLeft: '1rem', fontSize: '0.9em', opacity: 0.7 }}>
-            {JSON.stringify(event.properties, null, 2)}
+            <details>
+              <summary
+                style={{
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  fontSize: '0.9em',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                View event data
+              </summary>
+              <pre
+                style={{
+                  margin: '0.5rem 0 0 0',
+                  whiteSpace: 'pre-wrap',
+                  fontSize: '0.75em',
+                  color: '#ffffff',
+                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                  lineHeight: '1.4',
+                  background: '#1e1e1e',
+                  padding: '0.75rem',
+                  borderRadius: '4px',
+                  border: '1px solid #444',
+                  overflow: 'auto',
+                  maxHeight: '300px',
+                }}
+              >
+                {JSON.stringify(event, null, 2)}
+              </pre>
+            </details>
           </div>
         );
     }
