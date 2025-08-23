@@ -5,6 +5,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  sequence?: number;
   isStreaming?: boolean;
 }
 
@@ -17,6 +18,7 @@ interface ToolCall {
   input?: any;
   output?: any;
   timestamp: number;
+  sequence?: number;
 }
 
 interface ConversationViewProps {
@@ -24,21 +26,24 @@ interface ConversationViewProps {
   toolCalls: ToolCall[];
 }
 
+type ConversationItem =
+  | { type: 'message'; data: Message }
+  | { type: 'tool'; data: ToolCall };
+
 const ConversationView: React.FC<ConversationViewProps> = ({
   messages,
   toolCalls,
 }) => {
-  // Group tool calls by message ID
-  const toolCallsByMessage = toolCalls.reduce(
-    (acc, toolCall) => {
-      if (!acc[toolCall.messageId]) {
-        acc[toolCall.messageId] = [];
-      }
-      acc[toolCall.messageId].push(toolCall);
-      return acc;
-    },
-    {} as Record<string, ToolCall[]>
-  );
+  // Create chronological sequence of messages and tool calls
+  const conversationItems: ConversationItem[] = [
+    ...messages.map(msg => ({ type: 'message' as const, data: msg })),
+    ...toolCalls.map(tool => ({ type: 'tool' as const, data: tool })),
+  ].sort((a, b) => {
+    // Sort by sequence if available, otherwise by timestamp
+    const aSeq = a.data.sequence ?? a.data.timestamp;
+    const bSeq = b.data.sequence ?? b.data.timestamp;
+    return aSeq - bSeq;
+  });
 
   const getToolStatusIcon = (status: string) => {
     switch (status) {
@@ -70,12 +75,34 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
+  const renderMessage = (message: Message) => (
+    <div key={message.id} className={`message ${message.role}`}>
+      <div className="message-role">
+        {message.role === 'user' ? '👤 You' : '🤖 Claude'}
+      </div>
+      <div className="message-content">
+        {message.content}
+        {message.isStreaming && <span className="streaming-cursor">▎</span>}
+      </div>
+      <div className="message-timestamp">
+        {new Date(message.timestamp).toLocaleTimeString()}
+        {message.sequence !== undefined && (
+          <span style={{ opacity: 0.5, marginLeft: '5px' }}>
+            #{message.sequence}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
   const renderToolCall = (toolCall: ToolCall) => (
     <div
       key={toolCall.id}
       className="tool-call-inline"
       style={{
         margin: '8px 0',
+        marginLeft: '15px',
+        marginRight: '65px',
         padding: '12px',
         backgroundColor: '#f8f9fa',
         border: `1px solid ${getToolStatusColor(toolCall.status)}`,
@@ -99,6 +126,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           <span style={{ fontSize: '0.8em', opacity: 0.7 }}>
             ({toolCall.status})
           </span>
+          {toolCall.sequence !== undefined && (
+            <span
+              style={{ fontSize: '0.7em', opacity: 0.5, marginLeft: '5px' }}
+            >
+              #{toolCall.sequence}
+            </span>
+          )}
         </summary>
         <div style={{ marginTop: '12px', fontSize: '0.9em' }}>
           {toolCall.input && (
@@ -154,31 +188,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   return (
     <div className="conversation-view">
       <div className="messages">
-        {messages.map(message => (
-          <div key={message.id}>
-            <div className={`message ${message.role}`}>
-              <div className="message-role">
-                {message.role === 'user' ? '👤 You' : '🤖 Claude'}
-              </div>
-              <div className="message-content">
-                {message.content}
-                {message.isStreaming && (
-                  <span className="streaming-cursor">▎</span>
-                )}
-              </div>
-              <div className="message-timestamp">
-                {new Date(message.timestamp).toLocaleTimeString()}
-              </div>
-            </div>
-
-            {/* Show tool calls for this message */}
-            {toolCallsByMessage[message.id] && (
-              <div className="message-tools">
-                {toolCallsByMessage[message.id].map(renderToolCall)}
-              </div>
-            )}
-          </div>
-        ))}
+        {conversationItems.map(item =>
+          item.type === 'message'
+            ? renderMessage(item.data)
+            : renderToolCall(item.data)
+        )}
       </div>
 
       <style>{`
@@ -239,16 +253,6 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         .message-timestamp {
           font-size: 12px;
           color: #999;
-        }
-        
-        .message-tools {
-          margin-left: 15px;
-          margin-right: 65px;
-        }
-        
-        .message.user + .message-tools {
-          margin-left: 65px;
-          margin-right: 15px;
         }
         
         .tool-call-inline summary:hover {

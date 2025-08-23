@@ -5,6 +5,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  sequence?: number;
   isStreaming?: boolean;
 }
 
@@ -13,10 +14,12 @@ interface ToolCall {
   messageId: string;
   name: string;
   callId?: string;
+  
   status: 'pending' | 'running' | 'completed' | 'error';
   input?: any;
   output?: any;
   timestamp: number;
+  sequence?: number;
 }
 
 export const useConversation = () => {
@@ -26,6 +29,7 @@ export const useConversation = () => {
   const messageRolesRef = useRef<Map<string, 'user' | 'assistant'>>(new Map());
   const currentAssistantMessage = useRef<string>('');
   const currentMessageId = useRef<string | null>(null);
+  const sequenceCounter = useRef<number>(0);
 
   const processEvent = useCallback((event: any) => {
     setEvents(prev => [...prev, event]);
@@ -42,9 +46,9 @@ export const useConversation = () => {
 
       case 'message.part.updated':
         const part = event.properties?.part;
-        if (part && part.messageID) {
           // Handle tool calls
           if (part.type === 'tool') {
+            console.log('Processing tool call:', part.tool, part.state?.status);
             const toolCall: ToolCall = {
               id: part.id,
               messageId: part.messageID,
@@ -54,88 +58,122 @@ export const useConversation = () => {
               input: part.state?.input,
               output: part.state?.output,
               timestamp: Date.now(),
+              sequence: sequenceCounter.current++,
             };
 
             setToolCalls(prev => {
               const existing = prev.find(tool => tool.id === part.id);
               if (existing) {
-                return prev.map(tool =>
-                  tool.id === part.id ? { ...tool, ...toolCall } : tool
+                return prev.map(tool => 
+                  tool.id === part.id 
+                    ? { ...tool, ...toolCall }
+                    : tool
                 );
               }
               return [...prev, toolCall];
             });
           }
           // Handle text messages
-          else if (part.type === 'text' && part.text) {
-            const messageId = part.messageID;
-            const role = messageRolesRef.current.get(messageId);
-            console.log(
-              'Processing message part:',
-              messageId,
-              role,
-              part.text.substring(0, 50)
+
+        else if (part.type === 'text' && part.text) {
+          const messageId = part.messageID;
+          const role = messageRolesRef.current.get(messageId);
+
+          if (role === 'assistant') {
+            if (currentMessageId.current !== messageId) {
+              // Finish previous message
+              if (currentMessageId.current) {
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === currentMessageId.current
+                      ? { ...msg, isStreaming: false }
+                      : msg
+                  )
+                );
+              }
+
+              // Start new assistant message
+              currentMessageId.current = messageId;
+              currentAssistantMessage.current = '';
+
+              setMessages(prev => [
+                ...prev,
+                {
+                  id: messageId,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: Date.now(),
+              sequence: sequenceCounter.current++,
+                  isStreaming: true,
+                },
+              ]);
+            }
+
+            // Update content (OpenCode sends full text, not deltas)
+            currentAssistantMessage.current = part.text;
+
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === messageId
+                  ? { ...msg, content: currentAssistantMessage.current }
+                  : msg
+              )
             );
-
-            if (role === 'assistant') {
-              if (currentMessageId.current !== messageId) {
-                // Finish previous message
-                if (currentMessageId.current) {
-                  setMessages(prev =>
-                    prev.map(msg =>
-                      msg.id === currentMessageId.current
-                        ? { ...msg, isStreaming: false }
-                        : msg
-                    )
-                  );
-                }
-
-                // Start new assistant message
-                currentMessageId.current = messageId;
-                currentAssistantMessage.current = '';
-
-                setMessages(prev => [
+          } else if (role === 'user') {
+            // Handle user messages - check if message already exists
+            setMessages(prev => {
+              const existingMessage = prev.find(msg => msg.id === messageId);
+              if (!existingMessage) {
+                return [
                   ...prev,
                   {
                     id: messageId,
-                    role: 'assistant',
-                    content: '',
+                    role: 'user',
+                    content: part.text,
                     timestamp: Date.now(),
-                    isStreaming: true,
+              sequence: sequenceCounter.current++,
                   },
-                ]);
+                ];
               }
-
-              // Update content (OpenCode sends full text, not deltas)
-              currentAssistantMessage.current = part.text;
-
-              setMessages(prev =>
-                prev.map(msg =>
-                  msg.id === messageId
-                    ? { ...msg, content: currentAssistantMessage.current }
-                    : msg
-                )
-              );
-            } else if (role === 'user') {
-              // Handle user messages - check if message already exists
-              setMessages(prev => {
-                const existingMessage = prev.find(msg => msg.id === messageId);
-                if (!existingMessage) {
-                  return [
-                    ...prev,
-                    {
-                      id: messageId,
-                      role: 'user',
-                      content: part.text,
-                      timestamp: Date.now(),
-                    },
-                  ];
-                }
-                return prev;
-              });
-            }
+              return prev;
+            });
           }
         }
+        break;
+
+      case 'step.started':
+        if (event.properties?.step?.type === 'tool_use') {
+          const toolCall: ToolCall = {
+            id: event.properties.step.id || `tool-${Date.now()}`,
+            messageId: 'assistant',  // Default messageId for step-based events
+            name: event.properties.step.tool || 'Unknown Tool',
+            // description removed
+            status: 'running',
+            timestamp: Date.now(),
+              sequence: sequenceCounter.current++,
+          };
+          setToolCalls(prev => [...prev, toolCall]);
+        }
+        break;
+
+      case 'step.completed':
+        setToolCalls(prev =>
+          prev.map(tool =>
+            tool.id === event.properties?.step?.id
+              ? { ...tool, status: 'completed' }
+              : tool
+          )
+        );
+        break;
+
+      case 'step.error':
+        setToolCalls(prev =>
+          prev.map(tool =>
+            tool.id === event.properties?.step?.id
+              ? { ...tool, status: 'error' }
+              : tool
+          )
+        );
         break;
 
       case 'message.completed':
@@ -156,7 +194,7 @@ export const useConversation = () => {
 
   const sendMessage = useCallback(async (content: string) => {
     // Clear tool calls for new conversation turn
-    setToolCalls([]);
+    // Keep tool calls across messages for proper chronological display
 
     try {
       const response = await fetch('/api/message', {
