@@ -33,6 +33,7 @@ export const useConversation = () => {
         const messageInfo = event.properties?.info;
         if (messageInfo?.id && messageInfo?.role) {
           messageRolesRef.current.set(messageInfo.id, messageInfo.role);
+          console.log('Stored message role:', messageInfo.id, messageInfo.role);
         }
         break;
 
@@ -41,7 +42,6 @@ export const useConversation = () => {
         if (part && part.type === 'text' && part.text && part.messageID) {
           const messageId = part.messageID;
           const role = messageRolesRef.current.get(messageId);
-          console.log('Processing message part:', messageId, role, part.text.substring(0, 50));
 
           if (role === 'assistant') {
             if (currentMessageId.current !== messageId) {
