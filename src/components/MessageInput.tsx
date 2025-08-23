@@ -73,7 +73,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         className="message-send-button"
         style={{
           padding: '0.75rem 1.5rem',
-          backgroundColor: disabled || !message.trim() ? '#484f58' : '#238636',
+          backgroundColor: disabled || !message.trim() ? '#484f58' : '#8b5cf6',
           color: '#ffffff',
           border: 'none',
           borderRadius: '6px',
