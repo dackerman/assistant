@@ -3,7 +3,7 @@ import cors from 'cors';
 import Opencode from "@opencode-ai/sdk";
 
 const app = express();
-const port = 3001;
+const port = 7654;
 
 app.use(cors());
 app.use(express.json());

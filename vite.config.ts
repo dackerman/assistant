@@ -8,14 +8,14 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 3000,
+    port: 7653,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:7654',
         changeOrigin: true,
       },
       '/events': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:7654',
         changeOrigin: true,
       }
     }
