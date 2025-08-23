@@ -19,13 +19,13 @@ const App: React.FC = () => {
 
     // Setup SSE connection
     const eventSource = new EventSource('/events');
-    
+
     eventSource.onopen = () => {
       setIsConnected(true);
       console.log('Connected to event stream');
     };
 
-    eventSource.onmessage = (event) => {
+    eventSource.onmessage = event => {
       try {
         const data = JSON.parse(event.data);
         setEvents(prev => [...prev, data]);
@@ -34,7 +34,7 @@ const App: React.FC = () => {
       }
     };
 
-    eventSource.onerror = (error) => {
+    eventSource.onerror = error => {
       console.error('EventSource failed:', error);
       setIsConnected(false);
     };
@@ -59,31 +59,34 @@ const App: React.FC = () => {
   };
 
   return (
-    <div style={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      fontFamily: 'monospace',
-      backgroundColor: '#1e1e1e',
-      color: '#ffffff'
-    }}>
-      <header style={{ 
-        padding: '1rem', 
-        backgroundColor: '#2d2d30', 
-        borderBottom: '1px solid #3e3e42'
-      }}>
+    <div
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: 'monospace',
+        backgroundColor: '#1e1e1e',
+        color: '#ffffff',
+      }}
+    >
+      <header
+        style={{
+          padding: '1rem',
+          backgroundColor: '#2d2d30',
+          borderBottom: '1px solid #3e3e42',
+        }}
+      >
         <h1>Conversation Stream Viewer</h1>
         <div>
-          Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'} | 
-          Session: {sessionId ? sessionId.slice(-8) : 'None'} | 
-          Events: {events.length}
+          Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'} | Session:{' '}
+          {sessionId ? sessionId.slice(-8) : 'None'} | Events: {events.length}
         </div>
       </header>
-      
+
       <div style={{ flex: 1, display: 'flex' }}>
         <ConversationViewer events={events} />
       </div>
-      
+
       <MessageInput onSendMessage={sendMessage} disabled={!sessionId} />
     </div>
   );

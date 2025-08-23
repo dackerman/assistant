@@ -9,7 +9,9 @@
     "dev:backend": "tsx src/index.ts",
     "dev:frontend": "vite",
     "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,html}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,html}\""
   },
   "keywords": [],
   "author": "David Ackerman",
@@ -34,6 +36,7 @@
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^9.2.0",
+    "prettier": "^3.6.2",
     "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "vite": "^4.3.9"

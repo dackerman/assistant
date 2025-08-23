@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import Opencode from "@opencode-ai/sdk";
+import Opencode from '@opencode-ai/sdk';
 
 const app = express();
 const port = 7654;
@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static('dist/public'));
 
 const opencode = new Opencode({
-  baseURL: "http://localhost:4096",
+  baseURL: 'http://localhost:4096',
 });
 
 let currentSession: any = null;
@@ -21,7 +21,7 @@ app.get('/events', (req: Request, res: Response) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'Access-Control-Allow-Origin': '*',
   });
 
@@ -65,15 +65,15 @@ app.post('/api/session', async (req: Request, res: Response) => {
 app.post('/api/message', async (req: Request, res: Response) => {
   try {
     const { text } = req.body;
-    
+
     if (!currentSession) {
       return res.status(400).json({ error: 'No active session' });
     }
 
     await opencode.session.chat(currentSession.id, {
-      providerID: "anthropic",
-      modelID: "claude-sonnet-4-20250514",
-      parts: [{ type: "text", text }],
+      providerID: 'anthropic',
+      modelID: 'claude-sonnet-4-20250514',
+      parts: [{ type: 'text', text }],
     });
 
     res.json({ success: true });

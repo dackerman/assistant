@@ -5,7 +5,10 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = false }) => {
+const MessageInput: React.FC<MessageInputProps> = ({
+  onSendMessage,
+  disabled = false,
+}) => {
   const [message, setMessage] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -17,18 +20,21 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{
-      padding: '1rem',
-      backgroundColor: '#2d2d30',
-      borderTop: '1px solid #3e3e42',
-      display: 'flex',
-      gap: '1rem'
-    }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        padding: '1rem',
+        backgroundColor: '#2d2d30',
+        borderTop: '1px solid #3e3e42',
+        display: 'flex',
+        gap: '1rem',
+      }}
+    >
       <input
         type="text"
         value={message}
-        onChange={(e) => setMessage((e.target as HTMLInputElement).value)}
-        placeholder={disabled ? "Connecting..." : "Type your message..."}
+        onChange={e => setMessage((e.target as HTMLInputElement).value)}
+        placeholder={disabled ? 'Connecting...' : 'Type your message...'}
         disabled={disabled}
         style={{
           flex: 1,
@@ -37,7 +43,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
           color: '#ffffff',
           border: '1px solid #3e3e42',
           borderRadius: '4px',
-          fontSize: '1rem'
+          fontSize: '1rem',
         }}
       />
       <button
@@ -50,7 +56,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
           border: 'none',
           borderRadius: '4px',
           cursor: disabled || !message.trim() ? 'not-allowed' : 'pointer',
-          fontSize: '1rem'
+          fontSize: '1rem',
         }}
       >
         Send
