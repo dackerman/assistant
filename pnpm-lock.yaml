@@ -15,8 +15,8 @@ importers:
         specifier: ^2.0.18
         version: 2.0.18(react@19.1.1)(zod@4.0.17)
       '@opencode-ai/sdk':
-        specifier: ^0.5.8
-        version: 0.5.8
+        specifier: 0.1.0-alpha.21
+        version: 0.1.0-alpha.21
       ai:
         specifier: ^5.0.18
         version: 5.0.18(zod@4.0.17)
@@ -224,8 +224,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@opencode-ai/sdk@0.5.8':
-    resolution: {integrity: sha512-8pviuRGsk2hXeG96R0twZj8u2AVYRNUzH4rFwHN8C5MY2XLccAMGXhABDzZbhqFmoeL+S29m9Qrg2/HlY0Tc6Q==}
+  '@opencode-ai/sdk@0.1.0-alpha.21':
+    resolution: {integrity: sha512-e/F/Re2lISHrZ9CrRKPwiqRabUjv4eo0iqFzXWWLzwMNEqV0A8+0sLQC9Iq4ug1Zm/1Qcqc9oLpxedb4PMF6aA==}
 
   '@opentelemetry/api@1.9.0':
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
@@ -423,7 +423,7 @@ snapshots:
   '@esbuild/win32-x64@0.25.9':
     optional: true
 
-  '@opencode-ai/sdk@0.5.8': {}
+  '@opencode-ai/sdk@0.1.0-alpha.21': {}
 
   '@opentelemetry/api@1.9.0': {}
 
