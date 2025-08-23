@@ -13,11 +13,14 @@ const DebugPane: React.FC<DebugPaneProps> = ({ events }) => {
         <div className="event-count">{events.length} events</div>
       </div>
       <div className="debug-content">
-        {events.map((event, index) => (
-          <EventRenderer key={index} event={event} />
-        ))}
+        {events
+          .slice()
+          .reverse()
+          .map((event, index) => (
+            <EventRenderer key={events.length - 1 - index} event={event} />
+          ))}
       </div>
-      
+
       <style>{`
         .debug-pane {
           height: 100%;
