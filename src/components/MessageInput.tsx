@@ -19,6 +19,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (message.trim() && !disabled) {
+        onSendMessage(message.trim());
+        setMessage('');
+      }
+    }
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -31,13 +41,18 @@ const MessageInput: React.FC<MessageInputProps> = ({
         gap: '1rem',
       }}
     >
-      <input
-        type="text"
+      <textarea
         value={message}
-        onChange={e => setMessage((e.target as HTMLInputElement).value)}
-        placeholder={disabled ? 'Connecting...' : 'Type your message...'}
+        onChange={e => setMessage(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={
+          disabled
+            ? 'Connecting...'
+            : 'Type your message... (Cmd/Ctrl+Enter to send)'
+        }
         disabled={disabled}
         className="message-input-field"
+        rows={5}
         style={{
           flex: 1,
           padding: '0.75rem',
@@ -48,6 +63,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
           fontSize: '14px',
           fontFamily:
             'SF Mono, Monaco, Cascadia Code, Roboto Mono, Consolas, Courier New, monospace',
+          resize: 'vertical',
+          minHeight: '120px',
         }}
       />
       <button
@@ -83,6 +100,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
             padding: 12px !important;
             font-size: 16px !important; /* Prevents zoom on iOS */
             border-radius: 8px !important;
+            min-height: 100px !important;
+            rows: 4;
           }
           
           .message-send-button {
