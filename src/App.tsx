@@ -15,12 +15,12 @@ const App: React.FC = () => {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Claude Conversation</h1>
+        <h1>Personal Assistant</h1>
         <div className="header-controls">
           <div className="stats">
             Messages: {messages.length} | Events: {events.length}
           </div>
-          <button 
+          <button
             className="debug-toggle"
             onClick={() => setShowDebug(!showDebug)}
           >

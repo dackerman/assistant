@@ -2,7 +2,7 @@
 
 ## Overview
 
-This application is a real-time conversation streaming web interface for OpenCode, designed to visualize Claude's conversational interactions and debug technical events. It consists of a React frontend and Express backend that communicate via Server-Sent Events (SSE) for real-time data streaming.
+This application is a real-time conversation streaming web interface for OpenCode, designed to visualize AI agent conversational interactions and debug technical events. It consists of a React frontend and Express backend that communicate via Server-Sent Events (SSE) for real-time data streaming.
 
 ## System Architecture
 

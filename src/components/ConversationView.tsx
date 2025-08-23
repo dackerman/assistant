@@ -115,7 +115,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const renderMessage = (message: Message) => (
     <div key={message.id} className={`message ${message.role}`}>
       <div className="message-role">
-        {message.role === 'user' ? '👤 You' : '🤖 Claude'}
+        {message.role === 'user' ? '👤 You' : '🤖 Agent'}
       </div>
       <div className="message-content">
         {message.content}
