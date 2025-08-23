@@ -32,6 +32,7 @@ export const useConversation = () => {
   const currentAssistantMessage = useRef<string>('');
   const currentMessageId = useRef<string | null>(null);
   const sequenceCounter = useRef<number>(0);
+  const hasToolCallsInCurrentTurn = useRef<boolean>(false);
 
   const processEvent = useCallback((event: any) => {
     setEvents(prev => [...prev, event]);
@@ -51,6 +52,8 @@ export const useConversation = () => {
         // Handle tool calls
         if (part.type === 'tool') {
           console.log('Processing tool call:', part.tool, part.state?.status);
+          hasToolCallsInCurrentTurn.current = true;
+
           const toolCall: ToolCall = {
             id: part.id,
             messageId: part.messageID,
@@ -79,7 +82,12 @@ export const useConversation = () => {
           const role = messageRolesRef.current.get(messageId);
 
           if (role === 'assistant') {
-            if (currentMessageId.current !== messageId) {
+            const shouldCreateNewMessage =
+              currentMessageId.current !== messageId ||
+              (currentMessageId.current === messageId &&
+                hasToolCallsInCurrentTurn.current);
+
+            if (shouldCreateNewMessage) {
               // Finish previous message
               if (currentMessageId.current) {
                 setMessages(prev =>
@@ -94,11 +102,12 @@ export const useConversation = () => {
               // Start new assistant message
               currentMessageId.current = messageId;
               currentAssistantMessage.current = '';
+              hasToolCallsInCurrentTurn.current = false; // Reset flag since we're creating a new message
 
               setMessages(prev => [
                 ...prev,
                 {
-                  id: messageId,
+                  id: `${messageId}-${sequenceCounter.current}`, // Make unique ID when creating new message for same messageId
                   role: 'assistant',
                   content: '',
                   timestamp: Date.now(),
@@ -112,11 +121,17 @@ export const useConversation = () => {
             currentAssistantMessage.current = part.text;
 
             setMessages(prev =>
-              prev.map(msg =>
-                msg.id === messageId
-                  ? { ...msg, content: currentAssistantMessage.current }
-                  : msg
-              )
+              prev.map((msg, index) => {
+                // Update the last assistant message that's currently streaming
+                if (
+                  index === prev.length - 1 &&
+                  msg.role === 'assistant' &&
+                  msg.isStreaming
+                ) {
+                  return { ...msg, content: currentAssistantMessage.current };
+                }
+                return msg;
+              })
             );
           } else if (role === 'user') {
             // Handle user messages - check if message already exists
@@ -178,14 +193,21 @@ export const useConversation = () => {
       case 'message.completed':
         if (currentMessageId.current) {
           setMessages(prev =>
-            prev.map(msg =>
-              msg.id === currentMessageId.current
-                ? { ...msg, isStreaming: false }
-                : msg
-            )
+            prev.map((msg, index) => {
+              // Mark the last streaming assistant message as completed
+              if (
+                index === prev.length - 1 &&
+                msg.role === 'assistant' &&
+                msg.isStreaming
+              ) {
+                return { ...msg, isStreaming: false };
+              }
+              return msg;
+            })
           );
           currentMessageId.current = null;
           currentAssistantMessage.current = '';
+          hasToolCallsInCurrentTurn.current = false;
         }
         break;
     }
@@ -220,6 +242,7 @@ export const useConversation = () => {
       currentAssistantMessage.current = '';
       currentMessageId.current = null;
       sequenceCounter.current = 0;
+      hasToolCallsInCurrentTurn.current = false;
 
       // Always call the API - passing null creates a new session
       const response = await fetch('/api/sessions/switch', {
