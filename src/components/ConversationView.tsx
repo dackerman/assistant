@@ -34,15 +34,15 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   messages,
   toolCalls,
 }) => {
-  // Create chronological sequence of messages and tool calls
+  // Create reverse chronological sequence of messages and tool calls (newest first)
   const conversationItems: ConversationItem[] = [
     ...messages.map(msg => ({ type: 'message' as const, data: msg })),
     ...toolCalls.map(tool => ({ type: 'tool' as const, data: tool })),
   ].sort((a, b) => {
-    // Sort by sequence if available, otherwise by timestamp
+    // Sort by sequence if available, otherwise by timestamp (reversed for newest first)
     const aSeq = a.data.sequence ?? a.data.timestamp;
     const bSeq = b.data.sequence ?? b.data.timestamp;
-    return aSeq - bSeq;
+    return bSeq - aSeq;
   });
 
   const getToolStatusIcon = (status: string) => {
