@@ -14,7 +14,7 @@ interface ToolCall {
   messageId: string;
   name: string;
   callId?: string;
-  
+
   status: 'pending' | 'running' | 'completed' | 'error';
   input?: any;
   output?: any;
@@ -26,6 +26,8 @@ export const useConversation = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const messageRolesRef = useRef<Map<string, 'user' | 'assistant'>>(new Map());
   const currentAssistantMessage = useRef<string>('');
   const currentMessageId = useRef<string | null>(null);
@@ -46,35 +48,32 @@ export const useConversation = () => {
 
       case 'message.part.updated':
         const part = event.properties?.part;
-          // Handle tool calls
-          if (part.type === 'tool') {
-            console.log('Processing tool call:', part.tool, part.state?.status);
-            const toolCall: ToolCall = {
-              id: part.id,
-              messageId: part.messageID,
-              name: part.tool || 'Unknown Tool',
-              callId: part.callID,
-              status: part.state?.status || 'pending',
-              input: part.state?.input,
-              output: part.state?.output,
-              timestamp: Date.now(),
-              sequence: sequenceCounter.current++,
-            };
+        // Handle tool calls
+        if (part.type === 'tool') {
+          console.log('Processing tool call:', part.tool, part.state?.status);
+          const toolCall: ToolCall = {
+            id: part.id,
+            messageId: part.messageID,
+            name: part.tool || 'Unknown Tool',
+            callId: part.callID,
+            status: part.state?.status || 'pending',
+            input: part.state?.input,
+            output: part.state?.output,
+            timestamp: Date.now(),
+            sequence: sequenceCounter.current++,
+          };
 
-            setToolCalls(prev => {
-              const existing = prev.find(tool => tool.id === part.id);
-              if (existing) {
-                return prev.map(tool => 
-                  tool.id === part.id 
-                    ? { ...tool, ...toolCall }
-                    : tool
-                );
-              }
-              return [...prev, toolCall];
-            });
-          }
-          // Handle text messages
-
+          setToolCalls(prev => {
+            const existing = prev.find(tool => tool.id === part.id);
+            if (existing) {
+              return prev.map(tool =>
+                tool.id === part.id ? { ...tool, ...toolCall } : tool
+              );
+            }
+            return [...prev, toolCall];
+          });
+        }
+        // Handle text messages
         else if (part.type === 'text' && part.text) {
           const messageId = part.messageID;
           const role = messageRolesRef.current.get(messageId);
@@ -103,7 +102,7 @@ export const useConversation = () => {
                   role: 'assistant',
                   content: '',
                   timestamp: Date.now(),
-              sequence: sequenceCounter.current++,
+                  sequence: sequenceCounter.current++,
                   isStreaming: true,
                 },
               ]);
@@ -131,7 +130,7 @@ export const useConversation = () => {
                     role: 'user',
                     content: part.text,
                     timestamp: Date.now(),
-              sequence: sequenceCounter.current++,
+                    sequence: sequenceCounter.current++,
                   },
                 ];
               }
@@ -145,12 +144,12 @@ export const useConversation = () => {
         if (event.properties?.step?.type === 'tool_use') {
           const toolCall: ToolCall = {
             id: event.properties.step.id || `tool-${Date.now()}`,
-            messageId: 'assistant',  // Default messageId for step-based events
+            messageId: 'assistant', // Default messageId for step-based events
             name: event.properties.step.tool || 'Unknown Tool',
             // description removed
             status: 'running',
             timestamp: Date.now(),
-              sequence: sequenceCounter.current++,
+            sequence: sequenceCounter.current++,
           };
           setToolCalls(prev => [...prev, toolCall]);
         }
@@ -211,17 +210,51 @@ export const useConversation = () => {
     }
   }, []);
 
+  const switchSession = useCallback(async (sessionId: string | null) => {
+    try {
+      // Clear current state
+      setMessages([]);
+      setToolCalls([]);
+      setEvents([]);
+      messageRolesRef.current.clear();
+      currentAssistantMessage.current = '';
+      currentMessageId.current = null;
+      sequenceCounter.current = 0;
+
+      // Always call the API - passing null creates a new session
+      const response = await fetch('/api/sessions/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setCurrentSessionId(data.sessionId);
+      setIsSessionReady(true);
+
+      console.log('Switched to session:', data.sessionId);
+    } catch (error) {
+      console.error('Failed to switch session:', error);
+    }
+  }, []);
+
+  const backToSessions = useCallback(() => {
+    setCurrentSessionId(null);
+    setIsSessionReady(false);
+  }, []);
+
   useEffect(() => {
     let eventSource: EventSource;
 
-    const initializeSession = async () => {
-      try {
-        // First create a session
-        const sessionRes = await fetch('/api/session', { method: 'POST' });
-        const sessionData = await sessionRes.json();
-        console.log('Session created:', sessionData.sessionId);
+    const initializeEventStream = async () => {
+      if (!isSessionReady) return;
 
-        // Now start listening to events
+      try {
+        // Start listening to events
         eventSource = new EventSource('/events');
 
         eventSource.onmessage = event => {
@@ -241,23 +274,27 @@ export const useConversation = () => {
           console.log('EventSource connected');
         };
       } catch (error) {
-        console.error('Failed to initialize session:', error);
+        console.error('Failed to initialize event stream:', error);
       }
     };
 
-    initializeSession();
+    initializeEventStream();
 
     return () => {
       if (eventSource) {
         eventSource.close();
       }
     };
-  }, []);
+  }, [isSessionReady, processEvent]);
 
   return {
     messages,
     toolCalls,
     events,
+    currentSessionId,
+    isSessionReady,
     sendMessage,
+    switchSession,
+    backToSessions,
   };
 };

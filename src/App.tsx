@@ -2,15 +2,33 @@ import React, { useState } from 'react';
 import ConversationView from './components/ConversationView';
 import DebugPane from './components/DebugPane';
 import MessageInput from './components/MessageInput';
+import SessionPicker from './components/SessionPicker';
 import { useConversation } from './hooks/useConversation';
 
 const App: React.FC = () => {
-  const { messages, toolCalls, events, sendMessage } = useConversation();
+  const {
+    messages,
+    toolCalls,
+    events,
+    isSessionReady,
+    sendMessage,
+    switchSession,
+    backToSessions,
+  } = useConversation();
   const [showDebug, setShowDebug] = useState(false);
 
   const handleSendMessage = async (text: string) => {
     await sendMessage(text);
   };
+
+  const handleSessionSelect = async (sessionId: string | null) => {
+    await switchSession(sessionId);
+  };
+
+  // Show session picker if no session is ready
+  if (!isSessionReady) {
+    return <SessionPicker onSessionSelect={handleSessionSelect} />;
+  }
 
   return (
     <div className="app">
@@ -25,6 +43,9 @@ const App: React.FC = () => {
             onClick={() => setShowDebug(!showDebug)}
           >
             {showDebug ? 'Hide Debug' : 'Show Debug'}
+          </button>
+          <button className="session-toggle" onClick={backToSessions}>
+            Sessions
           </button>
         </div>
       </header>
@@ -43,6 +64,21 @@ const App: React.FC = () => {
       <MessageInput onSendMessage={handleSendMessage} disabled={false} />
 
       <style>{`
+        * {
+          box-sizing: border-box;
+        }
+        
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
+        }
+        
+        #root {
+          height: 100%;
+        }
+        
         .app {
           height: 100vh;
           display: flex;
@@ -121,6 +157,22 @@ const App: React.FC = () => {
         
         .debug-toggle:hover {
           background: #2ea043;
+        }
+        
+        .session-toggle {
+          padding: 6px 12px;
+          background: #0969da;
+          color: #ffffff;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+          transition: background-color 0.2s;
+        }
+        
+        .session-toggle:hover {
+          background: #0860ca;
         }
         
         .app-body {

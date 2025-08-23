@@ -15,6 +15,19 @@ const opencode = new Opencode({
 
 let currentSession: any = null;
 let clients: Response[] = [];
+let allSessions: Map<string, any> = new Map();
+
+// Helper function to generate session title from first message
+function generateSessionTitle(text: string): string {
+  // Take first 50 characters and clean up
+  const title = text.trim().substring(0, 50);
+  // Remove newlines and extra spaces
+  const cleanTitle = title.replace(/\s+/g, ' ').trim();
+  // Add ellipsis if truncated
+  return cleanTitle.length < text.trim().length
+    ? `${cleanTitle}...`
+    : cleanTitle;
+}
 
 // SSE endpoint for streaming events
 app.get('/events', async (req: Request, res: Response) => {
@@ -32,6 +45,10 @@ app.get('/events', async (req: Request, res: Response) => {
   if (!currentSession && !isStreamingEvents) {
     try {
       currentSession = await opencode.session.create();
+      allSessions.set(currentSession.id, {
+        ...currentSession,
+        created: Date.now(),
+      });
       console.log('Auto-created session for events:', currentSession.id);
       streamEvents();
     } catch (error: any) {
@@ -75,10 +92,14 @@ async function streamEvents() {
 }
 
 // Start a new session
-app.post('/api/session', async (req: Request, res: Response) => {
+app.post('/api/session', async (_req: Request, res: Response) => {
   try {
     if (!currentSession) {
       currentSession = await opencode.session.create();
+      allSessions.set(currentSession.id, {
+        ...currentSession,
+        created: Date.now(),
+      });
       console.log('Created session:', currentSession.id);
       // Start streaming events (don't await)
       streamEvents();
@@ -99,8 +120,20 @@ app.post('/api/message', async (req: Request, res: Response) => {
     if (!currentSession) {
       console.log('No session, creating one...');
       currentSession = await opencode.session.create();
+      allSessions.set(currentSession.id, {
+        ...currentSession,
+        created: Date.now(),
+        title: generateSessionTitle(text),
+      });
       console.log('Created new session for message:', currentSession.id);
       streamEvents();
+    } else {
+      // Update session title if this is the first message
+      const session = allSessions.get(currentSession.id);
+      if (session && !session.title) {
+        session.title = generateSessionTitle(text);
+        allSessions.set(currentSession.id, session);
+      }
     }
 
     console.log('Using session:', currentSession.id);
@@ -127,8 +160,67 @@ app.post('/api/message', async (req: Request, res: Response) => {
   }
 });
 
+// List all sessions
+app.get('/api/sessions', async (_req: Request, res: Response) => {
+  try {
+    // Since OpenCode SDK doesn't have a list method, we'll need to track sessions manually
+    const sessions = Array.from(allSessions.values()).map(session => ({
+      id: session.id,
+      title: session.title || `Session ${session.id.slice(-6)}`,
+      created: session.created || Date.now(),
+    }));
+    res.json({ sessions });
+  } catch (error: any) {
+    console.error('Failed to list sessions:', error);
+    res.status(500).json({ error: 'Failed to list sessions' });
+  }
+});
+
+// Get session details including messages
+app.get('/api/sessions/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    // For now, return session info from our local storage
+    const session = allSessions.get(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.json({ session, messages: [] });
+  } catch (error: any) {
+    console.error('Failed to get session:', error);
+    res.status(500).json({ error: 'Failed to get session' });
+  }
+});
+
+// Switch to a different session
+app.post('/api/sessions/switch', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.body;
+    if (sessionId && allSessions.has(sessionId)) {
+      currentSession = allSessions.get(sessionId);
+    } else if (sessionId) {
+      // Try to recreate session reference
+      currentSession = { id: sessionId, created: Date.now() };
+      allSessions.set(sessionId, currentSession);
+    } else {
+      currentSession = await opencode.session.create();
+      allSessions.set(currentSession.id, currentSession);
+    }
+
+    // Start streaming events for this session
+    if (!isStreamingEvents) {
+      streamEvents();
+    }
+
+    res.json({ sessionId: currentSession.id });
+  } catch (error: any) {
+    console.error('Failed to switch session:', error);
+    res.status(500).json({ error: 'Failed to switch session' });
+  }
+});
+
 // Health check endpoint
-app.get('/health', async (req: Request, res: Response) => {
+app.get('/health', async (_req: Request, res: Response) => {
   try {
     // Test connection to OpenCode
     const testSession = await opencode.session.create();
