@@ -59,6 +59,8 @@ const App: React.FC = () => {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          flex-wrap: wrap;
+          gap: 10px;
         }
         
         .app-header h1 {
@@ -66,12 +68,34 @@ const App: React.FC = () => {
           font-size: 24px;
           color: #f0f6fc;
           font-weight: 600;
+          min-width: 0;
+          flex: 1;
         }
         
         .header-controls {
           display: flex;
           align-items: center;
           gap: 15px;
+          flex-wrap: wrap;
+        }
+        
+        @media (max-width: 768px) {
+          .app-header {
+            padding: 12px 16px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+          }
+          
+          .app-header h1 {
+            font-size: 20px;
+            text-align: center;
+          }
+          
+          .header-controls {
+            justify-content: center;
+            gap: 12px;
+          }
         }
         
         .stats {
@@ -117,6 +141,30 @@ const App: React.FC = () => {
         .debug-pane-container {
           flex: 0 0 40%;
           min-width: 300px;
+        }
+        
+        @media (max-width: 768px) {
+          .app-body {
+            flex-direction: column;
+          }
+          
+          .main-pane {
+            flex: 1;
+            min-height: 0;
+          }
+          
+          .main-pane.with-debug {
+            flex: 1;
+            max-height: 50vh;
+          }
+          
+          .debug-pane-container {
+            flex: 1;
+            min-width: auto;
+            max-height: 50vh;
+            border-left: none;
+            border-top: 1px solid #30363d;
+          }
         }
       `}</style>
     </div>

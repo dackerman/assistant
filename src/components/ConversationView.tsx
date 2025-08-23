@@ -277,6 +277,33 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           margin-right: 50px;
         }
         
+        @media (max-width: 768px) {
+          .conversation-view {
+            padding: 12px;
+            max-width: none;
+          }
+          
+          .messages {
+            margin-bottom: 16px;
+          }
+          
+          .message {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 6px;
+          }
+          
+          .message.user {
+            margin-left: 8px;
+            margin-right: 0;
+          }
+          
+          .message.assistant {
+            margin-right: 8px;
+            margin-left: 0;
+          }
+        }
+        
         .message-role {
           font-weight: 600;
           margin-bottom: 8px;
@@ -314,6 +341,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           background-color: rgba(56, 139, 253, 0.1);
           padding: 4px;
           border-radius: 4px;
+        }
+        
+        @media (max-width: 768px) {
+          .tool-call-inline {
+            margin: 6px 0 !important;
+            margin-left: 8px !important;
+            margin-right: 8px !important;
+            padding: 10px !important;
+            border-radius: 6px !important;
+          }
         }
       `}</style>
     </div>

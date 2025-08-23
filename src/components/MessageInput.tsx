@@ -22,6 +22,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <form
       onSubmit={handleSubmit}
+      className="message-input-form"
       style={{
         padding: '1rem',
         backgroundColor: '#161b22',
@@ -36,6 +37,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         onChange={e => setMessage((e.target as HTMLInputElement).value)}
         placeholder={disabled ? 'Connecting...' : 'Type your message...'}
         disabled={disabled}
+        className="message-input-field"
         style={{
           flex: 1,
           padding: '0.75rem',
@@ -51,6 +53,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       <button
         type="submit"
         disabled={disabled || !message.trim()}
+        className="message-send-button"
         style={{
           padding: '0.75rem 1.5rem',
           backgroundColor: disabled || !message.trim() ? '#484f58' : '#238636',
@@ -67,6 +70,42 @@ const MessageInput: React.FC<MessageInputProps> = ({
       >
         Send
       </button>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .message-input-form {
+            padding: 12px 16px !important;
+            gap: 12px !important;
+            flex-direction: row;
+          }
+          
+          .message-input-field {
+            padding: 12px !important;
+            font-size: 16px !important; /* Prevents zoom on iOS */
+            border-radius: 8px !important;
+          }
+          
+          .message-send-button {
+            padding: 12px 20px !important;
+            font-size: 14px !important;
+            border-radius: 8px !important;
+            min-width: 60px;
+            white-space: nowrap;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .message-input-form {
+            padding: 10px 12px !important;
+            gap: 8px !important;
+          }
+          
+          .message-send-button {
+            padding: 12px 16px !important;
+            font-size: 13px !important;
+          }
+        }
+      `}</style>
     </form>
   );
 };
