@@ -75,6 +75,43 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
+  const getToolTitle = (toolCall: ToolCall) => {
+    const { name, input } = toolCall;
+
+    switch (name) {
+      case 'bash':
+        return input?.command ? `bash: ${input.command}` : 'bash';
+      case 'read':
+        return input?.filePath
+          ? `read: ${input.filePath.split('/').pop()}`
+          : 'read';
+      case 'write':
+        return input?.filePath
+          ? `write: ${input.filePath.split('/').pop()}`
+          : 'write';
+      case 'edit':
+        return input?.filePath
+          ? `edit: ${input.filePath.split('/').pop()}`
+          : 'edit';
+      case 'glob':
+        return input?.pattern ? `glob: ${input.pattern}` : 'glob';
+      case 'grep':
+        return input?.pattern ? `grep: ${input.pattern}` : 'grep';
+      case 'list':
+        return input?.path
+          ? `list: ${input.path.split('/').pop() || '/'}`
+          : 'list';
+      case 'todowrite':
+        return 'todo: update tasks';
+      case 'todoread':
+        return 'todo: read tasks';
+      case 'webfetch':
+        return input?.url ? `web: ${new URL(input.url).hostname}` : 'webfetch';
+      default:
+        return name;
+    }
+  };
+
   const renderMessage = (message: Message) => (
     <div key={message.id} className={`message ${message.role}`}>
       <div className="message-role">
@@ -122,7 +159,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           }}
         >
           <span>{getToolStatusIcon(toolCall.status)}</span>
-          <span>🛠️ {toolCall.name}</span>
+          <span>🛠️ {getToolTitle(toolCall)}</span>
           <span style={{ fontSize: '0.8em', opacity: 0.7 }}>
             ({toolCall.status})
           </span>
