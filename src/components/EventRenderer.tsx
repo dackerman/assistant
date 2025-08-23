@@ -62,7 +62,13 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
                 >
                   <strong>Output:</strong>
                   <br />
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                  <pre
+                    style={{
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      color: '#ffffff',
+                    }}
+                  >
                     {typeof part.state.output === 'string'
                       ? part.state.output.substring(0, 500) +
                         (part.state.output.length > 500 ? '...' : '')
@@ -107,6 +113,7 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
         backgroundColor: '#2d2d30',
         borderLeft: `3px solid ${getEventColor(event.type)}`,
         borderRadius: '4px',
+        color: '#ffffff',
       }}
     >
       <div

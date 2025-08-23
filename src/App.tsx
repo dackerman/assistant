@@ -1,93 +1,117 @@
-import React, { useState, useEffect } from 'react';
-import ConversationViewer from './components/ConversationViewer';
+import React, { useState } from 'react';
+import ConversationView from './components/ConversationView';
+import DebugPane from './components/DebugPane';
 import MessageInput from './components/MessageInput';
+import { useConversation } from './hooks/useConversation';
 
 const App: React.FC = () => {
-  const [events, setEvents] = useState<any[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const { messages, toolCalls, events, sendMessage } = useConversation();
+  const [showDebug, setShowDebug] = useState(false);
 
-  useEffect(() => {
-    // Initialize session
-    fetch('/api/session', { method: 'POST' })
-      .then(res => res.json())
-      .then(data => {
-        setSessionId(data.sessionId);
-        console.log('Session created:', data.sessionId);
-      })
-      .catch(err => console.error('Failed to create session:', err));
-
-    // Setup SSE connection
-    const eventSource = new EventSource('/events');
-
-    eventSource.onopen = () => {
-      setIsConnected(true);
-      console.log('Connected to event stream');
-    };
-
-    eventSource.onmessage = event => {
-      try {
-        const data = JSON.parse(event.data);
-        setEvents(prev => [...prev, data]);
-      } catch (err) {
-        console.error('Failed to parse event:', err);
-      }
-    };
-
-    eventSource.onerror = error => {
-      console.error('EventSource failed:', error);
-      setIsConnected(false);
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, []);
-
-  const sendMessage = async (text: string) => {
-    try {
-      await fetch('/api/message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text }),
-      });
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    }
+  const handleSendMessage = async (text: string) => {
+    await sendMessage(text);
   };
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: 'monospace',
-        backgroundColor: '#1e1e1e',
-        color: '#ffffff',
-      }}
-    >
-      <header
-        style={{
-          padding: '1rem',
-          backgroundColor: '#2d2d30',
-          borderBottom: '1px solid #3e3e42',
-        }}
-      >
-        <h1>Conversation Stream Viewer</h1>
-        <div>
-          Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'} | Session:{' '}
-          {sessionId ? sessionId.slice(-8) : 'None'} | Events: {events.length}
+    <div className="app">
+      <header className="app-header">
+        <h1>Claude Conversation</h1>
+        <div className="header-controls">
+          <div className="stats">
+            Messages: {messages.length} | Events: {events.length}
+          </div>
+          <button 
+            className="debug-toggle"
+            onClick={() => setShowDebug(!showDebug)}
+          >
+            {showDebug ? 'Hide Debug' : 'Show Debug'}
+          </button>
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex' }}>
-        <ConversationViewer events={events} />
+      <div className="app-body">
+        <div className={`main-pane ${showDebug ? 'with-debug' : ''}`}>
+          <ConversationView messages={messages} toolCalls={toolCalls} />
+        </div>
+        {showDebug && (
+          <div className="debug-pane-container">
+            <DebugPane events={events} />
+          </div>
+        )}
       </div>
 
-      <MessageInput onSendMessage={sendMessage} disabled={!sessionId} />
+      <MessageInput onSendMessage={handleSendMessage} disabled={false} />
+
+      <style>{`
+        .app {
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+          background: #ffffff;
+          color: #333;
+        }
+        
+        .app-header {
+          padding: 15px 20px;
+          background: #f8f9fa;
+          border-bottom: 1px solid #dee2e6;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .app-header h1 {
+          margin: 0;
+          font-size: 24px;
+          color: #212529;
+        }
+        
+        .header-controls {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        }
+        
+        .stats {
+          font-size: 14px;
+          color: #6c757d;
+        }
+        
+        .debug-toggle {
+          padding: 6px 12px;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        
+        .debug-toggle:hover {
+          background: #0056b3;
+        }
+        
+        .app-body {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+        }
+        
+        .main-pane {
+          flex: 1;
+          transition: all 0.3s ease;
+        }
+        
+        .main-pane.with-debug {
+          flex: 0 0 60%;
+        }
+        
+        .debug-pane-container {
+          flex: 0 0 40%;
+          min-width: 300px;
+        }
+      `}</style>
     </div>
   );
 };
