@@ -260,6 +260,47 @@ export const useConversation = () => {
       setIsSessionReady(true);
 
       console.log('Switched to session:', data.sessionId);
+
+      // Load previous messages if switching to an existing session
+      if (sessionId && sessionId !== null) {
+        try {
+          const historyResponse = await fetch(
+            `/api/sessions/${data.sessionId}`
+          );
+          if (historyResponse.ok) {
+            const historyData = await historyResponse.json();
+            if (historyData.messages && historyData.messages.length > 0) {
+              // Convert OpenCode message format to frontend format
+              const loadedMessages: Message[] = historyData.messages.map(
+                (msg: any, index: number) => {
+                  // Extract text content from parts
+                  const textParts =
+                    msg.parts?.filter((part: any) => part.type === 'text') ||
+                    [];
+                  const content = textParts
+                    .map((part: any) => part.text)
+                    .join('');
+
+                  return {
+                    id: msg.info?.id || `loaded-${index}`,
+                    role: msg.info?.role || 'user',
+                    content: content,
+                    timestamp: msg.info?.time?.created || Date.now(),
+                    sequence: index,
+                    isStreaming: false,
+                  };
+                }
+              );
+
+              setMessages(loadedMessages);
+              sequenceCounter.current = loadedMessages.length;
+              console.log('Loaded', loadedMessages.length, 'previous messages');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load session history:', error);
+        }
+      }
     } catch (error) {
       console.error('Failed to switch session:', error);
     }

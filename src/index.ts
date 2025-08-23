@@ -163,11 +163,12 @@ app.post('/api/message', async (req: Request, res: Response) => {
 // List all sessions
 app.get('/api/sessions', async (_req: Request, res: Response) => {
   try {
-    // Since OpenCode SDK doesn't have a list method, we'll need to track sessions manually
-    const sessions = Array.from(allSessions.values()).map(session => ({
+    // Use OpenCode SDK to list sessions
+    const sessionList = await opencode.session.list();
+    const sessions = sessionList.map(session => ({
       id: session.id,
       title: session.title || `Session ${session.id.slice(-6)}`,
-      created: session.created || Date.now(),
+      created: (session as any).created || Date.now(),
     }));
     res.json({ sessions });
   } catch (error: any) {
@@ -180,12 +181,19 @@ app.get('/api/sessions', async (_req: Request, res: Response) => {
 app.get('/api/sessions/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
-    // For now, return session info from our local storage
-    const session = allSessions.get(sessionId);
+
+    // Get session info and messages using OpenCode SDK
+    const sessionList = await opencode.session.list();
+    const session = sessionList.find(s => s.id === sessionId);
+
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
-    res.json({ session, messages: [] });
+
+    // Get messages for this session
+    const messages = await opencode.session.messages(sessionId);
+
+    res.json({ session, messages });
   } catch (error: any) {
     console.error('Failed to get session:', error);
     res.status(500).json({ error: 'Failed to get session' });
