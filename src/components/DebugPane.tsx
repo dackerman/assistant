@@ -64,6 +64,30 @@ const DebugPane: React.FC<DebugPaneProps> = ({ events }) => {
           padding: 10px;
           background: #0d1117;
         }
+        
+        @media (max-width: 768px) {
+          .debug-pane {
+            border-left: none;
+            border-top: 1px solid #30363d;
+          }
+          
+          .debug-header {
+            padding: 12px 16px;
+          }
+          
+          .debug-header h2 {
+            font-size: 16px;
+          }
+          
+          .event-count {
+            font-size: 11px;
+            padding: 3px 6px;
+          }
+          
+          .debug-content {
+            padding: 8px;
+          }
+        }
       `}</style>
     </div>
   );
