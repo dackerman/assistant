@@ -13,21 +13,8 @@ const opencode = new Opencode({
   baseURL: 'http://127.0.0.1:4096',
 });
 
-let currentSession: any = null;
+let currentSessionId: string | null = null;
 let clients: Response[] = [];
-let allSessions: Map<string, any> = new Map();
-
-// Helper function to generate session title from first message
-function generateSessionTitle(text: string): string {
-  // Take first 50 characters and clean up
-  const title = text.trim().substring(0, 50);
-  // Remove newlines and extra spaces
-  const cleanTitle = title.replace(/\s+/g, ' ').trim();
-  // Add ellipsis if truncated
-  return cleanTitle.length < text.trim().length
-    ? `${cleanTitle}...`
-    : cleanTitle;
-}
 
 // SSE endpoint for streaming events
 app.get('/events', async (req: Request, res: Response) => {
@@ -42,14 +29,11 @@ app.get('/events', async (req: Request, res: Response) => {
   console.log('Client connected to events, total clients:', clients.length);
 
   // Auto-create session if not exists and start streaming
-  if (!currentSession && !isStreamingEvents) {
+  if (!currentSessionId && !isStreamingEvents) {
     try {
-      currentSession = await opencode.session.create();
-      allSessions.set(currentSession.id, {
-        ...currentSession,
-        created: Date.now(),
-      });
-      console.log('Auto-created session for events:', currentSession.id);
+      const newSession = await opencode.session.create();
+      currentSessionId = newSession.id;
+      console.log('Auto-created session for events:', currentSessionId);
       streamEvents();
     } catch (error: any) {
       console.error('Failed to auto-create session:', error);
@@ -94,17 +78,14 @@ async function streamEvents() {
 // Start a new session
 app.post('/api/session', async (_req: Request, res: Response) => {
   try {
-    if (!currentSession) {
-      currentSession = await opencode.session.create();
-      allSessions.set(currentSession.id, {
-        ...currentSession,
-        created: Date.now(),
-      });
-      console.log('Created session:', currentSession.id);
+    if (!currentSessionId) {
+      const newSession = await opencode.session.create();
+      currentSessionId = newSession.id;
+      console.log('Created session:', currentSessionId);
       // Start streaming events (don't await)
       streamEvents();
     }
-    res.json({ sessionId: currentSession.id });
+    res.json({ sessionId: currentSessionId });
   } catch (error: any) {
     console.error('Failed to create session:', error);
     res.status(500).json({ error: 'Failed to create session' });
@@ -117,28 +98,17 @@ app.post('/api/message', async (req: Request, res: Response) => {
     const { text } = req.body;
     console.log('Sending message:', text);
 
-    if (!currentSession) {
+    if (!currentSessionId) {
       console.log('No session, creating one...');
-      currentSession = await opencode.session.create();
-      allSessions.set(currentSession.id, {
-        ...currentSession,
-        created: Date.now(),
-        title: generateSessionTitle(text),
-      });
-      console.log('Created new session for message:', currentSession.id);
+      const newSession = await opencode.session.create();
+      currentSessionId = newSession.id;
+      console.log('Created new session for message:', currentSessionId);
       streamEvents();
-    } else {
-      // Update session title if this is the first message
-      const session = allSessions.get(currentSession.id);
-      if (session && !session.title) {
-        session.title = generateSessionTitle(text);
-        allSessions.set(currentSession.id, session);
-      }
     }
 
-    console.log('Using session:', currentSession.id);
+    console.log('Using session:', currentSessionId);
 
-    const result = await opencode.session.chat(currentSession.id, {
+    const result = await opencode.session.chat(currentSessionId, {
       providerID: 'anthropic',
       modelID: 'claude-sonnet-4-20250514',
       parts: [{ type: 'text', text }],
@@ -204,15 +174,21 @@ app.get('/api/sessions/:sessionId', async (req: Request, res: Response) => {
 app.post('/api/sessions/switch', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.body;
-    if (sessionId && allSessions.has(sessionId)) {
-      currentSession = allSessions.get(sessionId);
-    } else if (sessionId) {
-      // Try to recreate session reference
-      currentSession = { id: sessionId, created: Date.now() };
-      allSessions.set(sessionId, currentSession);
+
+    if (sessionId) {
+      // Verify session exists by checking SDK
+      const sessionList = await opencode.session.list();
+      const sessionExists = sessionList.some(s => s.id === sessionId);
+
+      if (sessionExists) {
+        currentSessionId = sessionId;
+      } else {
+        return res.status(404).json({ error: 'Session not found' });
+      }
     } else {
-      currentSession = await opencode.session.create();
-      allSessions.set(currentSession.id, currentSession);
+      // Create new session
+      const newSession = await opencode.session.create();
+      currentSessionId = newSession.id;
     }
 
     // Start streaming events for this session
@@ -220,7 +196,7 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
       streamEvents();
     }
 
-    res.json({ sessionId: currentSession.id });
+    res.json({ sessionId: currentSessionId });
   } catch (error: any) {
     console.error('Failed to switch session:', error);
     res.status(500).json({ error: 'Failed to switch session' });
@@ -230,12 +206,12 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
 // Health check endpoint
 app.get('/health', async (_req: Request, res: Response) => {
   try {
-    // Test connection to OpenCode
-    const testSession = await opencode.session.create();
+    // Test connection to OpenCode without creating a session
+    await opencode.session.list();
     res.json({
       status: 'ok',
       opencode: 'connected',
-      testSessionId: testSession.id,
+      currentSessionId,
     });
   } catch (error: any) {
     res.status(500).json({
