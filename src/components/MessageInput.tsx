@@ -24,8 +24,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
       onSubmit={handleSubmit}
       style={{
         padding: '1rem',
-        backgroundColor: '#2d2d30',
-        borderTop: '1px solid #3e3e42',
+        backgroundColor: '#161b22',
+        borderTop: '1px solid #30363d',
         display: 'flex',
         gap: '1rem',
       }}
@@ -39,11 +39,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
         style={{
           flex: 1,
           padding: '0.75rem',
-          backgroundColor: '#1e1e1e',
-          color: '#ffffff',
-          border: '1px solid #3e3e42',
-          borderRadius: '4px',
-          fontSize: '1rem',
+          backgroundColor: '#0d1117',
+          color: '#e6edf3',
+          border: '1px solid #30363d',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontFamily:
+            'SF Mono, Monaco, Cascadia Code, Roboto Mono, Consolas, Courier New, monospace',
         }}
       />
       <button
@@ -51,12 +53,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
         disabled={disabled || !message.trim()}
         style={{
           padding: '0.75rem 1.5rem',
-          backgroundColor: disabled || !message.trim() ? '#555' : '#007acc',
+          backgroundColor: disabled || !message.trim() ? '#484f58' : '#238636',
           color: '#ffffff',
           border: 'none',
-          borderRadius: '4px',
+          borderRadius: '6px',
           cursor: disabled || !message.trim() ? 'not-allowed' : 'pointer',
-          fontSize: '1rem',
+          fontSize: '14px',
+          fontWeight: '500',
+          fontFamily:
+            'SF Mono, Monaco, Cascadia Code, Roboto Mono, Consolas, Courier New, monospace',
+          transition: 'background-color 0.2s',
         }}
       >
         Send

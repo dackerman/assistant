@@ -26,14 +26,14 @@ const DebugPane: React.FC<DebugPaneProps> = ({ events }) => {
           height: 100%;
           display: flex;
           flex-direction: column;
-          background: #f8f9fa;
-          border-left: 1px solid #dee2e6;
+          background: #0d1117;
+          border-left: 1px solid #30363d;
         }
         
         .debug-header {
           padding: 15px 20px;
-          background: #e9ecef;
-          border-bottom: 1px solid #dee2e6;
+          background: #161b22;
+          border-bottom: 1px solid #30363d;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -42,21 +42,27 @@ const DebugPane: React.FC<DebugPaneProps> = ({ events }) => {
         .debug-header h2 {
           margin: 0;
           font-size: 18px;
-          color: #495057;
+          color: #f0f6fc;
+          font-weight: 600;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
         
         .event-count {
           font-size: 12px;
-          color: #6c757d;
-          background: #fff;
+          color: #e6edf3;
+          background: #21262d;
+          border: 1px solid #30363d;
           padding: 4px 8px;
-          border-radius: 12px;
+          border-radius: 6px;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          font-weight: 500;
         }
         
         .debug-content {
           flex: 1;
           overflow-y: auto;
           padding: 10px;
+          background: #0d1117;
         }
       `}</style>
     </div>

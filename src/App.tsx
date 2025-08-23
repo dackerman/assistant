@@ -47,15 +47,15 @@ const App: React.FC = () => {
           height: 100vh;
           display: flex;
           flex-direction: column;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-          background: #ffffff;
-          color: #333;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          background: #0d1117;
+          color: #e6edf3;
         }
         
         .app-header {
           padding: 15px 20px;
-          background: #f8f9fa;
-          border-bottom: 1px solid #dee2e6;
+          background: #161b22;
+          border-bottom: 1px solid #30363d;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -64,7 +64,8 @@ const App: React.FC = () => {
         .app-header h1 {
           margin: 0;
           font-size: 24px;
-          color: #212529;
+          color: #f0f6fc;
+          font-weight: 600;
         }
         
         .header-controls {
@@ -75,21 +76,27 @@ const App: React.FC = () => {
         
         .stats {
           font-size: 14px;
-          color: #6c757d;
+          color: #8b949e;
+          background: #21262d;
+          padding: 4px 8px;
+          border-radius: 6px;
+          border: 1px solid #30363d;
         }
         
         .debug-toggle {
           padding: 6px 12px;
-          background: #007bff;
-          color: white;
+          background: #238636;
+          color: #ffffff;
           border: none;
-          border-radius: 4px;
+          border-radius: 6px;
           cursor: pointer;
           font-size: 12px;
+          font-weight: 500;
+          transition: background-color 0.2s;
         }
         
         .debug-toggle:hover {
-          background: #0056b3;
+          background: #2ea043;
         }
         
         .app-body {

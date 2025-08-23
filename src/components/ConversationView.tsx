@@ -141,7 +141,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         marginLeft: '15px',
         marginRight: '65px',
         padding: '12px',
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#21262d',
         border: `1px solid ${getToolStatusColor(toolCall.status)}`,
         borderRadius: '8px',
         borderLeft: `4px solid ${getToolStatusColor(toolCall.status)}`,
@@ -177,12 +177,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({
               <strong>Input:</strong>
               <pre
                 style={{
-                  backgroundColor: '#e9ecef',
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  color: '#e6edf3',
                   padding: '8px',
                   borderRadius: '4px',
                   fontSize: '0.8em',
                   overflow: 'auto',
                   margin: '4px 0',
+                  fontFamily:
+                    'SF Mono, Monaco, Cascadia Code, Roboto Mono, Consolas, Courier New, monospace',
                 }}
               >
                 {JSON.stringify(toolCall.input, null, 2)}
@@ -194,7 +198,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({
               <strong>Output:</strong>
               <pre
                 style={{
-                  backgroundColor: '#e9ecef',
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  color: '#e6edf3',
                   padding: '8px',
                   borderRadius: '4px',
                   fontSize: '0.8em',
@@ -202,6 +208,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   margin: '4px 0',
                   maxHeight: '200px',
                   whiteSpace: 'pre-wrap',
+                  fontFamily:
+                    'SF Mono, Monaco, Cascadia Code, Roboto Mono, Consolas, Courier New, monospace',
                 }}
               >
                 {typeof toolCall.output === 'string'
@@ -212,7 +220,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           )}
           {toolCall.callId && (
             <div
-              style={{ fontSize: '0.7em', color: '#6c757d', marginTop: '8px' }}
+              style={{ fontSize: '0.7em', color: '#8b949e', marginTop: '8px' }}
             >
               Call ID: {toolCall.callId}
             </div>
@@ -240,6 +248,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           padding: 20px;
           max-width: 800px;
           margin: 0 auto;
+          background: #0d1117;
         }
         
         .messages {
@@ -252,34 +261,42 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           margin-bottom: 20px;
           padding: 15px;
           border-radius: 8px;
-          background: #f8f9fa;
+          background: #161b22;
+          border: 1px solid #30363d;
         }
         
         .message.user {
-          background: #e3f2fd;
+          background: #0f2027;
+          border: 1px solid #1f6feb;
           margin-left: 50px;
         }
         
         .message.assistant {
-          background: #f1f8e9;
+          background: #0a2818;
+          border: 1px solid #238636;
           margin-right: 50px;
         }
         
         .message-role {
-          font-weight: bold;
+          font-weight: 600;
           margin-bottom: 8px;
-          color: #666;
+          color: #f0f6fc;
+          font-size: 14px;
         }
         
         .message-content {
           white-space: pre-wrap;
-          line-height: 1.5;
+          line-height: 1.6;
           margin-bottom: 8px;
+          color: #e6edf3;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          font-size: 14px;
         }
         
         .streaming-cursor {
           animation: blink 1s infinite;
-          color: #007bff;
+          color: #58a6ff;
+          font-weight: bold;
         }
         
         @keyframes blink {
@@ -288,12 +305,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         }
         
         .message-timestamp {
-          font-size: 12px;
-          color: #999;
+          font-size: 11px;
+          color: #8b949e;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
         
         .tool-call-inline summary:hover {
-          background-color: rgba(0, 0, 0, 0.05);
+          background-color: rgba(56, 139, 253, 0.1);
           padding: 4px;
           border-radius: 4px;
         }
