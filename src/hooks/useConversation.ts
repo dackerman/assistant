@@ -10,9 +10,12 @@ interface Message {
 
 interface ToolCall {
   id: string;
+  messageId: string;
   name: string;
-  description?: string;
-  status: 'running' | 'completed' | 'error';
+  callId?: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  input?: any;
+  output?: any;
   timestamp: number;
 }
 
@@ -33,107 +36,106 @@ export const useConversation = () => {
         const messageInfo = event.properties?.info;
         if (messageInfo?.id && messageInfo?.role) {
           messageRolesRef.current.set(messageInfo.id, messageInfo.role);
+          console.log('Stored message role:', messageInfo.id, messageInfo.role);
         }
         break;
 
       case 'message.part.updated':
         const part = event.properties?.part;
-        if (part && part.type === 'text' && part.text && part.messageID) {
-          const messageId = part.messageID;
-          const role = messageRolesRef.current.get(messageId);
-          console.log('Processing message part:', messageId, role, part.text.substring(0, 50));
+        if (part && part.messageID) {
+          // Handle tool calls
+          if (part.type === 'tool') {
+            const toolCall: ToolCall = {
+              id: part.id,
+              messageId: part.messageID,
+              name: part.tool || 'Unknown Tool',
+              callId: part.callID,
+              status: part.state?.status || 'pending',
+              input: part.state?.input,
+              output: part.state?.output,
+              timestamp: Date.now(),
+            };
 
-          if (role === 'assistant') {
-            if (currentMessageId.current !== messageId) {
-              // Finish previous message
-              if (currentMessageId.current) {
-                setMessages(prev =>
-                  prev.map(msg =>
-                    msg.id === currentMessageId.current
-                      ? { ...msg, isStreaming: false }
-                      : msg
-                  )
+            setToolCalls(prev => {
+              const existing = prev.find(tool => tool.id === part.id);
+              if (existing) {
+                return prev.map(tool =>
+                  tool.id === part.id ? { ...tool, ...toolCall } : tool
                 );
               }
-
-              // Start new assistant message
-              currentMessageId.current = messageId;
-              currentAssistantMessage.current = '';
-
-              setMessages(prev => [
-                ...prev,
-                {
-                  id: messageId,
-                  role: 'assistant',
-                  content: '',
-                  timestamp: Date.now(),
-                  isStreaming: true,
-                },
-              ]);
-            }
-
-            // Update content (OpenCode sends full text, not deltas)
-            currentAssistantMessage.current = part.text;
-
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === messageId
-                  ? { ...msg, content: currentAssistantMessage.current }
-                  : msg
-              )
+              return [...prev, toolCall];
+            });
+          }
+          // Handle text messages
+          else if (part.type === 'text' && part.text) {
+            const messageId = part.messageID;
+            const role = messageRolesRef.current.get(messageId);
+            console.log(
+              'Processing message part:',
+              messageId,
+              role,
+              part.text.substring(0, 50)
             );
-          } else if (role === 'user') {
-            // Handle user messages - check if message already exists
-            setMessages(prev => {
-              const existingMessage = prev.find(msg => msg.id === messageId);
-              if (!existingMessage) {
-                return [
+
+            if (role === 'assistant') {
+              if (currentMessageId.current !== messageId) {
+                // Finish previous message
+                if (currentMessageId.current) {
+                  setMessages(prev =>
+                    prev.map(msg =>
+                      msg.id === currentMessageId.current
+                        ? { ...msg, isStreaming: false }
+                        : msg
+                    )
+                  );
+                }
+
+                // Start new assistant message
+                currentMessageId.current = messageId;
+                currentAssistantMessage.current = '';
+
+                setMessages(prev => [
                   ...prev,
                   {
                     id: messageId,
-                    role: 'user',
-                    content: part.text,
+                    role: 'assistant',
+                    content: '',
                     timestamp: Date.now(),
+                    isStreaming: true,
                   },
-                ];
+                ]);
               }
-              return prev;
-            });
+
+              // Update content (OpenCode sends full text, not deltas)
+              currentAssistantMessage.current = part.text;
+
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === messageId
+                    ? { ...msg, content: currentAssistantMessage.current }
+                    : msg
+                )
+              );
+            } else if (role === 'user') {
+              // Handle user messages - check if message already exists
+              setMessages(prev => {
+                const existingMessage = prev.find(msg => msg.id === messageId);
+                if (!existingMessage) {
+                  return [
+                    ...prev,
+                    {
+                      id: messageId,
+                      role: 'user',
+                      content: part.text,
+                      timestamp: Date.now(),
+                    },
+                  ];
+                }
+                return prev;
+              });
+            }
           }
         }
-        break;
-
-      case 'step.started':
-        if (event.properties?.step?.type === 'tool_use') {
-          const toolCall: ToolCall = {
-            id: event.properties.step.id || `tool-${Date.now()}`,
-            name: event.properties.step.tool || 'Unknown Tool',
-            description: event.properties.step.description,
-            status: 'running',
-            timestamp: Date.now(),
-          };
-          setToolCalls(prev => [...prev, toolCall]);
-        }
-        break;
-
-      case 'step.completed':
-        setToolCalls(prev =>
-          prev.map(tool =>
-            tool.id === event.properties?.step?.id
-              ? { ...tool, status: 'completed' }
-              : tool
-          )
-        );
-        break;
-
-      case 'step.error':
-        setToolCalls(prev =>
-          prev.map(tool =>
-            tool.id === event.properties?.step?.id
-              ? { ...tool, status: 'error' }
-              : tool
-          )
-        );
         break;
 
       case 'message.completed':

@@ -10,9 +10,12 @@ interface Message {
 
 interface ToolCall {
   id: string;
+  messageId: string;
   name: string;
-  description?: string;
-  status: 'running' | 'completed' | 'error';
+  callId?: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  input?: any;
+  output?: any;
   timestamp: number;
 }
 
@@ -21,48 +24,163 @@ interface ConversationViewProps {
   toolCalls: ToolCall[];
 }
 
-const ConversationView: React.FC<ConversationViewProps> = ({ messages, toolCalls }) => {
+const ConversationView: React.FC<ConversationViewProps> = ({
+  messages,
+  toolCalls,
+}) => {
+  // Group tool calls by message ID
+  const toolCallsByMessage = toolCalls.reduce(
+    (acc, toolCall) => {
+      if (!acc[toolCall.messageId]) {
+        acc[toolCall.messageId] = [];
+      }
+      acc[toolCall.messageId].push(toolCall);
+      return acc;
+    },
+    {} as Record<string, ToolCall[]>
+  );
+
+  const getToolStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '⏳';
+      case 'running':
+        return '🔄';
+      case 'completed':
+        return '✅';
+      case 'error':
+        return '❌';
+      default:
+        return '❓';
+    }
+  };
+
+  const getToolStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#ffa500';
+      case 'running':
+        return '#007bff';
+      case 'completed':
+        return '#28a745';
+      case 'error':
+        return '#dc3545';
+      default:
+        return '#6c757d';
+    }
+  };
+
+  const renderToolCall = (toolCall: ToolCall) => (
+    <div
+      key={toolCall.id}
+      className="tool-call-inline"
+      style={{
+        margin: '8px 0',
+        padding: '12px',
+        backgroundColor: '#f8f9fa',
+        border: `1px solid ${getToolStatusColor(toolCall.status)}`,
+        borderRadius: '8px',
+        borderLeft: `4px solid ${getToolStatusColor(toolCall.status)}`,
+      }}
+    >
+      <details>
+        <summary
+          style={{
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: getToolStatusColor(toolCall.status),
+          }}
+        >
+          <span>{getToolStatusIcon(toolCall.status)}</span>
+          <span>🛠️ {toolCall.name}</span>
+          <span style={{ fontSize: '0.8em', opacity: 0.7 }}>
+            ({toolCall.status})
+          </span>
+        </summary>
+        <div style={{ marginTop: '12px', fontSize: '0.9em' }}>
+          {toolCall.input && (
+            <div style={{ marginBottom: '8px' }}>
+              <strong>Input:</strong>
+              <pre
+                style={{
+                  backgroundColor: '#e9ecef',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  fontSize: '0.8em',
+                  overflow: 'auto',
+                  margin: '4px 0',
+                }}
+              >
+                {JSON.stringify(toolCall.input, null, 2)}
+              </pre>
+            </div>
+          )}
+          {toolCall.output && (
+            <div>
+              <strong>Output:</strong>
+              <pre
+                style={{
+                  backgroundColor: '#e9ecef',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  fontSize: '0.8em',
+                  overflow: 'auto',
+                  margin: '4px 0',
+                  maxHeight: '200px',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {typeof toolCall.output === 'string'
+                  ? toolCall.output
+                  : JSON.stringify(toolCall.output, null, 2)}
+              </pre>
+            </div>
+          )}
+          {toolCall.callId && (
+            <div
+              style={{ fontSize: '0.7em', color: '#6c757d', marginTop: '8px' }}
+            >
+              Call ID: {toolCall.callId}
+            </div>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+
   return (
     <div className="conversation-view">
       <div className="messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`message ${message.role}`}>
-            <div className="message-role">
-              {message.role === 'user' ? '👤 You' : '🤖 Claude'}
+        {messages.map(message => (
+          <div key={message.id}>
+            <div className={`message ${message.role}`}>
+              <div className="message-role">
+                {message.role === 'user' ? '👤 You' : '🤖 Claude'}
+              </div>
+              <div className="message-content">
+                {message.content}
+                {message.isStreaming && (
+                  <span className="streaming-cursor">▎</span>
+                )}
+              </div>
+              <div className="message-timestamp">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </div>
             </div>
-            <div className="message-content">
-              {message.content}
-              {message.isStreaming && <span className="streaming-cursor">▎</span>}
-            </div>
-            <div className="message-timestamp">
-              {new Date(message.timestamp).toLocaleTimeString()}
-            </div>
+
+            {/* Show tool calls for this message */}
+            {toolCallsByMessage[message.id] && (
+              <div className="message-tools">
+                {toolCallsByMessage[message.id].map(renderToolCall)}
+              </div>
+            )}
           </div>
         ))}
       </div>
-      
-      {toolCalls.length > 0 && (
-        <div className="tool-calls">
-          <h3>Tool Activity</h3>
-          {toolCalls.map((toolCall) => (
-            <div key={toolCall.id} className={`tool-call ${toolCall.status}`}>
-              <div className="tool-call-header">
-                <span className="tool-name">{toolCall.name}</span>
-                <span className={`tool-status ${toolCall.status}`}>
-                  {toolCall.status === 'running' && '⏳'}
-                  {toolCall.status === 'completed' && '✅'}
-                  {toolCall.status === 'error' && '❌'}
-                  {toolCall.status}
-                </span>
-              </div>
-              {toolCall.description && (
-                <div className="tool-description">{toolCall.description}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      
+
       <style>{`
         .conversation-view {
           height: 100%;
@@ -123,67 +241,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({ messages, toolCalls
           color: #999;
         }
         
-        .tool-calls {
-          border-top: 1px solid #ddd;
-          padding-top: 15px;
+        .message-tools {
+          margin-left: 15px;
+          margin-right: 65px;
         }
         
-        .tool-calls h3 {
-          margin: 0 0 10px 0;
-          color: #666;
-          font-size: 16px;
+        .message.user + .message-tools {
+          margin-left: 65px;
+          margin-right: 15px;
         }
         
-        .tool-call {
-          margin-bottom: 10px;
-          padding: 10px;
+        .tool-call-inline summary:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+          padding: 4px;
           border-radius: 4px;
-          background: #fff3cd;
-        }
-        
-        .tool-call.completed {
-          background: #d4edda;
-        }
-        
-        .tool-call.error {
-          background: #f8d7da;
-        }
-        
-        .tool-call-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
-        .tool-name {
-          font-weight: bold;
-        }
-        
-        .tool-status {
-          font-size: 12px;
-          padding: 2px 8px;
-          border-radius: 12px;
-        }
-        
-        .tool-status.running {
-          background: #fff3cd;
-          color: #856404;
-        }
-        
-        .tool-status.completed {
-          background: #d4edda;
-          color: #155724;
-        }
-        
-        .tool-status.error {
-          background: #f8d7da;
-          color: #721c24;
-        }
-        
-        .tool-description {
-          margin-top: 5px;
-          font-size: 12px;
-          color: #666;
         }
       `}</style>
     </div>
