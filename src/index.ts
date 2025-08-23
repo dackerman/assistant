@@ -1,89 +1,87 @@
-#!/usr/bin/env node
-
-import * as readline from "readline";
+import express, { Request, Response } from 'express';
+import cors from 'cors';
 import Opencode from "@opencode-ai/sdk";
-import { OpencodeError } from "@opencode-ai/sdk/index.js";
-import fs from "fs";
 
-async function listenForMessages(sessionId: string, opencode: Opencode) {
-  const events = await opencode.event.list();
+const app = express();
+const port = 3001;
 
-  // create a file called convo
-  const convoStream = fs.createWriteStream("convo2.json", "utf8");
+app.use(cors());
+app.use(express.json());
+app.use(express.static('dist/public'));
 
-  for await (const event of events) {
-    console.log(event.type);
-    convoStream.write(JSON.stringify(event, null, 2));
-    convoStream.write("\n");
-    // if (event.type === "session.idle") {
-    //   const messages = await opencode.session.messages(sessionId);
+const opencode = new Opencode({
+  baseURL: "http://localhost:4096",
+});
 
-    //   for (const message of messages) {
-    //     for (const part of message.parts) {
-    //       if (part.type === "text") {
-    //         console.log(part.text);
-    //       }
-    //     }
-    //   }
-    // }
+let currentSession: any = null;
+let clients: Response[] = [];
+
+// SSE endpoint for streaming events
+app.get('/events', (req: Request, res: Response) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  clients.push(res);
+
+  req.on('close', () => {
+    clients = clients.filter(client => client !== res);
+  });
+});
+
+async function streamEvents(sessionId: string) {
+  try {
+    const events = await opencode.event.list();
+
+    for await (const event of events) {
+      // Broadcast to all connected clients
+      clients.forEach(client => {
+        client.write(`data: ${JSON.stringify(event)}\n\n`);
+      });
+    }
+  } catch (error) {
+    console.error('Error streaming events:', error);
   }
 }
 
-async function main() {
-  const opencode = new Opencode({
-    baseURL: "http://localhost:4096",
-  });
+// Start a new session
+app.post('/api/session', async (req: Request, res: Response) => {
+  try {
+    if (!currentSession) {
+      currentSession = await opencode.session.create();
+      // Start streaming events (don't await)
+      streamEvents(currentSession.id);
+    }
+    res.json({ sessionId: currentSession.id });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create session' });
+  }
+});
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: "> ",
-  });
-
-  console.log(
-    "Echo REPL - Type your message and I'll echo it back with excitement!"
-  );
-  console.log('Type "exit" or press Ctrl+C to quit\n');
-
-  const sessions = await opencode.session.list();
-  console.log(sessions);
-
-  const session = await opencode.session.create();
-
-  // deliberately not awaiting
-  listenForMessages(session.id, opencode);
-
-  rl.prompt();
-
-  rl.on("line", async (input: string) => {
-    const trimmedInput = input.trim();
-
-    if (trimmedInput.toLowerCase() === "exit") {
-      console.log("Goodbye!");
-      rl.close();
-      process.exit(0);
+// Send a message
+app.post('/api/message', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+    
+    if (!currentSession) {
+      return res.status(400).json({ error: 'No active session' });
     }
 
-    if (trimmedInput) {
-      const response = await opencode.session.chat(session.id, {
-        providerID: "anthropic",
-        modelID: "claude-sonnet-4-20250514",
-        parts: [
-          {
-            type: "text",
-            text: trimmedInput,
-          },
-        ],
-      });
-    }
+    await opencode.session.chat(currentSession.id, {
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-20250514",
+      parts: [{ type: "text", text }],
+    });
 
-    rl.prompt();
-  });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
 
-  rl.on("close", () => {
-    console.log("\nGoodbye!");
-    process.exit(0);
-  });
-}
-
-main();
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
