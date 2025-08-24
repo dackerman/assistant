@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
-# Simple script to run Playwright tests in Docker
-# Assumes OpenCode is already running on port 4096
+# Unified script to run Playwright tests in Docker
+# - Automatically starts OpenCode test server if not running
+# - Supports video recording via RECORD_VIDEO env var
+# - Passes through all Playwright CLI arguments
+#
 # Usage: ./test-docker.sh [playwright args]
 # Examples:
-#   ./test-docker.sh                          # Run all tests
-#   ./test-docker.sh tests/e2e/session.spec.ts  # Run specific test file
-#   ./test-docker.sh -g "should create session"  # Run tests matching pattern
+#   ./test-docker.sh                              # Run all tests
+#   ./test-docker.sh tests/e2e/session.spec.ts    # Run specific test file
+#   ./test-docker.sh -g "should send"             # Run tests matching pattern
+#   RECORD_VIDEO=true ./test-docker.sh            # Run with video recording
 
 echo "🎭 Running Playwright tests in Docker..."
 
@@ -16,11 +20,54 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
+# Check if OpenCode is running on port 4096
+OPENCODE_PID=""
+if ! curl -s http://127.0.0.1:4096/health > /dev/null 2>&1; then
+    echo "📦 Starting OpenCode test server on port 4096..."
+    
+    # Start OpenCode in background
+    (cd "$(dirname "$0")" && pnpm run test:opencode > /dev/null 2>&1) &
+    OPENCODE_PID=$!
+    
+    # Wait for OpenCode to be ready (max 30 seconds)
+    COUNTER=0
+    while ! curl -s http://127.0.0.1:4096/health > /dev/null 2>&1; do
+        sleep 1
+        COUNTER=$((COUNTER + 1))
+        if [ $COUNTER -gt 30 ]; then
+            echo "❌ OpenCode failed to start within 30 seconds"
+            [ ! -z "$OPENCODE_PID" ] && kill $OPENCODE_PID 2>/dev/null
+            exit 1
+        fi
+        echo -n "."
+    done
+    echo " ✅ OpenCode ready!"
+else
+    echo "✅ Using existing OpenCode server on port 4096"
+fi
+
+# Function to cleanup on exit
+cleanup() {
+    if [ ! -z "$OPENCODE_PID" ]; then
+        echo "🛑 Stopping OpenCode test server..."
+        kill $OPENCODE_PID 2>/dev/null
+        wait $OPENCODE_PID 2>/dev/null
+    fi
+}
+
+# Set up cleanup trap
+trap cleanup EXIT INT TERM
+
 # Pass all arguments to the playwright test command
-# If no arguments provided, default will run all tests
 PLAYWRIGHT_ARGS="$@"
 
+# Show video recording status
+if [ "$RECORD_VIDEO" = "true" ]; then
+    echo "📹 Video recording enabled"
+fi
+
 # Run tests with Docker
+echo "🚀 Starting tests..."
 docker run --rm \
     --network host \
     -v "$(pwd)":/app \

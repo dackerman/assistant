@@ -22,18 +22,29 @@ export default defineConfig({
     },
   ],
 
-  webServer: [
-    {
-      command: 'pnpm run test:opencode',
-      port: 4096,
-      timeout: 30 * 1000,
-      reuseExistingServer: true, // Use existing OpenCode if running
-    },
-    {
-      command: 'pnpm run dev',
-      url: 'http://localhost:7653',
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-    },
-  ],
+  webServer: process.env.CI
+    ? [
+        // In CI/Docker, only start the dev server (OpenCode should be running on host)
+        {
+          command: 'pnpm run dev',
+          url: 'http://localhost:7653',
+          timeout: 120 * 1000,
+          reuseExistingServer: false,
+        },
+      ]
+    : [
+        // In local dev, start both OpenCode and dev server
+        {
+          command: 'pnpm run test:opencode',
+          port: 4096,
+          timeout: 30 * 1000,
+          reuseExistingServer: true, // Use existing OpenCode if running
+        },
+        {
+          command: 'pnpm run dev',
+          url: 'http://localhost:7653',
+          timeout: 120 * 1000,
+          reuseExistingServer: true,
+        },
+      ],
 });

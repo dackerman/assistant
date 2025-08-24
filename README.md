@@ -66,10 +66,10 @@ pnpm run format
 ### Testing
 
 ```bash
-# Run E2E tests (requires OpenCode on port 4096)
+# Run E2E tests locally
 pnpm run test:e2e
 
-# Run tests in Docker (for NixOS compatibility)
+# Run tests in Docker (auto-starts OpenCode if needed)
 pnpm run test:e2e:docker
 
 # Run specific test file
@@ -79,7 +79,7 @@ pnpm run test:e2e:docker tests/e2e/session.spec.ts
 pnpm run test:e2e:docker -g '"should send"'
 
 # Run tests with video recording
-pnpm run test:e2e:video
+RECORD_VIDEO=true pnpm run test:e2e:docker
 
 # View test results UI
 pnpm run test:report
