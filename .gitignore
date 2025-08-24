@@ -4,3 +4,11 @@ dist/
 .env
 .env.local
 .DS_Store
+.pnpm-store/
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/tests/test-results/
+/.test-opencode/

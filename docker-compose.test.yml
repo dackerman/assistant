@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # Playwright tests only - uses OpenCode from host
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.48.2-noble
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - DISPLAY=${DISPLAY}
+      - CI=true
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    network_mode: host # Access host's OpenCode on port 4096
+    command: sh -c "pnpm install && pnpm test:e2e"
+    stdin_open: true
+    tty: true
