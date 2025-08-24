@@ -40,6 +40,10 @@ const opencode = spawn(
     env: {
       ...process.env,
       OPENCODE_DIR: testDir,
+      ANTHROPIC_API_KEY:
+        process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     },
   }
 );
