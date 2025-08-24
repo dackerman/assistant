@@ -12,3 +12,4 @@ dist/
 /playwright/.cache/
 /tests/test-results/
 /.test-opencode/
+/test-videos/

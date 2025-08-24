@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # Playwright tests with VNC for viewing browser
+  playwright-headed:
+    image: mcr.microsoft.com/playwright:v1.55.0-noble
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - CI=false # Allow headed mode
+      - DISPLAY=:99
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    network_mode: host
+    command: sh -c "
+      Xvfb :99 -screen 0 1280x720x24 &
+      sleep 2 &&
+      npm install -g pnpm@10.14.0 &&
+      pnpm install --frozen-lockfile &&
+      pnpm exec playwright test --headed --reporter=list --workers=1
+      "
+    stdin_open: true
+    tty: true
+
+  # VNC server to view the browser
+  vnc:
+    image: dorowu/ubuntu-desktop-lxde-vnc:focal
+    ports:
+      - '5900:5900' # VNC port
+      - '6080:80' # noVNC web interface
+    environment:
+      - VNC_PASSWORD=test123
+      - RESOLUTION=1280x720
+    volumes:
+      - /dev/shm:/dev/shm
