@@ -63,6 +63,28 @@ pnpm run build
 pnpm run format
 ```
 
+### Testing
+
+```bash
+# Run E2E tests (requires OpenCode on port 4096)
+pnpm run test:e2e
+
+# Run tests in Docker (for NixOS compatibility)
+pnpm run test:e2e:docker
+
+# Run specific test file
+pnpm run test:e2e:docker tests/e2e/session.spec.ts
+
+# Run tests matching pattern (use quotes)
+pnpm run test:e2e:docker -g '"should send"'
+
+# Run tests with video recording
+pnpm run test:e2e:video
+
+# View test results UI
+pnpm run test:report
+```
+
 ## 🎯 How to Use
 
 ### Basic Chat
