@@ -81,8 +81,11 @@ pnpm run test:e2e:docker -g '"should send"'
 # Run tests with video recording
 RECORD_VIDEO=true pnpm run test:e2e:docker
 
-# Run tests in headed mode (with video)
+# Run tests in headed mode (creates video recordings)
 pnpm run test:e2e:headed
+
+# Debug tests interactively (requires display)
+pnpm exec playwright test --debug tests/e2e/debug.spec.ts
 
 # View test results UI
 pnpm run test:report
