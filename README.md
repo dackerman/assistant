@@ -81,6 +81,9 @@ pnpm run test:e2e:docker -g '"should send"'
 # Run tests with video recording
 RECORD_VIDEO=true pnpm run test:e2e:docker
 
+# Run tests in headed mode (with video)
+pnpm run test:e2e:headed
+
 # View test results UI
 pnpm run test:report
 ```
