@@ -84,6 +84,9 @@ RECORD_VIDEO=true pnpm run test:e2e:docker
 # Run tests in headed mode (creates video recordings)
 pnpm run test:e2e:headed
 
+# Run tests with live VNC viewer (watch in browser at http://localhost:6080)
+pnpm run test:e2e:vnc
+
 # Debug tests interactively (requires display)
 pnpm exec playwright test --debug tests/e2e/debug.spec.ts
 
