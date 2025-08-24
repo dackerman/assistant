@@ -11,7 +11,7 @@ docker run --rm \
     -v "$(pwd)":/app \
     -w /app \
     -e CI=true \
-    -e RECORD_VIDEO=on \
+    -e RECORD_VIDEO=true \
     mcr.microsoft.com/playwright:v1.55.0-noble \
     sh -c "npm install -g pnpm@10.14.0 && pnpm install --frozen-lockfile && pnpm test:e2e --reporter=list"
 

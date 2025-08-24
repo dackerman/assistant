@@ -12,7 +12,7 @@ export default defineConfig({
     baseURL: 'http://localhost:7653',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: process.env.RECORD_VIDEO ? 'on' : 'off',
+    video: process.env.RECORD_VIDEO === 'true' ? 'on' : 'off',
   },
 
   projects: [
