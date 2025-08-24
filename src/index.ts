@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static('dist/public'));
 
 const opencode = new Opencode({
-  baseURL: 'http://127.0.0.1:4096',
+  baseURL: 'http://host.docker.internal:4096',
 });
 
 let currentSessionId: string | null = null;
