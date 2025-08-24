@@ -79,7 +79,8 @@ services:
       - /dev/shm:/dev/shm
       - .:/app
     working_dir: /app
-    network_mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 EOF
 
 echo "🖥️  Starting VNC desktop environment..."
@@ -117,11 +118,17 @@ sleep 10
 
 # Install Node.js and pnpm in the VNC container, then run tests
 echo ""
-echo "🚀 Running tests (watch them in your browser!)..."
+echo "🚀 Installing dependencies and running tests (watch them in your browser!)..."
 docker compose -f docker-compose.vnc.yml exec vnc bash -c "
-    # Install Node.js
+    # Install Node.js v20 using NodeSource
+    apt-get update &&
+    apt-get install -y curl &&
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - &&
     apt-get install -y nodejs &&
+    
+    # Verify installation
+    node --version &&
+    npm --version &&
     
     # Install pnpm
     npm install -g pnpm@10.14.0 &&
@@ -131,6 +138,9 @@ docker compose -f docker-compose.vnc.yml exec vnc bash -c "
     pnpm install --frozen-lockfile &&
     pnpm exec playwright install chromium &&
     pnpm exec playwright install-deps chromium &&
+    
+    # Update backend to connect to host OpenCode
+    sed -i 's|http://127.0.0.1:4096|http://host.docker.internal:4096|g' src/index.ts &&
     
     # Run tests in headed mode
     export DISPLAY=:1 &&
