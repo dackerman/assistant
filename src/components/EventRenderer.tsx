@@ -1,4 +1,6 @@
 import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface EventRendererProps {
   event: any;
@@ -8,15 +10,15 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
   const getEventColor = (type: string) => {
     switch (type) {
       case 'message.part.updated':
-        return '#4CAF50';
+        return 'default';
       case 'tool':
-        return '#2196F3';
+        return 'secondary';
       case 'step-start':
-        return '#FF9800';
+        return 'outline';
       case 'step-finish':
-        return '#9C27B0';
+        return 'default';
       default:
-        return '#888';
+        return 'outline';
     }
   };
 
@@ -26,84 +28,24 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
         const part = event.properties?.part;
         if (part?.type === 'text') {
           return (
-            <div style={{ marginLeft: '1rem' }}>
-              <strong>Text:</strong> {part.text}
+            <div className="ml-4 text-xs font-mono">
+              <span className="text-muted-foreground">TEXT:</span>{' '}
+              {part.text?.substring(0, 100)}
+              {part.text?.length > 100 && '...'}
             </div>
           );
         } else if (part?.type === 'tool') {
           return (
-            <div style={{ marginLeft: '1rem' }}>
-              <strong>Tool:</strong> {part.tool} | <strong>Status:</strong>{' '}
-              {part.state?.status} | <strong>Call ID:</strong> {part.callID}
-              {part.state?.input && (
-                <div
-                  style={{
-                    marginTop: '0.5rem',
-                    fontSize: '0.9em',
-                    opacity: 0.8,
-                  }}
-                >
-                  <strong>Input:</strong>
-                  <pre
-                    style={{
-                      margin: '0.25rem 0 0 0',
-                      whiteSpace: 'pre-wrap',
-                      fontSize: '0.75em',
-                      color: '#ffffff',
-                      fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                      lineHeight: '1.4',
-                      background: '#1e1e1e',
-                      padding: '0.5rem',
-                      borderRadius: '4px',
-                      border: '1px solid #444',
-                      overflow: 'auto',
-                      maxHeight: '200px',
-                    }}
-                  >
-                    {JSON.stringify(part.state.input, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {part.state?.output && (
-                <div
-                  style={{
-                    marginTop: '0.5rem',
-                    fontSize: '0.9em',
-                    opacity: 0.8,
-                  }}
-                >
-                  <strong>Output:</strong>
-                  <div
-                    style={{
-                      marginTop: '0.25rem',
-                      maxHeight: '200px',
-                      overflow: 'auto',
-                      backgroundColor: '#1e1e1e',
-                      padding: '0.5rem',
-                      borderRadius: '4px',
-                      border: '1px solid #444',
-                    }}
-                  >
-                    <pre
-                      style={{
-                        margin: 0,
-                        whiteSpace: 'pre-wrap',
-                        fontSize: '0.75em',
-                        color: '#ffffff',
-                        fontFamily:
-                          'Monaco, Consolas, "Courier New", monospace',
-                        lineHeight: '1.4',
-                      }}
-                    >
-                      {typeof part.state.output === 'string'
-                        ? part.state.output.substring(0, 1000) +
-                          (part.state.output.length > 1000
-                            ? '\n\n... (truncated)'
-                            : '')
-                        : JSON.stringify(part.state.output, null, 2)}
-                    </pre>
-                  </div>
-                </div>
+            <div className="ml-4 text-xs font-mono space-y-1">
+              <div>
+                <span className="text-muted-foreground">TOOL:</span> {part.tool}
+              </div>
+              <div>
+                <span className="text-muted-foreground">STATUS:</span>{' '}
+                {part.state?.status}
+              </div>
+              {part.callID && (
+                <div className="text-xs opacity-60">ID: {part.callID}</div>
               )}
             </div>
           );
@@ -112,7 +54,7 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
 
       case 'step-start':
         return (
-          <div style={{ marginLeft: '1rem', color: '#FF9800' }}>
+          <div className="ml-4 text-xs font-mono text-yellow-500">
             Starting step...
           </div>
         );
@@ -120,113 +62,45 @@ const EventRenderer: React.FC<EventRendererProps> = ({ event }) => {
       case 'step-finish':
         const tokens = event.properties?.tokens;
         return (
-          <div style={{ marginLeft: '1rem', fontSize: '0.9em', opacity: 0.7 }}>
-            <div style={{ marginBottom: '0.5rem', color: '#9C27B0' }}>
-              Step finished - Input: {tokens?.input}, Output: {tokens?.output}
-            </div>
-            <details style={{ marginTop: '0.5rem' }}>
-              <summary
-                style={{
-                  cursor: 'pointer',
-                  color: '#ffffff',
-                  fontSize: '0.8em',
-                }}
-              >
-                View raw event data
-              </summary>
-              <pre
-                style={{
-                  margin: '0.5rem 0 0 0',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: '0.75em',
-                  color: '#ffffff',
-                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                  lineHeight: '1.4',
-                  background: '#1e1e1e',
-                  padding: '0.75rem',
-                  borderRadius: '4px',
-                  border: '1px solid #444',
-                  overflow: 'auto',
-                  maxHeight: '300px',
-                }}
-              >
-                {JSON.stringify(event.properties, null, 2)}
-              </pre>
-            </details>
+          <div className="ml-4 text-xs font-mono text-green-500">
+            Step finished - In: {tokens?.input}, Out: {tokens?.output}
           </div>
         );
 
       default:
         return (
-          <div style={{ marginLeft: '1rem', fontSize: '0.9em', opacity: 0.7 }}>
-            <details>
-              <summary
-                style={{
-                  cursor: 'pointer',
-                  color: '#ffffff',
-                  fontSize: '0.9em',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                View event data
-              </summary>
-              <pre
-                style={{
-                  margin: '0.5rem 0 0 0',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: '0.75em',
-                  color: '#ffffff',
-                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                  lineHeight: '1.4',
-                  background: '#1e1e1e',
-                  padding: '0.75rem',
-                  borderRadius: '4px',
-                  border: '1px solid #444',
-                  overflow: 'auto',
-                  maxHeight: '300px',
-                }}
-              >
-                {JSON.stringify(event, null, 2)}
-              </pre>
-            </details>
-          </div>
+          <details className="ml-4">
+            <summary className="cursor-pointer text-xs font-mono text-muted-foreground hover:text-foreground">
+              View event data
+            </summary>
+            <pre className="mt-2 p-2 bg-background/50 border border-border rounded text-xs overflow-auto max-h-32">
+              {JSON.stringify(event, null, 2)}
+            </pre>
+          </details>
         );
     }
   };
 
   return (
-    <div
-      style={{
-        marginBottom: '0.5rem',
-        padding: '0.5rem',
-        backgroundColor: '#2d2d30',
-        borderLeft: `3px solid ${getEventColor(event.type)}`,
-        borderRadius: '4px',
-        color: '#ffffff',
-      }}
+    <Card
+      className="bg-card/50 border-l-2"
+      style={{ borderLeftColor: `hsl(var(--primary) / 0.5)` }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '0.25rem',
-        }}
-      >
-        <span
-          style={{
-            color: getEventColor(event.type),
-            fontWeight: 'bold',
-            fontSize: '0.9em',
-          }}
-        >
-          {event.type}
-        </span>
-        <span style={{ fontSize: '0.8em', opacity: 0.6 }}>
-          {new Date().toLocaleTimeString()}
-        </span>
-      </div>
-      {renderEventContent()}
-    </div>
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <Badge
+            variant={getEventColor(event.type)}
+            className="text-xs font-mono"
+          >
+            {event.type}
+          </Badge>
+          <span className="text-xs text-muted-foreground font-mono">
+            {new Date().toLocaleTimeString()}
+          </span>
+        </div>
+        {renderEventContent()}
+      </CardContent>
+    </Card>
   );
 };
 

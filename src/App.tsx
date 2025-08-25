@@ -4,6 +4,8 @@ import DebugPane from './components/DebugPane';
 import MessageInput from './components/MessageInput';
 import SessionPicker from './components/SessionPicker';
 import { useConversation } from './hooks/useConversation';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const App: React.FC = () => {
   const {
@@ -31,194 +33,67 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Personal Assistant</h1>
-        <div className="header-controls">
-          <div className="stats">
-            Messages: {messages.length} | Events: {events.length}
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-mono">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-primary text-xl">⚡</span>
+            <h1 className="text-xl font-bold terminal-text">
+              {'>'} Personal Assistant
+            </h1>
           </div>
-          <button
-            className="debug-toggle"
-            onClick={() => setShowDebug(!showDebug)}
-          >
-            {showDebug ? 'Hide Debug' : 'Show Debug'}
-          </button>
-          <button className="session-toggle" onClick={backToSessions}>
-            Sessions
-          </button>
+
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              Messages: {messages.length}
+            </Badge>
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              Events: {events.length}
+            </Badge>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDebug(!showDebug)}
+              className="gap-2"
+            >
+              <span>🔧</span>
+              <span className="hidden sm:inline">
+                {showDebug ? 'Hide Debug' : 'Debug'}
+              </span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={backToSessions}
+              className="gap-2"
+            >
+              <span>📁</span>
+              <span className="hidden sm:inline">Sessions</span>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <div className="app-body">
-        <div className={`main-pane ${showDebug ? 'with-debug' : ''}`}>
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        <div
+          className={`flex-1 transition-all duration-300 ${showDebug ? 'lg:max-w-[60%]' : ''}`}
+        >
           <ConversationView messages={messages} toolCalls={toolCalls} />
         </div>
+
         {showDebug && (
-          <div className="debug-pane-container">
+          <div className="w-full lg:w-[40%] border-t lg:border-t-0 lg:border-l border-border bg-card/30">
             <DebugPane events={events} />
           </div>
         )}
       </div>
 
+      {/* Message Input */}
       <MessageInput onSendMessage={handleSendMessage} disabled={false} />
-
-      <style>{`
-        * {
-          box-sizing: border-box;
-        }
-        
-        html, body {
-          margin: 0;
-          padding: 0;
-          height: 100%;
-          overflow: hidden;
-        }
-        
-        #root {
-          height: 100%;
-        }
-        
-        .app {
-          height: 100vh;
-          display: flex;
-          flex-direction: column;
-          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-          background: #0d1117;
-          color: #e6edf3;
-        }
-        
-        .app-header {
-          padding: 15px 20px;
-          background: #161b22;
-          border-bottom: 1px solid #30363d;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        
-        .app-header h1 {
-          margin: 0;
-          font-size: 24px;
-          color: #f0f6fc;
-          font-weight: 600;
-          min-width: 0;
-          flex: 1;
-        }
-        
-        .header-controls {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          flex-wrap: wrap;
-        }
-        
-        @media (max-width: 768px) {
-          .app-header {
-            padding: 12px 16px;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-          }
-          
-          .app-header h1 {
-            font-size: 20px;
-            text-align: center;
-          }
-          
-          .header-controls {
-            justify-content: center;
-            gap: 12px;
-          }
-        }
-        
-        .stats {
-          font-size: 14px;
-          color: #8b949e;
-          background: #21262d;
-          padding: 4px 8px;
-          border-radius: 6px;
-          border: 1px solid #30363d;
-        }
-        
-        .debug-toggle {
-          padding: 6px 12px;
-          background: #238636;
-          color: #ffffff;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: background-color 0.2s;
-        }
-        
-        .debug-toggle:hover {
-          background: #2ea043;
-        }
-        
-        .session-toggle {
-          padding: 6px 12px;
-          background: #0969da;
-          color: #ffffff;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: background-color 0.2s;
-        }
-        
-        .session-toggle:hover {
-          background: #0860ca;
-        }
-        
-        .app-body {
-          flex: 1;
-          display: flex;
-          overflow: hidden;
-        }
-        
-        .main-pane {
-          flex: 1;
-          transition: all 0.3s ease;
-        }
-        
-        .main-pane.with-debug {
-          flex: 0 0 60%;
-        }
-        
-        .debug-pane-container {
-          flex: 0 0 40%;
-          min-width: 300px;
-        }
-        
-        @media (max-width: 768px) {
-          .app-body {
-            flex-direction: column;
-          }
-          
-          .main-pane {
-            flex: 1;
-            min-height: 0;
-          }
-          
-          .main-pane.with-debug {
-            flex: 1;
-            max-height: 50vh;
-          }
-          
-          .debug-pane-container {
-            flex: 1;
-            min-width: auto;
-            max-height: 50vh;
-            border-left: none;
-            border-top: 1px solid #30363d;
-          }
-        }
-      `}</style>
     </div>
   );
 };

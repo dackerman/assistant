@@ -1,5 +1,7 @@
 import React from 'react';
 import EventRenderer from './EventRenderer';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 interface DebugPaneProps {
   events: any[];
@@ -7,88 +9,32 @@ interface DebugPaneProps {
 
 const DebugPane: React.FC<DebugPaneProps> = ({ events }) => {
   return (
-    <div className="debug-pane">
-      <div className="debug-header">
-        <h2>Debug Events</h2>
-        <div className="event-count">{events.length} events</div>
-      </div>
-      <div className="debug-content">
-        {events
-          .slice()
-          .reverse()
-          .map((event, index) => (
-            <EventRenderer key={events.length - 1 - index} event={event} />
-          ))}
+    <div className="h-full flex flex-col bg-background/50">
+      <div className="px-4 py-3 border-b border-border bg-card/30 flex items-center justify-between">
+        <h2 className="text-sm font-mono font-semibold text-foreground">
+          <span className="text-primary">$</span> DEBUG_EVENTS
+        </h2>
+        <Badge variant="secondary" className="font-mono text-xs">
+          {events.length} events
+        </Badge>
       </div>
 
-      <style>{`
-        .debug-pane {
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          background: #0d1117;
-          border-left: 1px solid #30363d;
-        }
-        
-        .debug-header {
-          padding: 15px 20px;
-          background: #161b22;
-          border-bottom: 1px solid #30363d;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
-        .debug-header h2 {
-          margin: 0;
-          font-size: 18px;
-          color: #f0f6fc;
-          font-weight: 600;
-          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-        }
-        
-        .event-count {
-          font-size: 12px;
-          color: #e6edf3;
-          background: #21262d;
-          border: 1px solid #30363d;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-          font-weight: 500;
-        }
-        
-        .debug-content {
-          flex: 1;
-          overflow-y: auto;
-          padding: 10px;
-          background: #0d1117;
-        }
-        
-        @media (max-width: 768px) {
-          .debug-pane {
-            border-left: none;
-            border-top: 1px solid #30363d;
-          }
-          
-          .debug-header {
-            padding: 12px 16px;
-          }
-          
-          .debug-header h2 {
-            font-size: 16px;
-          }
-          
-          .event-count {
-            font-size: 11px;
-            padding: 3px 6px;
-          }
-          
-          .debug-content {
-            padding: 8px;
-          }
-        }
-      `}</style>
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-2">
+          {events
+            .slice()
+            .reverse()
+            .map((event, index) => (
+              <EventRenderer key={events.length - 1 - index} event={event} />
+            ))}
+          {events.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground font-mono text-xs">
+              <div className="text-lg mb-2">📡</div>
+              <div>Waiting for events...</div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 };

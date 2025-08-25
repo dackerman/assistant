@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hacker theme custom CSS variables */
+:root {
+  --background: 220 13% 9%;
+  --foreground: 220 90% 90%;
+  --muted: 220 13% 15%;
+  --muted-foreground: 220 13% 60%;
+  --popover: 220 13% 9%;
+  --popover-foreground: 220 90% 90%;
+  --card: 220 13% 11%;
+  --card-foreground: 220 90% 90%;
+  --border: 220 13% 20%;
+  --input: 220 13% 15%;
+  --primary: 142 86% 28%;
+  --primary-foreground: 355 7% 97%;
+  --secondary: 220 13% 15%;
+  --secondary-foreground: 220 90% 90%;
+  --accent: 142 86% 28%;
+  --accent-foreground: 355 7% 97%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 355 7% 97%;
+  --ring: 142 86% 28%;
+  --radius: 0.5rem;
+}
+
+/* Hacker terminal styles */
+body {
+  font-family:
+    'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas',
+    'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Custom scrollbar for hacker theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent));
+}
+
+/* Hacker-style text selection */
+::selection {
+  background: hsl(var(--accent) / 0.3);
+}
+
+/* Glowing text animation for cursor */
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.blinking-cursor {
+  animation: blink 1s infinite;
+}
+
+.terminal-text {
+  color: hsl(var(--accent));
+  text-shadow: 0 0 5px hsl(var(--accent) / 0.5);
+}
