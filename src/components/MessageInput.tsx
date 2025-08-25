@@ -20,7 +20,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (message.trim() && !disabled) {
         onSendMessage(message.trim());
@@ -48,7 +48,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         placeholder={
           disabled
             ? 'Connecting...'
-            : 'Type your message... (Cmd/Ctrl+Enter to send)'
+            : 'Type your message... (Enter to send, Ctrl+Enter for newline)'
         }
         disabled={disabled}
         className="message-input-field"
