@@ -64,7 +64,10 @@ PLAYWRIGHT_ARGS="$@"
 
 # Build the VNC image if needed
 echo "🔨 Building VNC Docker image..."
-docker build -f Dockerfile.vnc -t playwright-vnc:latest . || {
+docker build -f Dockerfile.vnc \
+    --build-arg UID=$(id -u) \
+    --build-arg GID=$(id -g) \
+    -t playwright-vnc:latest . || {
     echo "❌ Failed to build Docker image"
     exit 1
 }

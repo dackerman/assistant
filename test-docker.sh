@@ -70,6 +70,7 @@ fi
 echo "🚀 Starting tests..."
 docker run --rm \
     --network host \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)":/app \
     -w /app \
     -e CI=true \

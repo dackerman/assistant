@@ -65,6 +65,7 @@ echo ""
 # Run tests with Docker and Xvfb
 docker run --rm \
     --network host \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)":/app \
     -w /app \
     -e CI=false \

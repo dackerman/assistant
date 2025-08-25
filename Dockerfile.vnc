@@ -21,6 +21,14 @@ RUN apt-get update && \
 # Install pnpm
 RUN npm install -g pnpm@10.14.0
 
+# Create a non-root user that matches the host user
+ARG UID=1000
+ARG GID=100
+RUN groupadd -g ${GID} -o testuser && \
+    useradd -m -u ${UID} -g ${GID} -o -s /bin/bash testuser && \
+    usermod -aG sudo testuser && \
+    echo 'testuser ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 # Create a startup script
 RUN mkdir -p /opt/vnc
 COPY <<'EOF' /opt/vnc/start.sh
@@ -54,7 +62,11 @@ echo "Access the desktop at http://localhost:6080/vnc.html"
 tail -f /dev/null
 EOF
 
-RUN chmod +x /opt/vnc/start.sh
+RUN chmod +x /opt/vnc/start.sh && \
+    chown -R testuser:testuser /opt/vnc
+
+# Switch to non-root user
+USER testuser
 
 WORKDIR /app
 

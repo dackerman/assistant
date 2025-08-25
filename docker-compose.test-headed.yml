@@ -5,6 +5,7 @@ services:
   playwright-headed:
     image: mcr.microsoft.com/playwright:v1.55.0-noble
     working_dir: /app
+    user: '${UID:-1000}:${GID:-100}'
     volumes:
       - .:/app
     environment:
