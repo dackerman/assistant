@@ -112,14 +112,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
-  const renderMessage = (message: Message) => (
+  const renderMessage = (message: Message, isLastAgentMessage: boolean) => (
     <div key={message.id} className={`message ${message.role}`}>
       <div className="message-role">
         {message.role === 'user' ? '👤 You' : '🤖 Agent'}
       </div>
       <div className="message-content">
         {message.content}
-        {message.isStreaming && <span className="streaming-cursor">▎</span>}
+        {message.role === 'assistant' && isLastAgentMessage && (
+          <span className="streaming-cursor">▎</span>
+        )}
       </div>
       <div className="message-timestamp">
         {new Date(message.timestamp).toLocaleTimeString()}
@@ -227,12 +229,22 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     </div>
   );
 
+  // Find the last assistant message to show cursor only there
+  const lastAssistantMessage = messages
+    .filter(msg => msg.role === 'assistant')
+    .sort(
+      (a, b) => (b.sequence || b.timestamp) - (a.sequence || a.timestamp)
+    )[0];
+
   return (
     <div className="conversation-view">
       <div className="messages">
         {conversationItems.map(item =>
           item.type === 'message'
-            ? renderMessage(item.data)
+            ? renderMessage(
+                item.data,
+                item.data.id === lastAssistantMessage?.id
+              )
             : renderToolCall(item.data)
         )}
       </div>
