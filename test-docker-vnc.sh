@@ -128,8 +128,8 @@ docker exec playwright-vnc bash -c "
         pnpm install --frozen-lockfile
     fi
     
-    # Update backend to connect to host OpenCode
-    sed -i 's|http://127.0.0.1:4096|http://host.docker.internal:4096|g' src/index.ts
+    # Set environment variable to connect to host OpenCode
+    export OPENCODE_URL='http://host.docker.internal:4096'
     
     # Run tests in headed mode (CI=true prevents starting OpenCode)
     export DISPLAY=:1

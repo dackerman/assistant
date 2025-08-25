@@ -69,6 +69,7 @@ docker run --rm \
     -v "$(pwd)":/app \
     -w /app \
     -e CI=false \
+    -e OPENCODE_URL="http://127.0.0.1:4096" \
     mcr.microsoft.com/playwright:v1.55.0-noble \
     sh -c "
         # Start virtual display

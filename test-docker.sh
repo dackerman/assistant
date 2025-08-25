@@ -75,6 +75,7 @@ docker run --rm \
     -w /app \
     -e CI=true \
     -e RECORD_VIDEO="$RECORD_VIDEO" \
+    -e OPENCODE_URL="http://127.0.0.1:4096" \
     mcr.microsoft.com/playwright:v1.55.0-noble \
     sh -c "npm install -g pnpm@10.14.0 && pnpm install --frozen-lockfile && pnpm test:e2e --reporter=list $PLAYWRIGHT_ARGS"
 

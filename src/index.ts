@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static('dist/public'));
 
 const opencode = new Opencode({
-  baseURL: 'http://host.docker.internal:4096',
+  baseURL: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
 });
 
 let currentSessionId: string | null = null;
@@ -224,4 +224,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
+  console.log(
+    `Connected to OpenCode at: ${process.env.OPENCODE_URL || 'http://127.0.0.1:4096'}`
+  );
 });

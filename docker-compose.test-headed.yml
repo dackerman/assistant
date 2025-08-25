@@ -12,6 +12,7 @@ services:
       - CI=false # Allow headed mode
       - DISPLAY=:99
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - OPENCODE_URL=http://127.0.0.1:4096
     network_mode: host
     command: sh -c "
       Xvfb :99 -screen 0 1280x720x24 &

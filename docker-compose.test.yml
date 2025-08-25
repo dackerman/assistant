@@ -13,6 +13,7 @@ services:
       - DISPLAY=${DISPLAY}
       - CI=true
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - OPENCODE_URL=http://127.0.0.1:4096
     network_mode: host # Access host's OpenCode on port 4096
     command: sh -c "npm install -g pnpm@10.14.0 && pnpm install --frozen-lockfile && pnpm test:e2e"
     stdin_open: true
