@@ -1,37 +1,77 @@
 import Opencode from '@opencode-ai/sdk';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 
 // Dev mode detection
 const isDev =
   process.env.NODE_ENV === 'development' ||
   process.env.NODE_ENV !== 'production';
 
+// Ensure logs directory exists
+const logsDir = path.join(process.cwd(), 'logs');
+if (isDev && !fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// Get log file path with timestamp
+const getLogFilePath = () => {
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+  return path.join(logsDir, `opencode-${dateStr}-${timeStr}.log`);
+};
+
+// Current log file path (created once per session)
+let currentLogFile: string | null = null;
+
+// Write to both console and file
+const writeLog = (message: string) => {
+  if (!isDev) return;
+
+  // Console output
+  console.log(message);
+
+  // File output
+  if (!currentLogFile) {
+    currentLogFile = getLogFilePath();
+  }
+
+  try {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message}\n`;
+    fs.appendFileSync(currentLogFile, logEntry);
+  } catch (error) {
+    console.error('Failed to write to log file:', error);
+  }
+};
+
 // Enhanced logging for dev mode
 const devLog = {
   request: (method: string, endpoint: string, data?: any) => {
     if (!isDev) return;
-    console.log('\n🔵 [OpenCode Request]', new Date().toISOString());
-    console.log(`${method} ${endpoint}`);
+    writeLog('\n🔵 [OpenCode Request]');
+    writeLog(`${method} ${endpoint}`);
     if (data) {
-      console.log('Request Data:', JSON.stringify(data, null, 2));
+      writeLog('Request Data: ' + JSON.stringify(data, null, 2));
     }
   },
   response: (method: string, endpoint: string, response: any, error?: any) => {
     if (!isDev) return;
-    console.log('\n🟢 [OpenCode Response]', new Date().toISOString());
-    console.log(`${method} ${endpoint}`);
+    writeLog('\n🟢 [OpenCode Response]');
+    writeLog(`${method} ${endpoint}`);
     if (error) {
-      console.log('❌ Error:', error);
+      writeLog('❌ Error: ' + JSON.stringify(error, null, 2));
     } else {
-      console.log('✅ Response:', JSON.stringify(response, null, 2));
+      writeLog('✅ Response: ' + JSON.stringify(response, null, 2));
     }
   },
   event: (event: any) => {
     if (!isDev) return;
-    console.log('\n🟡 [Stream Event]', new Date().toISOString());
-    console.log('Event Type:', event.type);
-    console.log('Event Data:', JSON.stringify(event, null, 2));
+    writeLog('\n🟡 [Stream Event]');
+    writeLog('Event Type: ' + event.type);
+    writeLog('Event Data: ' + JSON.stringify(event, null, 2));
   },
 };
 
@@ -469,6 +509,7 @@ app.listen(port, () => {
     );
     console.log('   - All API requests and responses will be logged');
     console.log('   - All streaming events will be logged');
+    console.log('   - Logs saved to: ./logs/ directory');
     console.log('   - Set NODE_ENV=production to disable verbose logging\n');
   }
 });
