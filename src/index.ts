@@ -3,6 +3,7 @@ import cors from 'cors';
 import express, { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { SessionManager } from './SessionManager';
 
 // Dev mode detection
 const isDev =
@@ -86,23 +87,11 @@ const opencode = new Opencode({
   baseURL: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
 });
 
+// Initialize SessionManager
+const sessionManager = new SessionManager(opencode);
+
+// For backward compatibility with frontend that expects a single "current" session
 let currentSessionId: string | null = null;
-let clients: Response[] = [];
-
-// In-memory storage for recent models (per session)
-interface RecentModel {
-  providerId: string;
-  modelId: string;
-  name: string;
-  provider: string;
-  lastUsed: number;
-}
-
-const recentModels: Map<string, RecentModel[]> = new Map();
-let currentModel = {
-  providerId: 'anthropic',
-  modelId: 'claude-sonnet-4-20250514',
-};
 
 // Cache for models data
 let modelsCache: any = null;
@@ -111,6 +100,13 @@ const MODELS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
 // SSE endpoint for streaming events
 app.get('/events', async (req: Request, res: Response) => {
+  const sessionId = (req.query.sessionId as string) || currentSessionId;
+
+  if (!sessionId) {
+    res.status(400).json({ error: 'Session ID required' });
+    return;
+  }
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -118,61 +114,15 @@ app.get('/events', async (req: Request, res: Response) => {
     'Access-Control-Allow-Origin': '*',
   });
 
-  clients.push(res);
-  console.log('Client connected to events, total clients:', clients.length);
-
-  // Auto-create session if not exists and start streaming
-  if (!currentSessionId && !isStreamingEvents) {
-    try {
-      const newSession = await opencode.session.create();
-      currentSessionId = newSession.id;
-      console.log('Auto-created session for events:', currentSessionId);
-      streamEvents();
-    } catch (error: any) {
-      console.error('Failed to auto-create session:', error);
-    }
-  }
+  // Add client to session
+  sessionManager.addClient(sessionId, res);
+  console.log(`Client connected to session ${sessionId}`);
 
   req.on('close', () => {
-    clients = clients.filter(client => client !== res);
-    console.log('Client disconnected, remaining clients:', clients.length);
+    sessionManager.removeClient(sessionId, res);
+    console.log(`Client disconnected from session ${sessionId}`);
   });
 });
-
-let isStreamingEvents = false;
-
-async function streamEvents() {
-  if (isStreamingEvents) return;
-  isStreamingEvents = true;
-
-  try {
-    console.log('Starting event stream...');
-    devLog.request('GET', 'event.list() [streaming]');
-    const eventStream = await opencode.event.list();
-
-    for await (const event of eventStream) {
-      console.log('Received event:', event.type);
-
-      // Log the raw event in dev mode
-      devLog.event(event);
-
-      // Broadcast to all connected clients
-      clients.forEach(client => {
-        try {
-          client.write(`data: ${JSON.stringify(event)}\n\n`);
-        } catch (error) {
-          console.error('Error writing to client:', error);
-        }
-      });
-    }
-  } catch (error: any) {
-    devLog.response('GET', 'event.list() [streaming]', null, error);
-    console.error('Error streaming events:', error);
-    isStreamingEvents = false;
-    // Retry after a delay
-    setTimeout(() => streamEvents(), 5000);
-  }
-}
 
 // Start a new session
 app.post('/api/session', async (_req: Request, res: Response) => {
@@ -184,8 +134,8 @@ app.post('/api/session', async (_req: Request, res: Response) => {
 
       currentSessionId = newSession.id;
       console.log('Created session:', currentSessionId);
-      // Start streaming events (don't await)
-      streamEvents();
+      // Initialize session in SessionManager
+      sessionManager.getOrCreateSession(currentSessionId);
     }
     res.json({ sessionId: currentSessionId });
   } catch (error: any) {
@@ -202,36 +152,14 @@ app.post('/api/message', async (req: Request, res: Response) => {
     console.log('Sending message:', text);
 
     // Update current model if provided
-    if (providerId && modelId) {
-      currentModel = { providerId, modelId };
-
-      // Track recent model usage
-      if (currentSessionId) {
-        const sessionRecents = recentModels.get(currentSessionId) || [];
-        const existingIndex = sessionRecents.findIndex(
-          m => m.providerId === providerId && m.modelId === modelId
-        );
-
-        const modelEntry: RecentModel = {
-          providerId,
-          modelId,
-          name: modelId, // Will be updated from frontend if needed
-          provider: providerId,
-          lastUsed: Date.now(),
-        };
-
-        if (existingIndex >= 0) {
-          sessionRecents[existingIndex] = modelEntry;
-        } else {
-          sessionRecents.unshift(modelEntry);
-          // Keep only the 10 most recent models
-          if (sessionRecents.length > 10) {
-            sessionRecents.splice(10);
-          }
-        }
-
-        recentModels.set(currentSessionId, sessionRecents);
-      }
+    if (currentSessionId && providerId && modelId) {
+      sessionManager.updateCurrentModel(
+        currentSessionId,
+        providerId,
+        modelId,
+        modelId, // Will be updated from frontend if needed
+        providerId
+      );
     }
 
     if (!currentSessionId) {
@@ -239,9 +167,10 @@ app.post('/api/message', async (req: Request, res: Response) => {
       const newSession = await opencode.session.create();
       currentSessionId = newSession.id;
       console.log('Created new session for message:', currentSessionId);
-      streamEvents();
+      sessionManager.getOrCreateSession(currentSessionId);
     }
 
+    const currentModel = sessionManager.getCurrentModel(currentSessionId);
     console.log(
       'Using session:',
       currentSessionId,
@@ -355,9 +284,9 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
       currentSessionId = newSession.id;
     }
 
-    // Start streaming events for this session
-    if (!isStreamingEvents) {
-      streamEvents();
+    // Initialize session in SessionManager
+    if (currentSessionId) {
+      sessionManager.getOrCreateSession(currentSessionId);
     }
 
     res.json({ sessionId: currentSessionId });
@@ -370,12 +299,16 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
 // Get current model and recent models
 app.get('/api/models/current', async (_req: Request, res: Response) => {
   try {
-    const sessionRecents = currentSessionId
-      ? recentModels.get(currentSessionId) || []
-      : [];
+    if (!currentSessionId) {
+      return res.status(400).json({ error: 'No active session' });
+    }
+
+    const currentModel = sessionManager.getCurrentModel(currentSessionId);
+    const recentModels = sessionManager.getRecentModels(currentSessionId);
+
     res.json({
       currentModel,
-      recentModels: sessionRecents.sort((a, b) => b.lastUsed - a.lastUsed),
+      recentModels,
     });
   } catch (error: any) {
     console.error('Failed to get current model:', error);
@@ -394,35 +327,19 @@ app.post('/api/models/current', async (req: Request, res: Response) => {
         .json({ error: 'Provider ID and Model ID are required' });
     }
 
-    currentModel = { providerId, modelId };
-
-    // Update recent models with proper name and provider if provided
-    if (currentSessionId && name && provider) {
-      const sessionRecents = recentModels.get(currentSessionId) || [];
-      const existingIndex = sessionRecents.findIndex(
-        m => m.providerId === providerId && m.modelId === modelId
-      );
-
-      const modelEntry: RecentModel = {
-        providerId,
-        modelId,
-        name,
-        provider,
-        lastUsed: Date.now(),
-      };
-
-      if (existingIndex >= 0) {
-        sessionRecents[existingIndex] = modelEntry;
-      } else {
-        sessionRecents.unshift(modelEntry);
-        if (sessionRecents.length > 10) {
-          sessionRecents.splice(10);
-        }
-      }
-
-      recentModels.set(currentSessionId, sessionRecents);
+    if (!currentSessionId) {
+      return res.status(400).json({ error: 'No active session' });
     }
 
+    sessionManager.updateCurrentModel(
+      currentSessionId,
+      providerId,
+      modelId,
+      name,
+      provider
+    );
+
+    const currentModel = sessionManager.getCurrentModel(currentSessionId);
     res.json({ success: true, currentModel });
   } catch (error: any) {
     console.error('Failed to update current model:', error);
