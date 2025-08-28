@@ -2,10 +2,10 @@
 
 Backend
 
-- [ ] Encapsulate backend session state in SessionManager (no globals)
-- [ ] Scope SSE and actions per-session; pass sessionId to /events
-- [ ] Fix SSE lifecycle: prune dead clients, add keepalives, stop when no listeners
-- [ ] Remove global isStreamingEvents; track streaming by sessionId with abort/reset
+- [x] Encapsulate backend session state in SessionManager (no globals)
+- [x] Scope SSE and actions per-session; pass sessionId to /events
+- [x] Fix SSE lifecycle: prune dead clients, add keepalives, stop when no listeners
+- [x] Remove global isStreamingEvents; track streaming by sessionId with abort/reset
 - [ ] Make provider/model configurable via env or request (env: PROVIDER_ID, MODEL_ID)
 - [ ] Unify session title source of truth (persist via SDK or frontend-only)
 - [x] Change health check to non-creating ping (no side effects)
