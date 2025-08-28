@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ConversationView from './components/ConversationView';
 import DebugPane from './components/DebugPane';
 import MessageInput from './components/MessageInput';
+import ModelPicker from './components/ModelPicker';
 import SessionPicker from './components/SessionPicker';
 import { useConversation } from './hooks/useConversation';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,9 @@ const App: React.FC = () => {
     sendMessage,
     switchSession,
     backToSessions,
+    currentModel,
+    recentModels,
+    selectModel,
   } = useConversation();
   const [showDebug, setShowDebug] = useState(false);
 
@@ -25,6 +29,10 @@ const App: React.FC = () => {
 
   const handleSessionSelect = async (sessionId: string | null) => {
     await switchSession(sessionId);
+  };
+
+  const handleModelSelect = async (providerId: string, modelId: string) => {
+    await selectModel(providerId, modelId);
   };
 
   // Show session picker if no session is ready
@@ -51,6 +59,12 @@ const App: React.FC = () => {
             <Badge variant="outline" className="hidden sm:inline-flex">
               Events: {events.length}
             </Badge>
+
+            <ModelPicker
+              selectedModel={currentModel}
+              onModelSelect={handleModelSelect}
+              recentModels={recentModels}
+            />
 
             <Button
               variant="outline"

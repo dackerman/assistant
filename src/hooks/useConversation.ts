@@ -28,6 +28,18 @@ export const useConversation = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [currentModel, setCurrentModel] = useState({
+    providerId: 'anthropic',
+    modelId: 'claude-sonnet-4-20250514',
+  });
+  const [recentModels, setRecentModels] = useState<
+    Array<{
+      providerId: string;
+      modelId: string;
+      name: string;
+      provider: string;
+    }>
+  >([]);
   const messageRolesRef = useRef<Map<string, 'user' | 'assistant'>>(new Map());
   const currentAssistantMessage = useRef<string>('');
   const currentMessageId = useRef<string | null>(null);
@@ -213,22 +225,65 @@ export const useConversation = () => {
     }
   }, []);
 
-  const sendMessage = useCallback(async (content: string) => {
-    // Clear tool calls for new conversation turn
-    // Keep tool calls across messages for proper chronological display
+  const sendMessage = useCallback(
+    async (content: string) => {
+      try {
+        const response = await fetch('/api/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: content,
+            providerId: currentModel.providerId,
+            modelId: currentModel.modelId,
+          }),
+        });
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      }
+    },
+    [currentModel]
+  );
+
+  const selectModel = useCallback(
+    async (
+      providerId: string,
+      modelId: string,
+      name?: string,
+      provider?: string
+    ) => {
+      try {
+        const response = await fetch('/api/models/current', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId, modelId, name, provider }),
+        });
+
+        if (response.ok) {
+          setCurrentModel({ providerId, modelId });
+          // Refresh recent models
+          await fetchCurrentModel();
+        }
+      } catch (error) {
+        console.error('Failed to select model:', error);
+      }
+    },
+    []
+  );
+
+  const fetchCurrentModel = useCallback(async () => {
     try {
-      const response = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: content }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await fetch('/api/models/current');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentModel(data.currentModel);
+        setRecentModels(data.recentModels);
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error('Failed to fetch current model:', error);
     }
   }, []);
 
@@ -351,6 +406,13 @@ export const useConversation = () => {
     };
   }, [isSessionReady, processEvent]);
 
+  // Load current model when session is ready
+  useEffect(() => {
+    if (isSessionReady) {
+      fetchCurrentModel();
+    }
+  }, [isSessionReady, fetchCurrentModel]);
+
   return {
     messages,
     toolCalls,
@@ -360,5 +422,8 @@ export const useConversation = () => {
     sendMessage,
     switchSession,
     backToSessions,
+    currentModel,
+    recentModels,
+    selectModel,
   };
 };

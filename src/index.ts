@@ -16,6 +16,26 @@ const opencode = new Opencode({
 let currentSessionId: string | null = null;
 let clients: Response[] = [];
 
+// In-memory storage for recent models (per session)
+interface RecentModel {
+  providerId: string;
+  modelId: string;
+  name: string;
+  provider: string;
+  lastUsed: number;
+}
+
+const recentModels: Map<string, RecentModel[]> = new Map();
+let currentModel = {
+  providerId: 'anthropic',
+  modelId: 'claude-sonnet-4-20250514',
+};
+
+// Cache for models data
+let modelsCache: any = null;
+let modelsCacheTimestamp: number = 0;
+const MODELS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
 // SSE endpoint for streaming events
 app.get('/events', async (req: Request, res: Response) => {
   res.writeHead(200, {
@@ -95,8 +115,41 @@ app.post('/api/session', async (_req: Request, res: Response) => {
 // Send a message
 app.post('/api/message', async (req: Request, res: Response) => {
   try {
-    const { text } = req.body;
+    const { text, providerId, modelId } = req.body;
     console.log('Sending message:', text);
+
+    // Update current model if provided
+    if (providerId && modelId) {
+      currentModel = { providerId, modelId };
+
+      // Track recent model usage
+      if (currentSessionId) {
+        const sessionRecents = recentModels.get(currentSessionId) || [];
+        const existingIndex = sessionRecents.findIndex(
+          m => m.providerId === providerId && m.modelId === modelId
+        );
+
+        const modelEntry: RecentModel = {
+          providerId,
+          modelId,
+          name: modelId, // Will be updated from frontend if needed
+          provider: providerId,
+          lastUsed: Date.now(),
+        };
+
+        if (existingIndex >= 0) {
+          sessionRecents[existingIndex] = modelEntry;
+        } else {
+          sessionRecents.unshift(modelEntry);
+          // Keep only the 10 most recent models
+          if (sessionRecents.length > 10) {
+            sessionRecents.splice(10);
+          }
+        }
+
+        recentModels.set(currentSessionId, sessionRecents);
+      }
+    }
 
     if (!currentSessionId) {
       console.log('No session, creating one...');
@@ -106,11 +159,16 @@ app.post('/api/message', async (req: Request, res: Response) => {
       streamEvents();
     }
 
-    console.log('Using session:', currentSessionId);
+    console.log(
+      'Using session:',
+      currentSessionId,
+      'with model:',
+      currentModel
+    );
 
     const result = await opencode.session.chat(currentSessionId, {
-      providerID: 'anthropic',
-      modelID: 'claude-sonnet-4-20250514',
+      providerID: currentModel.providerId,
+      modelID: currentModel.modelId,
       parts: [{ type: 'text', text }],
     });
 
@@ -200,6 +258,113 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Failed to switch session:', error);
     res.status(500).json({ error: 'Failed to switch session' });
+  }
+});
+
+// Get current model and recent models
+app.get('/api/models/current', async (_req: Request, res: Response) => {
+  try {
+    const sessionRecents = currentSessionId
+      ? recentModels.get(currentSessionId) || []
+      : [];
+    res.json({
+      currentModel,
+      recentModels: sessionRecents.sort((a, b) => b.lastUsed - a.lastUsed),
+    });
+  } catch (error: any) {
+    console.error('Failed to get current model:', error);
+    res.status(500).json({ error: 'Failed to get current model' });
+  }
+});
+
+// Update current model
+app.post('/api/models/current', async (req: Request, res: Response) => {
+  try {
+    const { providerId, modelId, name, provider } = req.body;
+
+    if (!providerId || !modelId) {
+      return res
+        .status(400)
+        .json({ error: 'Provider ID and Model ID are required' });
+    }
+
+    currentModel = { providerId, modelId };
+
+    // Update recent models with proper name and provider if provided
+    if (currentSessionId && name && provider) {
+      const sessionRecents = recentModels.get(currentSessionId) || [];
+      const existingIndex = sessionRecents.findIndex(
+        m => m.providerId === providerId && m.modelId === modelId
+      );
+
+      const modelEntry: RecentModel = {
+        providerId,
+        modelId,
+        name,
+        provider,
+        lastUsed: Date.now(),
+      };
+
+      if (existingIndex >= 0) {
+        sessionRecents[existingIndex] = modelEntry;
+      } else {
+        sessionRecents.unshift(modelEntry);
+        if (sessionRecents.length > 10) {
+          sessionRecents.splice(10);
+        }
+      }
+
+      recentModels.set(currentSessionId, sessionRecents);
+    }
+
+    res.json({ success: true, currentModel });
+  } catch (error: any) {
+    console.error('Failed to update current model:', error);
+    res.status(500).json({ error: 'Failed to update current model' });
+  }
+});
+
+// Proxy endpoint for models.dev API with caching
+app.get('/api/models', async (_req: Request, res: Response) => {
+  try {
+    const now = Date.now();
+
+    // Check if we have cached data that's still fresh
+    if (modelsCache && now - modelsCacheTimestamp < MODELS_CACHE_DURATION) {
+      console.log('Serving models from cache');
+      return res.json(modelsCache);
+    }
+
+    console.log('Fetching fresh models data from models.dev');
+    const response = await fetch('https://models.dev/api.json');
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch models: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+
+    // Cache the data
+    modelsCache = data;
+    modelsCacheTimestamp = now;
+
+    console.log('Models data cached successfully');
+    res.json(data);
+  } catch (error: any) {
+    console.error('Failed to fetch models data:', error);
+
+    // If we have stale cached data, serve it as fallback
+    if (modelsCache) {
+      console.log('Serving stale cached data as fallback');
+      return res.json(modelsCache);
+    }
+
+    res.status(500).json({
+      error: 'Failed to fetch models data',
+      details: error?.message || 'Unknown error',
+    });
   }
 });
 
