@@ -66,18 +66,13 @@ if [ "$RECORD_VIDEO" = "true" ]; then
     echo "📹 Video recording enabled"
 fi
 
-# Run tests with Docker
+# Ensure output directories exist on host
+mkdir -p test-results playwright-report
+
+# Run tests with Docker Compose (isolated container)
 echo "🚀 Starting tests..."
-docker run --rm \
-    --network host \
-    --user "$(id -u):$(id -g)" \
-    -v "$(pwd)":/app \
-    -w /app \
-    -e CI=true \
-    -e RECORD_VIDEO="$RECORD_VIDEO" \
-    -e OPENCODE_URL="http://127.0.0.1:4096" \
-    mcr.microsoft.com/playwright:v1.55.0-noble \
-    sh -c "npm install -g pnpm@10.14.0 && pnpm install --frozen-lockfile && pnpm test:e2e --reporter=list $PLAYWRIGHT_ARGS"
+RECORD_VIDEO="$RECORD_VIDEO" docker compose -f docker-compose.test.yml run --rm playwright \
+    pnpm test:e2e --reporter=list $PLAYWRIGHT_ARGS
 
 EXIT_CODE=$?
 

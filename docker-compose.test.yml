@@ -1,20 +1,22 @@
 version: '3.8'
 
 services:
-  # Playwright tests only - uses OpenCode from host
+  # Playwright tests - isolated container with copied files
   playwright:
-    image: mcr.microsoft.com/playwright:v1.55.0-noble
-    working_dir: /app
-    user: '${UID:-1000}:${GID:-100}'
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
     volumes:
-      - .:/app
+      # Only mount output directories that host needs access to
+      - ./test-results:/app/test-results
+      - ./playwright-report:/app/playwright-report
       - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
       - DISPLAY=${DISPLAY}
       - CI=true
-      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - RECORD_VIDEO=${RECORD_VIDEO:-false}
       - OPENCODE_URL=http://127.0.0.1:4096
     network_mode: host # Access host's OpenCode on port 4096
-    command: sh -c "npm install -g pnpm@10.14.0 && pnpm install --frozen-lockfile && pnpm test:e2e"
+    command: pnpm test:e2e
     stdin_open: true
     tty: true
