@@ -6,7 +6,6 @@ import ModelPicker from './components/ModelPicker';
 import SessionPicker from './components/SessionPicker';
 import { useConversation } from './hooks/useConversation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 const App: React.FC = () => {
   const {
@@ -53,13 +52,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              Messages: {messages.length}
-            </Badge>
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              Events: {events.length}
-            </Badge>
-
             <ModelPicker
               selectedModel={currentModel}
               onModelSelect={handleModelSelect}
