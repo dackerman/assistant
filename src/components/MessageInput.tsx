@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -12,22 +12,35 @@ const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
 }) => {
   const [message, setMessage] = useState('');
+  const isSubmitting = useRef(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim() && !disabled) {
-      onSendMessage(message.trim());
-      setMessage('');
-    }
+    if (isSubmitting.current || !message.trim() || disabled) return;
+
+    isSubmitting.current = true;
+    onSendMessage(message.trim());
+    setMessage('');
+
+    // Reset the flag after a short delay to prevent rapid duplicate submissions
+    setTimeout(() => {
+      isSubmitting.current = false;
+    }, 100);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      if (message.trim() && !disabled) {
-        onSendMessage(message.trim());
-        setMessage('');
-      }
+      if (isSubmitting.current || !message.trim() || disabled) return;
+
+      isSubmitting.current = true;
+      onSendMessage(message.trim());
+      setMessage('');
+
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        isSubmitting.current = false;
+      }, 100);
     }
   };
 

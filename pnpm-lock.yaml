@@ -15,8 +15,8 @@ importers:
         specifier: ^2.0.18
         version: 2.0.18(react@18.3.1)(zod@4.0.17)
       '@opencode-ai/sdk':
-        specifier: 0.1.0-alpha.21
-        version: 0.1.0-alpha.21
+        specifier: github:sst/opencode-sdk-js#generated
+        version: https://codeload.github.com/sst/opencode-sdk-js/tar.gz/3632a4888296630da927c225a45768f7dad0533e
       '@radix-ui/react-scroll-area':
         specifier: ^1.1.0
         version: 1.2.10(@types/react-dom@18.3.7(@types/react@18.3.24))(@types/react@18.3.24)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -558,8 +558,9 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@opencode-ai/sdk@0.1.0-alpha.21':
-    resolution: {integrity: sha512-e/F/Re2lISHrZ9CrRKPwiqRabUjv4eo0iqFzXWWLzwMNEqV0A8+0sLQC9Iq4ug1Zm/1Qcqc9oLpxedb4PMF6aA==}
+  '@opencode-ai/sdk@https://codeload.github.com/sst/opencode-sdk-js/tar.gz/3632a4888296630da927c225a45768f7dad0533e':
+    resolution: {tarball: https://codeload.github.com/sst/opencode-sdk-js/tar.gz/3632a4888296630da927c225a45768f7dad0533e}
+    version: 0.1.0-alpha.21
 
   '@opentelemetry/api@1.9.0':
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
@@ -2243,7 +2244,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
 
-  '@opencode-ai/sdk@0.1.0-alpha.21': {}
+  '@opencode-ai/sdk@https://codeload.github.com/sst/opencode-sdk-js/tar.gz/3632a4888296630da927c225a45768f7dad0533e': {}
 
   '@opentelemetry/api@1.9.0': {}
 

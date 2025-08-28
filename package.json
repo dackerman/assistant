@@ -29,7 +29,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.16",
     "@ai-sdk/react": "^2.0.18",
-    "@opencode-ai/sdk": "0.1.0-alpha.21",
+    "@opencode-ai/sdk": "github:sst/opencode-sdk-js#generated",
     "@radix-ui/react-scroll-area": "^1.1.0",
     "@radix-ui/react-separator": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
