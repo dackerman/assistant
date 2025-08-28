@@ -2,6 +2,39 @@ import Opencode from '@opencode-ai/sdk';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 
+// Dev mode detection
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.NODE_ENV !== 'production';
+
+// Enhanced logging for dev mode
+const devLog = {
+  request: (method: string, endpoint: string, data?: any) => {
+    if (!isDev) return;
+    console.log('\n🔵 [OpenCode Request]', new Date().toISOString());
+    console.log(`${method} ${endpoint}`);
+    if (data) {
+      console.log('Request Data:', JSON.stringify(data, null, 2));
+    }
+  },
+  response: (method: string, endpoint: string, response: any, error?: any) => {
+    if (!isDev) return;
+    console.log('\n🟢 [OpenCode Response]', new Date().toISOString());
+    console.log(`${method} ${endpoint}`);
+    if (error) {
+      console.log('❌ Error:', error);
+    } else {
+      console.log('✅ Response:', JSON.stringify(response, null, 2));
+    }
+  },
+  event: (event: any) => {
+    if (!isDev) return;
+    console.log('\n🟡 [Stream Event]', new Date().toISOString());
+    console.log('Event Type:', event.type);
+    console.log('Event Data:', JSON.stringify(event, null, 2));
+  },
+};
+
 const app = express();
 const port = 7654;
 
@@ -74,10 +107,15 @@ async function streamEvents() {
 
   try {
     console.log('Starting event stream...');
+    devLog.request('GET', 'event.list() [streaming]');
     const eventStream = await opencode.event.list();
 
     for await (const event of eventStream) {
       console.log('Received event:', event.type);
+
+      // Log the raw event in dev mode
+      devLog.event(event);
+
       // Broadcast to all connected clients
       clients.forEach(client => {
         try {
@@ -88,6 +126,7 @@ async function streamEvents() {
       });
     }
   } catch (error: any) {
+    devLog.response('GET', 'event.list() [streaming]', null, error);
     console.error('Error streaming events:', error);
     isStreamingEvents = false;
     // Retry after a delay
@@ -99,7 +138,10 @@ async function streamEvents() {
 app.post('/api/session', async (_req: Request, res: Response) => {
   try {
     if (!currentSessionId) {
+      devLog.request('POST', 'session.create()');
       const newSession = await opencode.session.create();
+      devLog.response('POST', 'session.create()', newSession);
+
       currentSessionId = newSession.id;
       console.log('Created session:', currentSessionId);
       // Start streaming events (don't await)
@@ -107,6 +149,7 @@ app.post('/api/session', async (_req: Request, res: Response) => {
     }
     res.json({ sessionId: currentSessionId });
   } catch (error: any) {
+    devLog.response('POST', 'session.create()', null, error);
     console.error('Failed to create session:', error);
     res.status(500).json({ error: 'Failed to create session' });
   }
@@ -166,11 +209,15 @@ app.post('/api/message', async (req: Request, res: Response) => {
       currentModel
     );
 
-    const result = await opencode.session.chat(currentSessionId, {
+    const chatParams = {
       providerID: currentModel.providerId,
       modelID: currentModel.modelId,
-      parts: [{ type: 'text', text }],
-    });
+      parts: [{ type: 'text' as const, text }],
+    };
+
+    devLog.request('POST', `session.chat(${currentSessionId})`, chatParams);
+    const result = await opencode.session.chat(currentSessionId, chatParams);
+    devLog.response('POST', `session.chat(${currentSessionId})`, result);
 
     console.log('Message sent successfully, result:', result);
     res.json({ success: true });
@@ -191,8 +238,10 @@ app.post('/api/message', async (req: Request, res: Response) => {
 // List all sessions
 app.get('/api/sessions', async (_req: Request, res: Response) => {
   try {
-    // Use OpenCode SDK to list sessions
+    devLog.request('GET', 'session.list()');
     const sessionList = await opencode.session.list();
+    devLog.response('GET', 'session.list()', sessionList);
+
     const sessions = sessionList.map(session => ({
       id: session.id,
       title: session.title || `Session ${session.id.slice(-6)}`,
@@ -200,6 +249,7 @@ app.get('/api/sessions', async (_req: Request, res: Response) => {
     }));
     res.json({ sessions });
   } catch (error: any) {
+    devLog.response('GET', 'session.list()', null, error);
     console.error('Failed to list sessions:', error);
     res.status(500).json({ error: 'Failed to list sessions' });
   }
@@ -211,7 +261,10 @@ app.get('/api/sessions/:sessionId', async (req: Request, res: Response) => {
     const { sessionId } = req.params;
 
     // Get session info and messages using OpenCode SDK
+    devLog.request('GET', 'session.list()');
     const sessionList = await opencode.session.list();
+    devLog.response('GET', 'session.list()', sessionList);
+
     const session = sessionList.find(s => s.id === sessionId);
 
     if (!session) {
@@ -219,10 +272,18 @@ app.get('/api/sessions/:sessionId', async (req: Request, res: Response) => {
     }
 
     // Get messages for this session
+    devLog.request('GET', `session.messages(${sessionId})`);
     const messages = await opencode.session.messages(sessionId);
+    devLog.response('GET', `session.messages(${sessionId})`, messages);
 
     res.json({ session, messages });
   } catch (error: any) {
+    devLog.response(
+      'GET',
+      `session operations for ${req.params.sessionId}`,
+      null,
+      error
+    );
     console.error('Failed to get session:', error);
     res.status(500).json({ error: 'Failed to get session' });
   }
@@ -235,7 +296,10 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
 
     if (sessionId) {
       // Verify session exists by checking SDK
+      devLog.request('GET', 'session.list()');
       const sessionList = await opencode.session.list();
+      devLog.response('GET', 'session.list()', sessionList);
+
       const sessionExists = sessionList.some(s => s.id === sessionId);
 
       if (sessionExists) {
@@ -245,7 +309,9 @@ app.post('/api/sessions/switch', async (req: Request, res: Response) => {
       }
     } else {
       // Create new session
+      devLog.request('POST', 'session.create()');
       const newSession = await opencode.session.create();
+      devLog.response('POST', 'session.create()', newSession);
       currentSessionId = newSession.id;
     }
 
@@ -372,13 +438,17 @@ app.get('/api/models', async (_req: Request, res: Response) => {
 app.get('/health', async (_req: Request, res: Response) => {
   try {
     // Test connection to OpenCode without creating a session
-    await opencode.session.list();
+    devLog.request('GET', 'session.list() [health check]');
+    const sessionList = await opencode.session.list();
+    devLog.response('GET', 'session.list() [health check]', sessionList);
+
     res.json({
       status: 'ok',
       opencode: 'connected',
       currentSessionId,
     });
   } catch (error: any) {
+    devLog.response('GET', 'session.list() [health check]', null, error);
     res.status(500).json({
       status: 'error',
       opencode: 'disconnected',
@@ -392,4 +462,13 @@ app.listen(port, () => {
   console.log(
     `Connected to OpenCode at: ${process.env.OPENCODE_URL || 'http://127.0.0.1:4096'}`
   );
+
+  if (isDev) {
+    console.log(
+      '\n🔍 [Dev Mode] Enhanced logging enabled for OpenCode operations'
+    );
+    console.log('   - All API requests and responses will be logged');
+    console.log('   - All streaming events will be logged');
+    console.log('   - Set NODE_ENV=production to disable verbose logging\n');
+  }
 });
