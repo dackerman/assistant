@@ -78,7 +78,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden pb-32">
         <div
           className={`flex-1 transition-all duration-300 ${showDebug ? 'lg:max-w-[60%]' : ''}`}
         >
@@ -92,7 +92,7 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Message Input */}
+      {/* Fixed Message Input */}
       <MessageInput onSendMessage={handleSendMessage} disabled={false} />
     </div>
   );

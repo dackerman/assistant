@@ -45,7 +45,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="border-t border-border bg-card/50 backdrop-blur-sm">
+    <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card/50 backdrop-blur-sm z-10">
       <div className="container mx-auto p-4">
         <form onSubmit={handleSubmit} className="flex gap-3">
           <Textarea
