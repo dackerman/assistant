@@ -1,0 +1,25 @@
+{
+  "name": "core",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.2.13",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "format": "prettier --write .",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.8.3",
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.3",
+    "typescript": "^5.9.2",
+    "@types/bun": "^1.2.21"
+  }
+}
