@@ -133,12 +133,59 @@ export const mockConversation: Conversation = {
     },
     {
       id: 'msg-6',
+      type: 'system',
+      content: 'Development environment setup completed successfully. All tools are now configured and ready to use.',
+      timestamp: '2024-12-01T10:05:20Z'
+    },
+    {
+      id: 'msg-7',
+      type: 'user',
+      content: 'Great! Now I need to create a simple HTTP server. Can you help with that?',
+      timestamp: '2024-12-01T10:10:00Z'
+    },
+    {
+      id: 'msg-8',
+      type: 'assistant',
+      content: 'I\'ll create a simple HTTP server using Node.js built-in modules. Let me set that up for you.',
+      timestamp: '2024-12-01T10:10:10Z',
+      metadata: {
+        model: 'claude-3-sonnet',
+        tokens: 35,
+        cost: 0.0009
+      },
+      toolCalls: [
+        {
+          id: 'tool-6',
+          name: 'write',
+          parameters: {
+            filePath: './src/index.ts',
+            content: `import http from 'http'\n\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ message: 'Hello World!' }))\n})\n\nserver.listen(3000, () => {\n  console.log('Server running on http://localhost:3000')\n})`
+          },
+          result: 'HTTP server created',
+          status: 'completed',
+          startTime: '2024-12-01T10:10:11Z',
+          endTime: '2024-12-01T10:10:12Z'
+        },
+        {
+          id: 'tool-7',
+          name: 'bash',
+          parameters: {
+            command: 'npm run dev',
+            description: 'Start development server'
+          },
+          status: 'running',
+          startTime: '2024-12-01T10:10:15Z'
+        }
+      ]
+    },
+    {
+      id: 'msg-9',
       type: 'user',
       content: 'Can you also schedule a meeting for next week to review this project?',
       timestamp: '2024-12-01T10:15:00Z'
     },
     {
-      id: 'msg-7',
+      id: 'msg-10',
       type: 'assistant',
       content: 'I\'ll schedule a project review meeting for next week and send invitations to the team.',
       timestamp: '2024-12-01T10:15:05Z',
@@ -181,13 +228,13 @@ export const mockConversation: Conversation = {
       ]
     },
     {
-      id: 'msg-8',
+      id: 'msg-11',
       type: 'user',
       content: 'Perfect! Can you also create a task in Asana to track the project setup completion?',
       timestamp: '2024-12-01T10:20:00Z'
     },
     {
-      id: 'msg-9',
+      id: 'msg-12',
       type: 'assistant',
       content: 'I\'ll create an Asana task to track the project setup and assign it to you with the appropriate details.',
       timestamp: '2024-12-01T10:20:05Z',
@@ -214,41 +261,89 @@ export const mockConversation: Conversation = {
           endTime: '2024-12-01T10:20:08Z'
         }
       ]
+    }
+  ]
+}    },
+    {
+      id: 'msg-9',
+      type: 'user',
+      content: 'Can you also schedule a meeting for next week to review this project?',
+      timestamp: '2024-12-01T10:15:00Z'
     },
     {
       id: 'msg-10',
       type: 'assistant',
-      content: 'Great! Now I need to create a simple HTTP server. Let me set that up for you.',
-      timestamp: '2024-12-01T10:25:10Z',
+      content: 'I\'ll schedule a project review meeting for next week and send invitations to the team.',
+      timestamp: '2024-12-01T10:15:05Z',
       metadata: {
         model: 'claude-3-sonnet',
-        tokens: 35,
-        cost: 0.0009
+        tokens: 22,
+        cost: 0.0006
       },
       toolCalls: [
         {
-          id: 'tool-11',
-          name: 'write',
+          id: 'tool-8',
+          name: 'google_calendar',
           parameters: {
-            filePath: './src/index.ts',
-            content: `import http from 'http'\n\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ message: 'Hello World!' }))\n})\n\nserver.listen(3000, () => {\n  console.log('Server running on http://localhost:3000')\n})`
+            action: 'create_event',
+            title: 'Node.js Project Review',
+            start_time: '2024-12-08T14:00:00Z',
+            end_time: '2024-12-08T15:00:00Z',
+            location: 'Conference Room A',
+            attendees: ['team@company.com', 'manager@company.com']
           },
-          result: 'HTTP server created',
+          result: 'Meeting scheduled successfully. Calendar invite sent to all attendees.',
           status: 'completed',
-          startTime: '2024-12-01T10:25:11Z',
-          endTime: '2024-12-01T10:25:12Z'
+          startTime: '2024-12-01T10:15:06Z',
+          endTime: '2024-12-01T10:15:08Z'
         },
         {
-          id: 'tool-12',
-          name: 'bash',
+          id: 'tool-9',
+          name: 'gmail',
           parameters: {
-            command: 'npm run dev',
-            description: 'Start development server'
+            action: 'send_email',
+            to: 'team@company.com',
+            subject: 'Project Review Meeting - Dec 8th',
+            body: 'Hi team,\n\nI\'ve scheduled our Node.js project review meeting for next Friday, December 8th at 2:00 PM in Conference Room A.\n\nWe\'ll be reviewing:\n- Development environment setup\n- Code structure and architecture\n- Next steps for the project\n\nLooking forward to seeing everyone there!\n\nBest regards'
           },
-          status: 'running',
-          startTime: '2024-12-01T10:25:15Z'
+          result: 'Email sent successfully to team@company.com',
+          status: 'completed',
+          startTime: '2024-12-01T10:15:09Z',
+          endTime: '2024-12-01T10:15:11Z'
         }
       ]
-    }
-  ]
-}
+    },
+    {
+      id: 'msg-11',
+      type: 'user',
+      content: 'Perfect! Can you also create a task in Asana to track the project setup completion?',
+      timestamp: '2024-12-01T10:20:00Z'
+    },
+    {
+      id: 'msg-12',
+      type: 'assistant',
+      content: 'I\'ll create an Asana task to track the project setup and assign it to you with the appropriate details.',
+      timestamp: '2024-12-01T10:20:05Z',
+      metadata: {
+        model: 'claude-3-sonnet',
+        tokens: 26,
+        cost: 0.0007
+      },
+      toolCalls: [
+        {
+          id: 'tool-10',
+          name: 'asana',
+          parameters: {
+            action: 'create_task',
+            name: 'Complete Node.js Development Environment Setup',
+            project: 'Development Projects',
+            assignee: 'user@company.com',
+            due_date: '2024-12-05',
+            description: 'Set up complete Node.js development environment with TypeScript, ESLint, Prettier, and basic HTTP server. Includes package.json configuration and development scripts.'
+          },
+          result: 'Task created successfully in Asana. Task ID: #1234567',
+          status: 'completed',
+          startTime: '2024-12-01T10:20:06Z',
+          endTime: '2024-12-01T10:20:08Z'
+        }
+      ]
