@@ -10,9 +10,7 @@ services:
       # Only mount output directories that host needs access to
       - ./test-results:/app/test-results
       - ./playwright-report:/app/playwright-report
-      - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
-      - DISPLAY=${DISPLAY}
       - CI=true
       - RECORD_VIDEO=${RECORD_VIDEO:-false}
       - OPENCODE_URL=http://127.0.0.1:4096
