@@ -2,7 +2,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
-import { streamText } from "ai";
+import { streamText, type ToolSet } from "ai";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createServer } from "http";
@@ -18,7 +18,7 @@ function getModel(modelName?: string) {
     case "gpt-5-2025-08-07":
     case "gpt-5-chat-latest":
     case "gpt-5-nano-2025-08-07":
-      return openai(model);
+      return openai.responses(model);
 
     case "claude-sonnet-4-20250514":
     case "claude-opus-4-1-20250805":
@@ -37,6 +37,36 @@ function getModel(modelName?: string) {
       );
       return openai("gpt-5-chat-latest");
   }
+}
+
+function getTools(model: string) {
+  const tools: ToolSet = {};
+  switch (model) {
+    case "gpt-5-2025-08-07": {
+      console.log("Adding web search tool");
+      const webSearch = openai.tools.webSearchPreview({
+        searchContextSize: "medium",
+        userLocation: {
+          type: "approximate",
+          country: "US",
+          city: "Summit",
+          region: "NJ",
+          timezone: "America/New_York",
+        },
+      });
+      tools.webSearch = webSearch;
+      break;
+    }
+    case "claude-sonnet-4-20250514":
+    case "claude-opus-4-1-20250805": {
+      console.log("Adding web search tool");
+      const webSearch = anthropic.tools.webSearch_20250305();
+      tools.webSearch = webSearch;
+      break;
+    }
+  }
+
+  return tools;
 }
 
 // Enable CORS for frontend
@@ -209,6 +239,7 @@ wss.on("connection", (ws) => {
         const result = await streamText({
           model: getModel(message.model),
           messages: message.messages,
+          tools: getTools(message.model),
         });
 
         // Send start of stream
