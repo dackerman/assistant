@@ -1,11 +1,43 @@
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
+import { streamText } from "ai";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { streamText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { WebSocketServer } from "ws";
 import { createServer } from "http";
+import { WebSocketServer } from "ws";
 
 const app = new Hono();
+
+// Model configuration
+function getModel(modelName?: string) {
+  const model = modelName || process.env.DEFAULT_MODEL || "gpt-5-chat-latest";
+
+  switch (model) {
+    case "gpt-5-2025-08-07":
+    case "gpt-5-chat-latest":
+    case "gpt-5-nano-2025-08-07":
+      return openai(model);
+
+    case "claude-sonnet-4-20250514":
+    case "claude-opus-4-1-20250805":
+      return anthropic(model);
+
+    case "gemini-2.5-pro":
+      return google(model);
+
+    case "grok-code-fast-1":
+    case "grok-4-latest":
+      return xai(model);
+
+    default:
+      console.warn(
+        `Unknown model: ${model}, falling back to gpt-5-chat-latest`,
+      );
+      return openai("gpt-5-chat-latest");
+  }
+}
 
 // Enable CORS for frontend
 app.use(
@@ -25,7 +57,74 @@ app.use(
 
 // API routes
 app.get("/api/health", (c) => {
-  return c.json({ status: "ok", message: "Server is running" });
+  const providers = {
+    openai: !!process.env.OPENAI_API_KEY,
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    google: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    xai: !!process.env.XAI_API_KEY,
+  };
+
+  return c.json({
+    status: "ok",
+    message: "Server is running",
+    defaultModel: process.env.DEFAULT_MODEL || "gpt-5-chat-latest",
+    providers,
+  });
+});
+
+app.get("/api/models", (c) => {
+  const availableModels = [
+    {
+      id: "gpt-5-2025-08-07",
+      name: "GPT-5 (2025-08-07)",
+      provider: "openai",
+      enabled: !!process.env.OPENAI_API_KEY,
+    },
+    {
+      id: "gpt-5-chat-latest",
+      name: "GPT-5 Chat Latest",
+      provider: "openai",
+      enabled: !!process.env.OPENAI_API_KEY,
+    },
+    {
+      id: "gpt-5-nano-2025-08-07",
+      name: "GPT-5 Nano",
+      provider: "openai",
+      enabled: !!process.env.OPENAI_API_KEY,
+    },
+    {
+      id: "claude-sonnet-4-20250514",
+      name: "Claude Sonnet 4",
+      provider: "anthropic",
+      enabled: !!process.env.ANTHROPIC_API_KEY,
+    },
+    {
+      id: "claude-opus-4-1-20250805",
+      name: "Claude Opus 4.1",
+      provider: "anthropic",
+      enabled: !!process.env.ANTHROPIC_API_KEY,
+    },
+    {
+      id: "gemini-2.5-pro",
+      name: "Gemini 2.5 Pro",
+      provider: "google",
+      enabled: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    },
+    {
+      id: "grok-code-fast-1",
+      name: "Grok Code Fast",
+      provider: "xai",
+      enabled: !!process.env.XAI_API_KEY,
+    },
+    {
+      id: "grok-4-latest",
+      name: "Grok 4 Latest",
+      provider: "xai",
+      enabled: !!process.env.XAI_API_KEY,
+    },
+  ];
+
+  return c.json({ models: availableModels });
 });
 
 app.get("/api/hello", (c) => {
@@ -108,7 +207,7 @@ wss.on("connection", (ws) => {
 
       if (message.type === "chat") {
         const result = await streamText({
-          model: openai("gpt-4o-mini"),
+          model: getModel(message.model),
           messages: message.messages,
         });
 

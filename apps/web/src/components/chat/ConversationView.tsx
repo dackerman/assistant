@@ -16,6 +16,7 @@ export function ConversationView({ conversation }: ConversationViewProps) {
   const [messages, setMessages] = useState<Message[]>(
     conversation?.messages || [],
   );
+  const [selectedModel, setSelectedModel] = useState("gpt-5-chat-latest");
 
   const handleMessageUpdate = useCallback((messageId: string, text: string) => {
     setMessages((prev) => {
@@ -63,7 +64,7 @@ export function ConversationView({ conversation }: ConversationViewProps) {
 
       const updatedMessages = [...messages, userMessage];
       setMessages(updatedMessages);
-      sendMessage(updatedMessages);
+      sendMessage(updatedMessages, selectedModel);
       setInputValue("");
     }
   };
@@ -96,6 +97,20 @@ export function ConversationView({ conversation }: ConversationViewProps) {
               {messages.length} messages •{" "}
               {isStreaming ? "AI is typing..." : "Ready"}
             </p>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="text-xs bg-transparent border-none focus:outline-none text-muted-foreground"
+            >
+              <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
+              <option value="gpt-5-2025-08-07">GPT-5 (2025-08-07)</option>
+              <option value="gpt-5-nano-2025-08-07">GPT-5 Nano</option>
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+              <option value="claude-opus-4-1-20250805">Claude Opus 4.1</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="grok-code-fast-1">Grok Code Fast</option>
+              <option value="grok-4-latest">Grok 4 Latest</option>
+            </select>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
             <MoreHorizontal className="w-3 h-3 sm:w-4 sm:h-4" />

@@ -9,7 +9,7 @@ interface WebSocketMessage {
 }
 
 interface UseWebSocketReturn {
-  sendMessage: (messages: Message[]) => void;
+  sendMessage: (messages: Message[], model?: string) => void;
   isConnected: boolean;
   isStreaming: boolean;
 }
@@ -73,7 +73,6 @@ export function useWebSocket(
         console.log("WebSocket disconnected");
         setIsConnected(false);
         setIsStreaming(false);
-        // Attempt to reconnect after 3 seconds
         setTimeout(connect, 3000);
       };
 
@@ -92,7 +91,7 @@ export function useWebSocket(
     };
   }, [onMessageUpdate, onStreamEnd, onError]);
 
-  const sendMessage = (messages: Message[]) => {
+  const sendMessage = (messages: Message[], model?: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       const assistantMessageId = `assistant-${Date.now()}`;
       ws.current.send(
@@ -103,6 +102,7 @@ export function useWebSocket(
             content: msg.content,
           })),
           messageId: assistantMessageId,
+          model,
         }),
       );
       return assistantMessageId;

@@ -21,5 +21,8 @@
     "turbo": "^2.1.3",
     "typescript": "^5.9.2",
     "@types/bun": "^1.2.21"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.9"
   }
 }
