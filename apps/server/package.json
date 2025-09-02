@@ -15,7 +15,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.23",
     "@hono/node-server": "^1.19.1",
-    "hono": "^4.9.5"
+    "@hono/node-ws": "^1.2.0",
+    "@types/ws": "^8.18.1",
+    "ai": "^5.0.29",
+    "hono": "^4.9.5",
+    "ws": "^8.18.3"
   }
 }

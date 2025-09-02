@@ -1,8 +1,7 @@
-import { ConversationView } from '@/components/chat/ConversationView'
-import { mockConversation } from '@/data/mockConversation'
+import { ConversationView } from "@/components/chat/ConversationView";
 
 function App() {
-  return <ConversationView conversation={mockConversation} />
+  return <ConversationView />;
 }
 
-export default App
+export default App;
