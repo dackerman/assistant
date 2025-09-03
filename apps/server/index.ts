@@ -1,18 +1,19 @@
+import { createServer } from "http";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
-import { streamText, type ToolSet } from "ai";
+import { type ToolSet, stepCountIs, streamText } from "ai";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { createServer } from "http";
 import { WebSocketServer } from "ws";
 
 const app = new Hono();
 
 // Model configuration
 function getModel(modelName?: string) {
-  const model = modelName || process.env.DEFAULT_MODEL || "claude-sonnet-4-20250514";
+  const model =
+    modelName || process.env.DEFAULT_MODEL || "claude-sonnet-4-20250514";
 
   switch (model) {
     case "gpt-5-2025-08-07":
@@ -236,6 +237,7 @@ wss.on("connection", (ws) => {
           model: getModel(message.model),
           messages: message.messages,
           tools: getTools(message.model),
+          stopWhen: stepCountIs(20), // Allow up to 5 steps for tool execution and follow-up
         });
 
         // Send start of stream
@@ -247,54 +249,61 @@ wss.on("connection", (ws) => {
         );
 
         // Stream the response
-        for await (const textPart of result.textStream) {
-          if (ws.readyState === ws.OPEN) {
-            ws.send(
-              JSON.stringify({
-                type: "stream_text",
-                messageId: message.messageId,
-                text: textPart,
-              }),
-            );
-          }
-        }
-
-        // Handle tool calls when they complete
-        try {
-          const toolCalls = await result.toolCalls;
-          toolCalls.forEach((toolCall) => {
-            console.log("Tool call structure:", toolCall);
-            if (ws.readyState === ws.OPEN) {
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case "text-delta":
+              ws.send(
+                JSON.stringify({
+                  type: "stream_text",
+                  messageId: message.messageId,
+                  text: part.text,
+                }),
+              );
+              break;
+            case "tool-call": {
               ws.send(
                 JSON.stringify({
                   type: "tool_call",
                   messageId: message.messageId,
                   toolCall: {
-                    id: toolCall.toolCallId || "unknown",
-                    name: toolCall.toolName || "unknown",
-                    parameters: {},
-                    status: "completed",
+                    id: part.toolCallId || "unknown",
+                    name: part.toolName || "unknown",
+                    parameters: (part as any).args || {},
+                    status: "running",
                     startTime: new Date().toISOString(),
-                    endTime: new Date().toISOString(),
-                    result: JSON.stringify(toolCall),
+                    endTime: null,
+                    result: null,
                   },
                 }),
               );
+              break;
             }
-          });
-        } catch (toolError) {
-          console.error("Tool calls error:", toolError);
+            case "tool-result": {
+              ws.send(
+                JSON.stringify({
+                  type: "tool_result",
+                  messageId: message.messageId,
+                  toolResult: part.toolResult,
+                  status: "completed",
+                  startTime: new Date().toISOString(),
+                  endTime: new Date().toISOString(),
+                  result:
+                    typeof (part as any).result === "string"
+                      ? (part as any).result
+                      : JSON.stringify((part as any).result || part),
+                }),
+              );
+              break;
+            }
+          }
         }
-
         // Send end of stream
-        if (ws.readyState === ws.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "stream_end",
-              messageId: message.messageId,
-            }),
-          );
-        }
+        ws.send(
+          JSON.stringify({
+            type: "stream_end",
+            messageId: message.messageId,
+          }),
+        );
       }
     } catch (error) {
       console.error("WebSocket error:", error);
