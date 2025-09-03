@@ -181,6 +181,19 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </ReactMarkdown>
         </div>
 
+        {/* Reasoning Display */}
+        {message.reasoning && (
+          <div className="mt-2 p-2 rounded border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20">
+            <div className="text-xs font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+              AI Reasoning
+            </div>
+            <div className="text-xs text-yellow-700 dark:text-yellow-300 whitespace-pre-wrap">
+              {message.reasoning}
+            </div>
+          </div>
+        )}
+
+        {/* Tool Calls Display */}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-1 sm:mt-1.5 space-y-1 sm:space-y-1">
             {message.toolCalls.map((toolCall) => (
@@ -189,14 +202,126 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
+        {/* Tool Results Display */}
+        {message.toolResults && message.toolResults.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {message.toolResults.map((result) => (
+              <div
+                key={result.id}
+                className="p-2 rounded border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
+              >
+                <div className="text-xs font-semibold text-green-800 dark:text-green-200 mb-1">
+                  Tool Result: {result.name}
+                </div>
+                <div className="text-xs text-green-700 dark:text-green-300 whitespace-pre-wrap">
+                  {result.result}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tool Errors Display */}
+        {message.toolErrors && message.toolErrors.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {message.toolErrors.map((error) => (
+              <div
+                key={error.id}
+                className="p-2 rounded border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
+              >
+                <div className="text-xs font-semibold text-red-800 dark:text-red-200 mb-1">
+                  Tool Error: {error.name}
+                </div>
+                <div className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                  {typeof error.error === "string"
+                    ? error.error
+                    : JSON.stringify(error.error)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Sources Display */}
+        {message.sources && message.sources.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {message.sources.map((source, index) => (
+              <div
+                key={index}
+                className="p-2 rounded border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
+              >
+                <div className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-1">
+                  Source: {source.sourceType || "Unknown"}
+                </div>
+                {source.url && (
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 dark:text-blue-400 underline hover:no-underline"
+                  >
+                    {source.title || source.url}
+                  </a>
+                )}
+                {source.filename && (
+                  <div className="text-xs text-blue-700 dark:text-blue-300">
+                    File: {source.filename}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Files Display */}
+        {message.files && message.files.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {message.files.map((file, index) => (
+              <div
+                key={index}
+                className="p-2 rounded border border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20"
+              >
+                <div className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
+                  Generated File
+                </div>
+                <div className="text-xs text-purple-700 dark:text-purple-300 mb-2">
+                  Type: {file.mediaType}
+                </div>
+                {file.mediaType.startsWith("image/") ? (
+                  <img
+                    src={`data:${file.mediaType};base64,${file.base64}`}
+                    alt="Generated image"
+                    className="max-w-full h-auto rounded"
+                  />
+                ) : (
+                  <a
+                    href={`data:${file.mediaType};base64,${file.base64}`}
+                    download={`generated-file.${file.mediaType.split("/")[1] || "bin"}`}
+                    className="text-xs text-purple-600 dark:text-purple-400 underline hover:no-underline"
+                  >
+                    Download File
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {message.metadata &&
-          (message.metadata.tokens || message.metadata.cost) && (
-            <div className="flex gap-2 mt-1.5 sm:mt-2 text-xs text-muted-foreground">
+          (message.metadata.tokens ||
+            message.metadata.cost ||
+            message.metadata.finishReason) && (
+            <div className="flex gap-2 mt-1.5 sm:mt-2 text-xs text-muted-foreground flex-wrap">
               {message.metadata.tokens && (
                 <span>{message.metadata.tokens} tokens</span>
               )}
               {message.metadata.cost && (
                 <span>${message.metadata.cost.toFixed(4)}</span>
+              )}
+              {message.metadata.finishReason && (
+                <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                  {message.metadata.finishReason}
+                </Badge>
               )}
             </div>
           )}

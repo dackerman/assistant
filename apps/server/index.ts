@@ -250,25 +250,128 @@ wss.on("connection", (ws) => {
 
         // Stream the response
         for await (const part of result.fullStream) {
+          if (ws.readyState !== ws.OPEN) break;
+
           switch (part.type) {
+            case "text-start":
+              ws.send(
+                JSON.stringify({
+                  type: "text_start",
+                  messageId: message.messageId,
+                  id: part.id,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "text-end":
+              ws.send(
+                JSON.stringify({
+                  type: "text_end",
+                  messageId: message.messageId,
+                  id: part.id,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
             case "text-delta":
               ws.send(
                 JSON.stringify({
                   type: "stream_text",
                   messageId: message.messageId,
+                  id: part.id,
                   text: part.text,
+                  providerMetadata: part.providerMetadata,
                 }),
               );
               break;
-            case "tool-call": {
+
+            case "reasoning-start":
+              ws.send(
+                JSON.stringify({
+                  type: "reasoning_start",
+                  messageId: message.messageId,
+                  id: part.id,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "reasoning-end":
+              ws.send(
+                JSON.stringify({
+                  type: "reasoning_end",
+                  messageId: message.messageId,
+                  id: part.id,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "reasoning-delta":
+              ws.send(
+                JSON.stringify({
+                  type: "reasoning_delta",
+                  messageId: message.messageId,
+                  id: part.id,
+                  text: part.text,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "tool-input-start":
+              ws.send(
+                JSON.stringify({
+                  type: "tool_input_start",
+                  messageId: message.messageId,
+                  id: part.id,
+                  toolName: part.toolName,
+                  providerMetadata: part.providerMetadata,
+                  providerExecuted: part.providerExecuted,
+                  dynamic: part.dynamic,
+                }),
+              );
+              break;
+
+            case "tool-input-end":
+              ws.send(
+                JSON.stringify({
+                  type: "tool_input_end",
+                  messageId: message.messageId,
+                  id: part.id,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "tool-input-delta":
+              ws.send(
+                JSON.stringify({
+                  type: "tool_input_delta",
+                  messageId: message.messageId,
+                  id: part.id,
+                  delta: part.delta,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "tool-call":
               ws.send(
                 JSON.stringify({
                   type: "tool_call",
                   messageId: message.messageId,
                   toolCall: {
-                    id: part.toolCallId || "unknown",
-                    name: part.toolName || "unknown",
-                    parameters: (part as any).args || {},
+                    id: part.toolCallId,
+                    name: part.toolName,
+                    parameters: part.input,
+                    providerExecuted: part.providerExecuted,
+                    dynamic: part.dynamic,
+                    invalid: part.invalid,
+                    error: part.error,
+                    providerMetadata: part.providerMetadata,
                     status: "running",
                     startTime: new Date().toISOString(),
                     endTime: null,
@@ -277,24 +380,198 @@ wss.on("connection", (ws) => {
                 }),
               );
               break;
-            }
-            case "tool-result": {
+
+            case "tool-result":
               ws.send(
                 JSON.stringify({
                   type: "tool_result",
                   messageId: message.messageId,
-                  toolResult: part.toolResult,
-                  status: "completed",
-                  startTime: new Date().toISOString(),
-                  endTime: new Date().toISOString(),
-                  result:
-                    typeof (part as any).result === "string"
-                      ? (part as any).result
-                      : JSON.stringify((part as any).result || part),
+                  toolResult: {
+                    id: part.toolCallId,
+                    name: part.toolName,
+                    parameters: part.input,
+                    output: part.output,
+                    providerExecuted: part.providerExecuted,
+                    dynamic: part.dynamic,
+                    preliminary: part.preliminary,
+                    status: "completed",
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    result:
+                      typeof part.output === "string"
+                        ? part.output
+                        : JSON.stringify(part.output),
+                  },
                 }),
               );
               break;
-            }
+
+            case "tool-error":
+              ws.send(
+                JSON.stringify({
+                  type: "tool_error",
+                  messageId: message.messageId,
+                  toolError: {
+                    id: part.toolCallId,
+                    name: part.toolName,
+                    parameters: part.input,
+                    error: part.error,
+                    providerExecuted: part.providerExecuted,
+                    dynamic: part.dynamic,
+                    status: "error",
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    result: null,
+                  },
+                }),
+              );
+              break;
+
+            case "source":
+              ws.send(
+                JSON.stringify({
+                  type: "source",
+                  messageId: message.messageId,
+                  source: part, // Send the entire source object as it has different structures for url/document
+                }),
+              );
+              break;
+
+            case "file":
+              ws.send(
+                JSON.stringify({
+                  type: "file",
+                  messageId: message.messageId,
+                  file: {
+                    base64: part.file.base64,
+                    uint8Array: null, // Don't send binary data over WebSocket
+                    mediaType: part.file.mediaType,
+                  },
+                }),
+              );
+              break;
+
+            case "tool-error":
+              ws.send(
+                JSON.stringify({
+                  type: "tool_error",
+                  messageId: message.messageId,
+                  toolError: {
+                    id: part.toolCallId,
+                    name: part.toolName,
+                    parameters: part.input,
+                    error: part.error,
+                    providerExecuted: part.providerExecuted,
+                    dynamic: part.dynamic,
+                    status: "error",
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    result: null,
+                  },
+                }),
+              );
+              break;
+
+            case "source":
+              ws.send(
+                JSON.stringify({
+                  type: "source",
+                  messageId: message.messageId,
+                  source: part, // Send the entire source object as it has different structures for url/document
+                }),
+              );
+              break;
+
+            case "file":
+              ws.send(
+                JSON.stringify({
+                  type: "file",
+                  messageId: message.messageId,
+                  file: {
+                    base64: part.file.base64,
+                    uint8Array: null, // Don't send binary data over WebSocket
+                    mediaType: part.file.mediaType,
+                  },
+                }),
+              );
+              break;
+
+            case "start-step":
+              ws.send(
+                JSON.stringify({
+                  type: "start_step",
+                  messageId: message.messageId,
+                  request: part.request,
+                  warnings: part.warnings,
+                }),
+              );
+              break;
+
+            case "finish-step":
+              ws.send(
+                JSON.stringify({
+                  type: "finish_step",
+                  messageId: message.messageId,
+                  response: part.response,
+                  usage: part.usage,
+                  finishReason: part.finishReason,
+                  providerMetadata: part.providerMetadata,
+                }),
+              );
+              break;
+
+            case "start":
+              ws.send(
+                JSON.stringify({
+                  type: "start",
+                  messageId: message.messageId,
+                }),
+              );
+              break;
+
+            case "finish":
+              ws.send(
+                JSON.stringify({
+                  type: "finish",
+                  messageId: message.messageId,
+                  finishReason: part.finishReason,
+                  totalUsage: part.totalUsage,
+                }),
+              );
+              break;
+
+            case "abort":
+              ws.send(
+                JSON.stringify({
+                  type: "abort",
+                  messageId: message.messageId,
+                }),
+              );
+              break;
+
+            case "error":
+              ws.send(
+                JSON.stringify({
+                  type: "stream_error",
+                  messageId: message.messageId,
+                  error:
+                    part.error instanceof Error
+                      ? part.error.message
+                      : String(part.error),
+                }),
+              );
+              break;
+
+            case "raw":
+              // Raw values might contain sensitive data, so we'll log it for debugging
+              // but not send it to the client unless specifically needed
+              console.log("Raw stream part:", part.rawValue);
+              break;
+
+            default:
+              // Exhaustive check - this should never happen with proper typing
+              console.warn("Unhandled stream part type:", (part as any).type);
+              break;
           }
         }
         // Send end of stream

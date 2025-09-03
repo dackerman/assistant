@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { Conversation, Message } from "@/types/conversation";
+import type { Conversation, Message, StreamPart } from "@/types/conversation";
 import { MoreHorizontal, Send, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
@@ -16,25 +16,113 @@ export function ConversationView({ conversation }: ConversationViewProps) {
   const [messages, setMessages] = useState<Message[]>(
     conversation?.messages || [],
   );
-  const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-20250514");
+  const [selectedModel, setSelectedModel] = useState(
+    "claude-sonnet-4-20250514",
+  );
 
-  const handleMessageUpdate = useCallback((messageId: string, text: string) => {
+  const handleStreamPart = useCallback((part: StreamPart) => {
+    if (!part.messageId) return;
+
     setMessages((prev) => {
-      const existing = prev.find((m) => m.id === messageId);
-      if (existing) {
-        return prev.map((m) =>
-          m.id === messageId ? { ...m, content: text } : m,
-        );
+      // Find or create the message
+      const existingIndex = prev.findIndex((m) => m.id === part.messageId);
+      let currentMessage: Message;
+
+      if (existingIndex >= 0) {
+        currentMessage = { ...prev[existingIndex] };
       } else {
-        return [
-          ...prev,
-          {
-            id: messageId,
-            type: "assistant" as const,
-            content: text,
-            timestamp: new Date().toISOString(),
-          },
-        ];
+        // Create new assistant message
+        currentMessage = {
+          id: part.messageId,
+          type: "assistant" as const,
+          content: "",
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Handle different stream part types
+      switch (part.type) {
+        case "stream_text":
+        case "text-delta":
+          if (part.text) {
+            currentMessage.content += part.text;
+          }
+          break;
+
+        case "reasoning_delta":
+        case "reasoning-delta":
+          if (part.text) {
+            currentMessage.reasoning =
+              (currentMessage.reasoning || "") + part.text;
+          }
+          break;
+
+        case "tool_call":
+        case "tool-call":
+          if (part.toolCall) {
+            currentMessage.toolCalls = currentMessage.toolCalls
+              ? [...currentMessage.toolCalls, part.toolCall]
+              : [part.toolCall];
+          }
+          break;
+
+        case "tool_result":
+        case "tool-result":
+          if (part.toolResult) {
+            currentMessage.toolResults = currentMessage.toolResults
+              ? [...currentMessage.toolResults, part.toolResult]
+              : [part.toolResult];
+          }
+          break;
+
+        case "tool_error":
+        case "tool-error":
+          if (part.toolError) {
+            currentMessage.toolErrors = currentMessage.toolErrors
+              ? [...currentMessage.toolErrors, part.toolError]
+              : [part.toolError];
+          }
+          break;
+
+        case "source":
+          if (part.source) {
+            currentMessage.sources = currentMessage.sources
+              ? [...currentMessage.sources, part.source]
+              : [part.source];
+          }
+          break;
+
+        case "file":
+          if (part.file) {
+            currentMessage.files = currentMessage.files
+              ? [...currentMessage.files, part.file]
+              : [part.file];
+          }
+          break;
+
+        case "finish":
+          if (part.finishReason || part.totalUsage) {
+            currentMessage.metadata = {
+              ...currentMessage.metadata,
+              finishReason: part.finishReason,
+              usage: part.totalUsage,
+            };
+          }
+          break;
+
+        // Log other part types for debugging
+        default:
+          console.log("Unhandled stream part:", part);
+          break;
+      }
+
+      // Update the messages array
+      if (existingIndex >= 0) {
+        const newMessages = [...prev];
+        newMessages[existingIndex] = currentMessage;
+        return newMessages;
+      } else {
+        return [...prev, currentMessage];
       }
     });
   }, []);
@@ -47,25 +135,10 @@ export function ConversationView({ conversation }: ConversationViewProps) {
     console.error("WebSocket error:", error);
   }, []);
 
-  const handleToolCall = useCallback((messageId: string, toolCall: any) => {
-    setMessages((prev) => {
-      return prev.map((message) => {
-        if (message.id === messageId) {
-          const updatedToolCalls = message.toolCalls
-            ? [...message.toolCalls, toolCall]
-            : [toolCall];
-          return { ...message, toolCalls: updatedToolCalls };
-        }
-        return message;
-      });
-    });
-  }, []);
-
   const { sendMessage, isConnected, isStreaming } = useWebSocket(
-    handleMessageUpdate,
+    handleStreamPart,
     handleStreamEnd,
     handleError,
-    handleToolCall,
   );
 
   const handleSend = () => {

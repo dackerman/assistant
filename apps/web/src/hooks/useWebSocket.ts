@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Message } from "@/types/conversation";
-
-interface WebSocketMessage {
-  type: "stream_start" | "stream_text" | "stream_end" | "error" | "tool_call";
-  messageId?: string;
-  text?: string;
-  error?: string;
-  toolCall?: any;
-}
+import type { Message, StreamPart } from "@/types/conversation";
 
 interface UseWebSocketReturn {
   sendMessage: (messages: Message[], model?: string) => void;
@@ -16,15 +8,13 @@ interface UseWebSocketReturn {
 }
 
 export function useWebSocket(
-  onMessageUpdate: (messageId: string, text: string) => void,
+  onStreamPart: (part: StreamPart) => void,
   onStreamEnd: (messageId: string) => void,
   onError: (error: string) => void,
-  onToolCall?: (messageId: string, toolCall: any) => void,
 ): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const currentTextRef = useRef<string>("");
 
   useEffect(() => {
     const connect = () => {
@@ -40,41 +30,28 @@ export function useWebSocket(
       };
 
       ws.current.onmessage = (event) => {
-        const data: WebSocketMessage = JSON.parse(event.data);
+        const data: StreamPart = JSON.parse(event.data);
 
-        switch (data.type) {
-          case "stream_start":
-            if (data.messageId) {
-              setIsStreaming(true);
-              currentTextRef.current = "";
-            }
-            break;
-
-          case "stream_text":
-            if (data.messageId && data.text) {
-              currentTextRef.current += data.text;
-              onMessageUpdate(data.messageId, currentTextRef.current);
-            }
-            break;
-
-          case "stream_end":
-            if (data.messageId) {
-              setIsStreaming(false);
-              onStreamEnd(data.messageId);
-            }
-            break;
-
-          case "tool_call":
-            if (data.messageId && data.toolCall && onToolCall) {
-              onToolCall(data.messageId, data.toolCall);
-            }
-            break;
-
-          case "error":
-            setIsStreaming(false);
-            onError(data.error || "Unknown error");
-            break;
+        // Handle streaming control
+        if (data.type === "stream_start" || data.type === "start") {
+          setIsStreaming(true);
+        } else if (
+          data.type === "stream_end" ||
+          data.type === "finish" ||
+          data.type === "abort"
+        ) {
+          setIsStreaming(false);
+          if (data.messageId) {
+            onStreamEnd(data.messageId);
+          }
+        } else if (data.type === "error" || data.type === "stream_error") {
+          setIsStreaming(false);
+          onError(data.error || "Unknown error");
+          return; // Don't pass error parts to the stream handler
         }
+
+        // Pass all parts to the stream handler
+        onStreamPart(data);
       };
 
       ws.current.onclose = () => {
@@ -97,7 +74,7 @@ export function useWebSocket(
         ws.current.close();
       }
     };
-  }, [onMessageUpdate, onStreamEnd, onError]);
+  }, [onStreamPart, onStreamEnd, onError]);
 
   const sendMessage = (messages: Message[], model?: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
