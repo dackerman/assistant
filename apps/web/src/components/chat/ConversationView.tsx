@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import type { Conversation, Message } from "@/types/conversation";
-import { MessageBubble } from "./MessageBubble";
-import { Send, MoreHorizontal, Wifi, WifiOff } from "lucide-react";
-import { useState, useCallback } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import type { Conversation, Message } from "@/types/conversation";
+import { MoreHorizontal, Send, Wifi, WifiOff } from "lucide-react";
+import { useCallback, useState } from "react";
+import { MessageBubble } from "./MessageBubble";
 
 interface ConversationViewProps {
   conversation?: Conversation;
@@ -16,7 +16,7 @@ export function ConversationView({ conversation }: ConversationViewProps) {
   const [messages, setMessages] = useState<Message[]>(
     conversation?.messages || [],
   );
-  const [selectedModel, setSelectedModel] = useState("gpt-5-chat-latest");
+  const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-20250514");
 
   const handleMessageUpdate = useCallback((messageId: string, text: string) => {
     setMessages((prev) => {
@@ -47,10 +47,25 @@ export function ConversationView({ conversation }: ConversationViewProps) {
     console.error("WebSocket error:", error);
   }, []);
 
+  const handleToolCall = useCallback((messageId: string, toolCall: any) => {
+    setMessages((prev) => {
+      return prev.map((message) => {
+        if (message.id === messageId) {
+          const updatedToolCalls = message.toolCalls
+            ? [...message.toolCalls, toolCall]
+            : [toolCall];
+          return { ...message, toolCalls: updatedToolCalls };
+        }
+        return message;
+      });
+    });
+  }, []);
+
   const { sendMessage, isConnected, isStreaming } = useWebSocket(
     handleMessageUpdate,
     handleStreamEnd,
     handleError,
+    handleToolCall,
   );
 
   const handleSend = () => {

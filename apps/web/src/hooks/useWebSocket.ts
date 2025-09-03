@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/types/conversation";
 
 interface WebSocketMessage {
-  type: "stream_start" | "stream_text" | "stream_end" | "error";
+  type: "stream_start" | "stream_text" | "stream_end" | "error" | "tool_call";
   messageId?: string;
   text?: string;
   error?: string;
+  toolCall?: any;
 }
 
 interface UseWebSocketReturn {
@@ -18,6 +19,7 @@ export function useWebSocket(
   onMessageUpdate: (messageId: string, text: string) => void,
   onStreamEnd: (messageId: string) => void,
   onError: (error: string) => void,
+  onToolCall?: (messageId: string, toolCall: any) => void,
 ): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -59,6 +61,12 @@ export function useWebSocket(
             if (data.messageId) {
               setIsStreaming(false);
               onStreamEnd(data.messageId);
+            }
+            break;
+
+          case "tool_call":
+            if (data.messageId && data.toolCall && onToolCall) {
+              onToolCall(data.messageId, data.toolCall);
             }
             break;
 

@@ -12,7 +12,7 @@ const app = new Hono();
 
 // Model configuration
 function getModel(modelName?: string) {
-  const model = modelName || process.env.DEFAULT_MODEL || "gpt-5-chat-latest";
+  const model = modelName || process.env.DEFAULT_MODEL || "claude-sonnet-4-20250514";
 
   switch (model) {
     case "gpt-5-2025-08-07":
@@ -30,13 +30,9 @@ function getModel(modelName?: string) {
     case "grok-code-fast-1":
     case "grok-4-latest":
       return xai(model);
-
-    default:
-      console.warn(
-        `Unknown model: ${model}, falling back to gpt-5-chat-latest`,
-      );
-      return openai("gpt-5-chat-latest");
   }
+
+  throw new Error(`Unknown model: ${model}`);
 }
 
 function getTools(model: string) {
@@ -54,14 +50,14 @@ function getTools(model: string) {
           timezone: "America/New_York",
         },
       });
-      tools.webSearch = webSearch;
+      tools.web_search = webSearch;
       break;
     }
     case "claude-sonnet-4-20250514":
     case "claude-opus-4-1-20250805": {
       console.log("Adding web search tool");
       const webSearch = anthropic.tools.webSearch_20250305();
-      tools.webSearch = webSearch;
+      tools.web_search = webSearch;
       break;
     }
   }
@@ -261,6 +257,33 @@ wss.on("connection", (ws) => {
               }),
             );
           }
+        }
+
+        // Handle tool calls when they complete
+        try {
+          const toolCalls = await result.toolCalls;
+          toolCalls.forEach((toolCall) => {
+            console.log("Tool call structure:", toolCall);
+            if (ws.readyState === ws.OPEN) {
+              ws.send(
+                JSON.stringify({
+                  type: "tool_call",
+                  messageId: message.messageId,
+                  toolCall: {
+                    id: toolCall.toolCallId || "unknown",
+                    name: toolCall.toolName || "unknown",
+                    parameters: {},
+                    status: "completed",
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    result: JSON.stringify(toolCall),
+                  },
+                }),
+              );
+            }
+          });
+        } catch (toolError) {
+          console.error("Tool calls error:", toolError);
         }
 
         // Send end of stream
