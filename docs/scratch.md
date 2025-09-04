@@ -32,12 +32,23 @@ no matter what, it just has to be super robust to disconnections and reconnectio
         - if type is block_delta, update the block with index N
         - if type is block_end
           - if block type is tool_use
-            - tool_call record is created with inputs
+            - tool_call record is created with inputs (and ID of tool call from API)
             - async task is started to execute tool call
               - when async task finishes, it writes result to tool_use record
+              - if the tool is marked canceled, the task runner will kill the job
     - on failure, prompt state is ERROR, and error is written to prompt
     - on message_stop
-      - if prompt state is COMPLETED
+      - if tool call records were created
+        - prompt state is WAITING_FOR_TOOLS
+        - wait until all tool_call records are settled
+          - then send tool call data response back to AI
+            - prompt stat is IN_PROGRESS
+            - continue streaming events as before
+        - if tool_call.updated_at is more than 1 minute old
+          - mark it canceled
+          - mark the prompt state to ERROR
+      - otherwise
+        - prompt state is COMPLETED
 
 ### Resume stream
 - if prompt state is COMPLETED
@@ -50,9 +61,16 @@ no matter what, it just has to be super robust to disconnections and reconnectio
   - send prompt data to AI
     - continue the same stream handling 
 
+### Cancel stream
+- if prompt state is CREATED, FAILED, ERROR, COMPLETED, or CANCELED
+  - set prompt state to CANCELED
+- if prompt state is IN_PROGRESS
+  - query for all running tool_calls for this prompt
+    - mark them canceled
+
 ### tables
 prompts
-- state: CREATED, IN_PROGRESS, FAILED, ERROR, COMPLETED
+- state: CREATED, IN_PROGRESS, FAILED, ERROR, COMPLETED, CANCELED
 - last_updated: timestamp automatically updated
 - error: text (nullable)
 - current_block: integer (nullable)
@@ -65,6 +83,7 @@ events
 - delta: text
 
 blocks
+- prompt: FK to prompts
 - type: text, thinking, tool_call
 - index: integer
 - content: text
@@ -72,8 +91,10 @@ blocks
 tool_calls
 - prompt: FK to prompts
 - block: FK to blocks
+- tool_name: text
 - state: created, running, complete, error, canceled
 - created_at: timestamp
 - updated_at: timestamp
-- input: text
-- output: text
+- request: text
+- response: text
+- error: text

@@ -22,6 +22,10 @@ really i think conversations should just be like files on the filesystem that ca
 
 maybe you should be able to browse and view all these files - and conversations are just another file. like the view you see as a user is actually a filesystem and there's just a `conversations/` directory that has them all. you can edit/delete them as needed. and other folders and files can also be added.
 
+### Context management
+
+As above, I think a "conversation" is just more context to have in the window. For now, managing what's in context is very important for effective prompting and getting things done. As a power user, you should be able to manage the context of the LLM explicitly. Like, tweak the system prompt, pull in bits of knowledge and skills, either from the web or from past conversations (all with the help of the LLM!). I guess I need to figure out how different this should be from literally "write X to file Y", and later "load file Y". It would be nice to have a better affordance than that.
+
 ## Tools
 
 - Any bash commands the server can run, including ones it writes itself
