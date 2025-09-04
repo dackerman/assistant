@@ -8,7 +8,9 @@ sequenceDiagram
     Note over Client,ToolExecutor: Start Stream Flow
 
     Client->>Server: Send chat message
-    Server->>DB: INSERT prompt (state=CREATED)
+    Server->>DB: INSERT user message with blocks
+    Server->>DB: INSERT assistant message (incomplete)
+    Server->>DB: INSERT prompt (state=CREATED, linked to message)
     DB-->>Server: prompt_id
 
     Server->>AI_API: Send prompt to AI
@@ -23,13 +25,13 @@ sequenceDiagram
             Server->>DB: INSERT event (prompt_id, type, delta)
             
             alt Block Start Event
-                Server->>DB: INSERT block (index=N, type)
+                Server->>DB: INSERT block (prompt_id, index=N, type)
                 Server->>DB: UPDATE prompt (current_block=N)
             else Block Delta Event  
-                Server->>DB: UPDATE block (content += delta)
+                Server->>DB: UPDATE block SET content = content || delta
             else Block End Event
                 alt Block Type = tool_use
-                    Server->>DB: INSERT tool_call (state=created, tool_name, request, API_tool_id)
+                    Server->>DB: INSERT tool_call (block_id, state=created, request)
                     Server->>ToolExecutor: Execute tool async
                     Note over ToolExecutor: Tool runs in background
                 end
@@ -66,10 +68,14 @@ sequenceDiagram
                     Server->>Client: Forward stream event
                 end
                 AI_API->>Server: final message_stop
+                Server->>DB: UPDATE blocks SET message_id = ?, is_finalized = true
+                Server->>DB: UPDATE message SET is_complete = true
                 Server->>DB: UPDATE prompt (state=COMPLETED)
                 Server->>Client: Stream complete
             end
         else No tool calls
+            Server->>DB: UPDATE blocks SET message_id = ?, is_finalized = true  
+            Server->>DB: UPDATE message SET is_complete = true
             Server->>DB: UPDATE prompt (state=COMPLETED)
             Server->>Client: Stream complete
         end
@@ -96,9 +102,13 @@ sequenceDiagram
 
     Note over Client,ToolExecutor: Resume Stream Flow
 
-    Client->>Server: Resume/reconnect to conversation
-    Server->>DB: SELECT prompt WHERE id=?
-    DB-->>Server: prompt (state, current_block, error)
+    Client->>Server: Connect to conversation
+    Server->>DB: SELECT messages and blocks WHERE conversation_id=?
+    DB-->>Server: Completed messages with blocks
+    Server->>Client: Send conversation history
+    
+    Server->>DB: SELECT active prompt WHERE conversation_id=?
+    DB-->>Server: Active prompt if any
     
     alt Prompt State = COMPLETED
         Server->>Client: Stream already complete
