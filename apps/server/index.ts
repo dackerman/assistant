@@ -253,6 +253,15 @@ wss.on("connection", (ws) => {
           if (ws.readyState !== ws.OPEN) break;
 
           switch (part.type) {
+            case "start":
+              ws.send(
+                JSON.stringify({
+                  type: "start",
+                  messageId: message.messageId,
+                }),
+              );
+              break;
+
             case "text-start":
               ws.send(
                 JSON.stringify({
@@ -516,15 +525,6 @@ wss.on("connection", (ws) => {
                   usage: part.usage,
                   finishReason: part.finishReason,
                   providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "start":
-              ws.send(
-                JSON.stringify({
-                  type: "start",
-                  messageId: message.messageId,
                 }),
               );
               break;
