@@ -194,14 +194,27 @@ export class ConversationService {
         } as NewPrompt)
         .returning();
 
-      // Create user message block after prompt exists
+      // Create a separate prompt for the user message
+      const [userPrompt] = await tx
+        .insert(prompts)
+        .values({
+          conversationId,
+          // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
+          messageId: userMessage!.id,
+          state: "COMPLETED", // User messages are immediately complete
+          model: "user", // Not an AI model, just a marker
+          systemMessage: null,
+        } as NewPrompt)
+        .returning();
+
+      // Create user message block with its own prompt
       await tx.insert(blocks).values({
         // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        promptId: prompt!.id,
+        promptId: userPrompt!.id,
         // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
         messageId: userMessage!.id,
         type: "text",
-        indexNum: -1,
+        indexNum: 0, // User messages have simple indexing starting from 0
         content,
         isFinalized: true,
       });
