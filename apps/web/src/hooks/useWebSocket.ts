@@ -35,6 +35,8 @@ export function useWebSocket(
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const lastConversationId = useRef<number | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef(false);
 
   // Use refs to access latest callbacks without making them dependencies
   const onTextDeltaRef = useRef(onTextDelta);
@@ -50,6 +52,17 @@ export function useWebSocket(
 
   useEffect(() => {
     const connect = () => {
+      // Prevent multiple simultaneous connection attempts
+      if (isConnectingRef.current || (ws.current?.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      // Clean up any existing connection first
+      if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+        ws.current.close();
+      }
+
+      isConnectingRef.current = true;
       const wsHost =
         window.location.hostname === "localhost"
           ? "localhost"
@@ -58,7 +71,13 @@ export function useWebSocket(
 
       ws.current.onopen = () => {
         console.log("WebSocket connected");
+        isConnectingRef.current = false;
         setIsConnected(true);
+        // Clear any pending reconnection attempts
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
         // Resubscribe if we had an active conversation
         if (lastConversationId.current != null) {
           ws.current?.send(
@@ -126,25 +145,44 @@ export function useWebSocket(
         }
       };
 
-      ws.current.onclose = () => {
-        console.log("WebSocket disconnected");
+      ws.current.onclose = (event) => {
+        console.log("WebSocket disconnected", event.code, event.reason);
+        isConnectingRef.current = false;
         setIsConnected(false);
         setIsStreaming(false);
-        // Reconnect after 3 seconds
-        setTimeout(connect, 3000);
+        
+        // Only attempt reconnection if it wasn't a deliberate close (code 1000)
+        // and we don't already have a reconnection scheduled
+        if (event.code !== 1000 && !reconnectTimeoutRef.current) {
+          console.log("Scheduling reconnection in 3 seconds...");
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connect();
+          }, 3000);
+        }
       };
 
       ws.current.onerror = (error) => {
         console.error("WebSocket error:", error);
+        isConnectingRef.current = false;
       };
     };
 
     connect();
 
     return () => {
-      if (ws.current) {
-        ws.current.close();
+      // Clean up timeouts
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
+      
+      // Close WebSocket connection cleanly
+      if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+        ws.current.close(1000, "Component unmounting");
+      }
+      
+      isConnectingRef.current = false;
     };
   }, []); // Remove callback dependencies to prevent reconnection loops
 
