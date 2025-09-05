@@ -17,11 +17,13 @@ import { MessageBubble } from "./MessageBubble";
 interface ConversationViewProps {
   conversationId?: number;
   onConversationCreate?: (conversationId: number) => void;
+  onTitleUpdate?: () => void;
 }
 
 export function ConversationView({
   conversationId,
   onConversationCreate,
+  onTitleUpdate,
 }: ConversationViewProps) {
   const [inputValue, setInputValue] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -117,11 +119,19 @@ export function ConversationView({
     [],
   );
 
+  const handleTitleGenerated = useCallback((title: string) => {
+    console.log("Title generated:", title);
+    setConversationTitle(title);
+    // Notify parent component to refresh sidebar
+    onTitleUpdate?.();
+  }, [onTitleUpdate]);
+
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
     handleTextDelta,
     handleStreamComplete,
     handleStreamError,
     handleSnapshot,
+    handleTitleGenerated,
   );
 
   // Sync internal state with conversation ID prop

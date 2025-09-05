@@ -19,6 +19,7 @@ interface WebSocketMessage {
   conversationId?: number;
   currentState?: string;
   content?: string;
+  title?: string;
 }
 
 export function useWebSocket(
@@ -30,6 +31,7 @@ export function useWebSocket(
     content: string,
     state: string,
   ) => void,
+  onTitleGenerated?: (title: string) => void,
 ): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -43,12 +45,14 @@ export function useWebSocket(
   const onStreamCompleteRef = useRef(onStreamComplete);
   const onStreamErrorRef = useRef(onStreamError);
   const onSnapshotReceivedRef = useRef(onSnapshotReceived);
+  const onTitleGeneratedRef = useRef(onTitleGenerated);
 
   // Update refs when callbacks change
   onTextDeltaRef.current = onTextDelta;
   onStreamCompleteRef.current = onStreamComplete;
   onStreamErrorRef.current = onStreamError;
   onSnapshotReceivedRef.current = onSnapshotReceived;
+  onTitleGeneratedRef.current = onTitleGenerated;
 
   useEffect(() => {
     const connect = () => {
@@ -148,6 +152,13 @@ export function useWebSocket(
 
           case "subscribed":
             console.log("Subscribed to conversation:", data.conversationId);
+            break;
+
+          case "title_generated":
+            if (data.title) {
+              console.log("Title generated:", data.title);
+              onTitleGeneratedRef.current?.(data.title);
+            }
             break;
 
           default:

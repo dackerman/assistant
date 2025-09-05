@@ -211,6 +211,7 @@ const wss = new WebSocketServer({ server });
 
 // Simple in-memory subscription registry
 type OutgoingMessage =
+  | { type: "title_generated"; title: string }
   | { type: "text_delta"; promptId: number; delta: string }
   | { type: "stream_complete"; promptId: number }
   | { type: "stream_error"; promptId: number; error: string }
@@ -486,6 +487,10 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
         .then((response) => {
           const title =
             response.content[0]?.text || "New Conversation (failed)";
+          broadcast(conversationId, {
+            type: "title_generated",
+            title,
+          });
           return conversationService.setTitle(conversationId, title);
         })
         .catch((error) => {

@@ -58,6 +58,11 @@ function ConversationPage() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const handleTitleUpdate = () => {
+    // Trigger sidebar refresh to show the updated title
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="flex h-screen bg-background">
       {/* Mobile menu button */}
@@ -103,6 +108,7 @@ function ConversationPage() {
         <ConversationView
           conversationId={conversationId}
           onConversationCreate={handleConversationCreate}
+          onTitleUpdate={handleTitleUpdate}
         />
       </div>
     </div>
