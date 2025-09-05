@@ -158,7 +158,10 @@ export function ConversationView({
         throw new Error("Conversation not found");
       }
       
-      setMessages(formatMessagesFromAPI(result.messages));
+      console.log("Backend messages raw data:", result.messages);
+      const formattedMessages = formatMessagesFromAPI(result.messages);
+      console.log("Formatted messages for UI:", formattedMessages);
+      setMessages(formattedMessages);
       setConversationTitle(result.conversation.title || "Conversation");
 
       // Check for active streaming and restore streaming state
