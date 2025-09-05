@@ -3,11 +3,14 @@ import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 
-function App() {
-  const [currentConversationId, setCurrentConversationId] = useState<
-    number | undefined
-  >(undefined);
+// Component for the conversation route
+function ConversationPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const conversationId = id ? parseInt(id, 10) : undefined;
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -25,7 +28,7 @@ function App() {
 
   const handleConversationSelect = (conversationId: number) => {
     console.log("App: Conversation selected:", conversationId);
-    setCurrentConversationId(conversationId);
+    navigate(`/conversation/${conversationId}`);
     // Close sidebar on mobile after selection
     if (!isDesktop) {
       setIsSidebarOpen(false);
@@ -33,7 +36,7 @@ function App() {
   };
 
   const handleNewConversation = () => {
-    setCurrentConversationId(undefined);
+    navigate('/');
     // Close sidebar on mobile after creating new conversation
     if (!isDesktop) {
       setIsSidebarOpen(false);
@@ -41,7 +44,7 @@ function App() {
   };
 
   const handleConversationCreate = (conversationId: number) => {
-    setCurrentConversationId(conversationId);
+    navigate(`/conversation/${conversationId}`);
     // Trigger sidebar refresh to show the new conversation
     setRefreshTrigger((prev) => prev + 1);
   };
@@ -75,7 +78,7 @@ function App() {
         {/* Sidebar content */}
         <div className="relative sm:h-full">
           <ConversationSidebar
-            currentConversationId={currentConversationId}
+            currentConversationId={conversationId}
             onConversationSelect={handleConversationSelect}
             onNewConversation={handleNewConversation}
             onClose={() => setIsSidebarOpen(false)}
@@ -88,11 +91,20 @@ function App() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <ConversationView
-          conversationId={currentConversationId}
+          conversationId={conversationId}
           onConversationCreate={handleConversationCreate}
         />
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<ConversationPage />} />
+      <Route path="/conversation/:id" element={<ConversationPage />} />
+    </Routes>
   );
 }
 
