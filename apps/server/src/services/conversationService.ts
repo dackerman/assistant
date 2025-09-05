@@ -247,6 +247,37 @@ export class ConversationService {
   }
 
   /**
+   * Delete a conversation and all associated data
+   */
+  async deleteConversation(conversationId: number, userId: number): Promise<void> {
+    // Verify the user owns this conversation
+    const [conversation] = await this.db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId),
+        ),
+      );
+
+    if (!conversation) {
+      throw new Error("Conversation not found or access denied");
+    }
+
+    // Delete the conversation (cascading deletes will handle related data)
+    await this.db
+      .delete(conversations)
+      .where(eq(conversations.id, conversationId));
+    
+    this.logger.info("Conversation deleted", {
+      conversationId,
+      userId,
+      title: conversation.title,
+    });
+  }
+
+  /**
    * Get prompt by ID
    */
   async getPromptById(promptId: number) {

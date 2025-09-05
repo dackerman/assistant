@@ -89,6 +89,19 @@ export class ConversationService {
 
     return response.json();
   }
+
+  /**
+   * Delete a conversation
+   */
+  async deleteConversation(conversationId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/conversations/${conversationId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete conversation");
+    }
+  }
 }
 
 export const conversationService = new ConversationService();

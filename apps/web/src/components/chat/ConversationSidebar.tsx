@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { conversationService } from "@/services/conversationService";
 import type { Conversation } from "@/types/conversation";
-import { MessageCircle, Plus, X } from "lucide-react";
+import { MessageCircle, Plus, X, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface ConversationSidebarProps {
@@ -11,6 +11,7 @@ interface ConversationSidebarProps {
   onClose?: () => void;
   isOpen: boolean;
   refreshTrigger?: number; // Add this to trigger refresh when new conversations are created
+  onConversationDelete?: (conversationId: number) => void; // Add delete callback
 }
 
 export function ConversationSidebar({
@@ -20,6 +21,7 @@ export function ConversationSidebar({
   onClose,
   isOpen,
   refreshTrigger,
+  onConversationDelete,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,6 +63,27 @@ export function ConversationSidebar({
   const handleConversationClick = (conversationId: string) => {
     console.log("Sidebar: Conversation clicked:", conversationId);
     onConversationSelect(Number(conversationId));
+  };
+
+  const handleDeleteClick = async (conversationId: string, e: React.MouseEvent) => {
+    // Stop propagation to prevent conversation selection
+    e.stopPropagation();
+    
+    const confirmed = window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      await conversationService.deleteConversation(Number(conversationId));
+      
+      // Remove from local state
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // Notify parent component about deletion
+      onConversationDelete?.(Number(conversationId));
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+      alert("Failed to delete conversation. Please try again.");
+    }
   };
 
   const truncateTitle = (title: string, maxLength = 30) => {
@@ -163,7 +186,7 @@ export function ConversationSidebar({
               <div
                 key={conversation.id}
                 onClick={() => handleConversationClick(conversation.id)}
-                className={`flex cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors hover:bg-accent ${
+                className={`flex cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors hover:bg-accent group ${
                   currentConversationId?.toString() === conversation.id
                     ? "bg-accent"
                     : ""
@@ -178,6 +201,14 @@ export function ConversationSidebar({
                     {formatDate(conversation.updatedAt)}
                   </div>
                 </div>
+                <Button
+                  onClick={(e) => handleDeleteClick(conversation.id, e)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 flex-shrink-0"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
               </div>
             ))}
           </div>

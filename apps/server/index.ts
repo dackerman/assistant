@@ -129,6 +129,19 @@ app.get("/api/conversations", async (c) => {
   return c.json({ conversations });
 });
 
+app.delete("/api/conversations/:id", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+  const userId = 1; // TODO: Get from auth
+
+  try {
+    await conversationService.deleteConversation(conversationId, userId);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete conversation:", error);
+    return c.json({ error: "Failed to delete conversation" }, 500);
+  }
+});
+
 // Serve static files for production (when frontend is built)
 app.get("*", (c) => {
   return c.text(

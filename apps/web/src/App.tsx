@@ -49,6 +49,15 @@ function ConversationPage() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const handleConversationDelete = (deletedConversationId: number) => {
+    // If we're currently viewing the deleted conversation, navigate to home
+    if (conversationId === deletedConversationId) {
+      navigate('/');
+    }
+    // Trigger sidebar refresh to remove the deleted conversation from the list
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="flex h-screen bg-background">
       {/* Mobile menu button */}
@@ -84,6 +93,7 @@ function ConversationPage() {
             onClose={() => setIsSidebarOpen(false)}
             isOpen={isSidebarOpen || isDesktop}
             refreshTrigger={refreshTrigger}
+            onConversationDelete={handleConversationDelete}
           />
         </div>
       </div>
