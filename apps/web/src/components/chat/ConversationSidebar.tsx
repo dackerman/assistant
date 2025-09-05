@@ -3,6 +3,7 @@ import { conversationService } from "@/services/conversationService";
 import type { Conversation } from "@/types/conversation";
 import { MessageCircle, Plus, X, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ConversationTitle } from "@/components/ui/ConversationTitle";
 
 interface ConversationSidebarProps {
   currentConversationId?: number;
@@ -26,6 +27,7 @@ export function ConversationSidebar({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [titleAnimationTriggers, setTitleAnimationTriggers] = useState<Map<string, number>>(new Map());
 
   // Load conversations
   useEffect(() => {
@@ -51,7 +53,22 @@ export function ConversationSidebar({
         }),
       );
 
-      setConversations(formattedConversations);
+      // Check for title changes and trigger animations  
+      setConversations(prev => {
+        const prevTitleMap = new Map(prev.map(c => [c.id, c.title]));
+        const newTriggers = new Map(titleAnimationTriggers);
+        
+        formattedConversations.forEach(conv => {
+          const prevTitle = prevTitleMap.get(conv.id);
+          // Trigger animation if title changed from "New Conversation" to something else, or if it's different
+          if (prevTitle && (prevTitle === "New Conversation" || prevTitle !== conv.title) && conv.title !== "New Conversation") {
+            newTriggers.set(conv.id, (titleAnimationTriggers.get(conv.id) || 0) + 1);
+          }
+        });
+        
+        setTitleAnimationTriggers(newTriggers);
+        return formattedConversations;
+      });
     } catch (err) {
       console.error("Failed to load conversations:", err);
       setError("Failed to load conversations");
@@ -194,9 +211,11 @@ export function ConversationSidebar({
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <div className="flex-1 overflow-hidden">
-                  <div className="font-medium truncate">
-                    {truncateTitle(conversation.title)}
-                  </div>
+                  <ConversationTitle 
+                    title={truncateTitle(conversation.title)}
+                    className="font-medium truncate"
+                    animationTrigger={titleAnimationTriggers.get(conversation.id) || 0}
+                  />
                   <div className="text-xs text-muted-foreground">
                     {formatDate(conversation.updatedAt)}
                   </div>

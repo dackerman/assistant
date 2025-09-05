@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ConversationTitle } from "@/components/ui/ConversationTitle";
 import {
   DEFAULT_MODEL,
   MODEL_DISPLAY_NAMES,
@@ -362,9 +363,10 @@ export function ConversationView({
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1 ml-10 sm:ml-0">
             <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-sm sm:text-base truncate">
-                {conversationTitle}
-              </h1>
+              <ConversationTitle 
+                title={conversationTitle}
+                className="font-semibold text-sm sm:text-base truncate"
+              />
               {isConnected ? (
                 <Wifi className="w-3 h-3 text-green-500" />
               ) : (

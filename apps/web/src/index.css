@@ -89,3 +89,199 @@
     margin: 1rem 0;
   }
 }
+
+/* Sparkly title animations */
+@keyframes sparkle-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes shine-sweep {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Sparkle explosion animations - 5 different trajectories */
+@keyframes sparkle-explode-1 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-25px, 40px) scale(0.3);
+  }
+}
+
+@keyframes sparkle-explode-2 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(20px, 45px) scale(0.3);
+  }
+}
+
+@keyframes sparkle-explode-3 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-10px, 50px) scale(0.3);
+  }
+}
+
+@keyframes sparkle-explode-4 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(30px, 35px) scale(0.3);
+  }
+}
+
+@keyframes sparkle-explode-5 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-35px, 55px) scale(0.3);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.3);
+  }
+}
+
+/* Animation utility classes */
+.animate-sparkle-appear {
+  animation: sparkle-appear 0.6s ease-out forwards;
+}
+
+.animate-shine-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shine-sweep 0.8s ease-out;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 1s ease-in-out;
+}
+
+/* Sparkle explosion container */
+.sparkle-explosion {
+  position: relative;
+  display: inline-block;
+}
+
+/* Create 5 sparkle particles using pseudo-elements and CSS variables */
+.sparkle-explosion::before {
+  content: "✨";
+  position: absolute;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sparkle-explosion::after {
+  content: "✨";
+  position: absolute;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Trigger all 5 sparkle explosions */
+.sparkle-explosion.explode::before {
+  animation: sparkle-explode-1 0.5s ease-out forwards;
+}
+
+.sparkle-explosion.explode::after {
+  animation: sparkle-explode-2 0.5s ease-out 0.05s forwards;
+}
+
+/* Additional sparkles using dynamically created elements */
+.sparkle-explosion.explode {
+  --sparkle-3: sparkle-explode-3 0.5s ease-out 0.1s forwards;
+  --sparkle-4: sparkle-explode-4 0.5s ease-out 0.15s forwards;
+  --sparkle-5: sparkle-explode-5 0.5s ease-out 0.2s forwards;
+}
+
+/* Rainbow sparkle effect */
+@keyframes rainbow-sparkle {
+  0% { filter: hue-rotate(0deg) brightness(1); }
+  25% { filter: hue-rotate(90deg) brightness(1.2); }
+  50% { filter: hue-rotate(180deg) brightness(1.4); }
+  75% { filter: hue-rotate(270deg) brightness(1.2); }
+  100% { filter: hue-rotate(360deg) brightness(1); }
+}
+
+.animate-sparkles {
+  animation: rainbow-sparkle 1.2s ease-in-out;
+}
+
+/* Combined sparkle effect */
+.title-sparkle-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.title-sparkle-effect.active {
+  animation: sparkle-appear 0.6s ease-out forwards;
+}
+
+.title-sparkle-effect.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: shine-sweep 0.8s ease-out 0.2s;
+}
