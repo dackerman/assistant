@@ -456,6 +456,29 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
       1,
     );
 
+    if (messages.length === 1) {
+      const userQuery = messages[0]!.content;
+      anthropic.messages
+        .create({
+          model: "claude-3-5-haiku-latest",
+          max_tokens: 200,
+          messages: [
+            {
+              role: "user",
+              content: `Generate a good conversation title for the following query: "${userQuery}"`,
+            },
+          ],
+        })
+        .then((response) => {
+          const title =
+            response.content[0]?.text || "New Conversation (failed)";
+          return conversationService.setTitle(conversationId, title);
+        })
+        .catch((error) => {
+          streamLogger.error("Error generating conversation title", error);
+        });
+    }
+
     streamLogger.info("Conversation history built", {
       messageCount: messages.length,
       messages: messages.map((msg, index) => ({
