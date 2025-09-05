@@ -2,158 +2,182 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { Conversation, Message, StreamPart } from "@/types/conversation";
+import { conversationService } from "@/services/conversationService";
+import type { Message } from "@/types/conversation";
 import { MoreHorizontal, Send, Wifi, WifiOff } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 
 interface ConversationViewProps {
-  conversation?: Conversation;
+  conversationId?: number;
+  onConversationCreate?: (conversationId: number) => void;
 }
 
-export function ConversationView({ conversation }: ConversationViewProps) {
+export function ConversationView({
+  conversationId,
+  onConversationCreate,
+}: ConversationViewProps) {
   const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<Message[]>(
-    conversation?.messages || [],
-  );
+  const [messages, setMessages] = useState<Message[]>([]);
   const [selectedModel, setSelectedModel] = useState(
-    "claude-sonnet-4-20250514",
+    "claude-3-5-sonnet-20241022",
   );
+  const [currentConversationId, setCurrentConversationId] = useState<
+    number | null
+  >(conversationId || null);
+  const [conversationTitle, setConversationTitle] =
+    useState("New Conversation");
 
-  const handleStreamPart = useCallback((part: StreamPart) => {
-    if (!part.messageId) return;
-
+  // WebSocket handlers
+  const handleTextDelta = useCallback((promptId: number, delta: string) => {
     setMessages((prev) => {
-      // Find or create the message
-      const existingIndex = prev.findIndex((m) => m.id === part.messageId);
-      let currentMessage: Message;
+      const existingIndex = prev.findIndex(
+        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+      );
 
       if (existingIndex >= 0) {
-        currentMessage = { ...prev[existingIndex] };
+        // Update existing message
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          content: updated[existingIndex].content + delta,
+        };
+        return updated;
       } else {
         // Create new assistant message
-        currentMessage = {
-          id: part.messageId,
-          type: "assistant" as const,
-          content: "",
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      // Handle different stream part types
-      switch (part.type) {
-        case "stream_text":
-        case "text-delta":
-          if (part.text) {
-            currentMessage.content += part.text;
-          }
-          break;
-
-        case "reasoning_delta":
-        case "reasoning-delta":
-          if (part.text) {
-            currentMessage.reasoning =
-              (currentMessage.reasoning || "") + part.text;
-          }
-          break;
-
-        case "tool_call":
-        case "tool-call":
-          if (part.toolCall) {
-            currentMessage.toolCalls = currentMessage.toolCalls
-              ? [...currentMessage.toolCalls, part.toolCall]
-              : [part.toolCall];
-          }
-          break;
-
-        case "tool_result":
-        case "tool-result":
-          if (part.toolResult) {
-            currentMessage.toolResults = currentMessage.toolResults
-              ? [...currentMessage.toolResults, part.toolResult]
-              : [part.toolResult];
-          }
-          break;
-
-        case "tool_error":
-        case "tool-error":
-          if (part.toolError) {
-            currentMessage.toolErrors = currentMessage.toolErrors
-              ? [...currentMessage.toolErrors, part.toolError]
-              : [part.toolError];
-          }
-          break;
-
-        case "source":
-          if (part.source) {
-            currentMessage.sources = currentMessage.sources
-              ? [...currentMessage.sources, part.source]
-              : [part.source];
-          }
-          break;
-
-        case "file":
-          if (part.file) {
-            currentMessage.files = currentMessage.files
-              ? [...currentMessage.files, part.file]
-              : [part.file];
-          }
-          break;
-
-        case "finish":
-          if (part.finishReason || part.totalUsage) {
-            currentMessage.metadata = {
-              ...currentMessage.metadata,
-              finishReason: part.finishReason,
-              usage: part.totalUsage,
-            };
-          }
-          break;
-
-        // Log other part types for debugging
-        default:
-          console.log("Unhandled stream part:", part);
-          break;
-      }
-
-      // Update the messages array
-      if (existingIndex >= 0) {
-        const newMessages = [...prev];
-        newMessages[existingIndex] = currentMessage;
-        return newMessages;
-      } else {
-        return [...prev, currentMessage];
+        return [
+          ...prev,
+          {
+            id: `assistant-${promptId}`,
+            type: "assistant" as const,
+            content: delta,
+            timestamp: new Date().toISOString(),
+            metadata: { promptId },
+          },
+        ];
       }
     });
   }, []);
 
-  const handleStreamEnd = useCallback((messageId: string) => {
-    console.log("Stream ended for message:", messageId);
+  const handleStreamComplete = useCallback((promptId: number) => {
+    console.log("Stream completed for prompt:", promptId);
+    // TODO: Refresh conversation to get final state
   }, []);
 
-  const handleError = useCallback((error: string) => {
-    console.error("WebSocket error:", error);
+  const handleStreamError = useCallback((promptId: number, error: string) => {
+    console.error("Stream error for prompt:", promptId, error);
   }, []);
 
-  const { sendMessage, isConnected, isStreaming } = useWebSocket(
-    handleStreamPart,
-    handleStreamEnd,
-    handleError,
+  const handleSnapshot = useCallback(
+    (promptId: number, content: string, state: string) => {
+      console.log("Received snapshot for prompt:", promptId, "state:", state);
+      setMessages((prev) => {
+        const existingIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+        );
+
+        if (existingIndex >= 0) {
+          // Update existing message with snapshot content
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            content: content,
+          };
+          return updated;
+        } else {
+          // Create new assistant message from snapshot
+          return [
+            ...prev,
+            {
+              id: `assistant-${promptId}`,
+              type: "assistant" as const,
+              content: content,
+              timestamp: new Date().toISOString(),
+              metadata: { promptId },
+            },
+          ];
+        }
+      });
+    },
+    [],
   );
 
-  const handleSend = () => {
-    if (inputValue.trim() && isConnected && !isStreaming) {
+  const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
+    handleTextDelta,
+    handleStreamComplete,
+    handleStreamError,
+    handleSnapshot,
+  );
+
+  // Load conversation on mount
+  useEffect(() => {
+    if (currentConversationId) {
+      loadConversation(currentConversationId);
+      subscribe(currentConversationId);
+    }
+  }, [currentConversationId, subscribe]);
+
+  const loadConversation = async (id: number) => {
+    try {
+      const result = await conversationService.getConversation(id);
+      setMessages(formatMessagesFromAPI(result.messages));
+      setConversationTitle(result.conversation.title || "Conversation");
+
+      // Check for active streaming
+      const activeStream = await conversationService.getActiveStream(id);
+      if (activeStream.activeStream) {
+        // TODO: Handle reconnection to active stream
+        console.log("Active stream detected:", activeStream.activeStream);
+      }
+    } catch (error) {
+      console.error("Failed to load conversation:", error);
+    }
+  };
+
+  const formatMessagesFromAPI = (apiMessages: any[]): Message[] => {
+    return apiMessages.map((msg) => ({
+      id: msg.id.toString(),
+      type: msg.role,
+      content:
+        msg.blocks
+          ?.filter((b: any) => b.type === "text")
+          .map((b: any) => b.content)
+          .join("") || "",
+      timestamp: msg.createdAt,
+      toolCalls: [], // TODO: Process tool calls from blocks
+      metadata: { promptId: msg.promptId },
+    }));
+  };
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isStreaming) return;
+
+    try {
+      let conversationIdToUse = currentConversationId;
+
+      // Create conversation if none exists
+      if (!conversationIdToUse) {
+        const newConv = await conversationService.createConversation();
+        conversationIdToUse = newConv.id;
+        setCurrentConversationId(conversationIdToUse);
+        subscribe(conversationIdToUse);
+        onConversationCreate?.(conversationIdToUse);
+      }
+
+      // Add user message to UI
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         type: "user",
         content: inputValue,
         timestamp: new Date().toISOString(),
       };
+      setMessages((prev) => [...prev, userMessage]);
 
-      const updatedMessages = [...messages, userMessage];
-      setMessages(updatedMessages);
-      sendMessage(updatedMessages, selectedModel);
+      // Send message via WebSocket
+      sendMessage(conversationIdToUse, inputValue, selectedModel);
       setInputValue("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
     }
   };
 
@@ -164,8 +188,6 @@ export function ConversationView({ conversation }: ConversationViewProps) {
     }
   };
 
-  const title = conversation?.title || "New Conversation";
-
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="border-b px-3 sm:px-4 py-2 sm:py-3 bg-card">
@@ -173,7 +195,7 @@ export function ConversationView({ conversation }: ConversationViewProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="font-semibold text-sm sm:text-base truncate">
-                {title}
+                {conversationTitle}
               </h1>
               {isConnected ? (
                 <Wifi className="w-3 h-3 text-green-500" />
@@ -190,14 +212,12 @@ export function ConversationView({ conversation }: ConversationViewProps) {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="text-xs bg-transparent border-none focus:outline-none text-muted-foreground"
             >
-              <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
-              <option value="gpt-5-2025-08-07">GPT-5 (2025-08-07)</option>
-              <option value="gpt-5-nano-2025-08-07">GPT-5 Nano</option>
-              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-              <option value="claude-opus-4-1-20250805">Claude Opus 4.1</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="grok-code-fast-1">Grok Code Fast</option>
-              <option value="grok-4-latest">Grok 4 Latest</option>
+              <option value="claude-3-5-sonnet-20241022">
+                Claude 3.5 Sonnet
+              </option>
+              <option value="claude-3-5-haiku-20241022">
+                Claude 3.5 Haiku
+              </option>
             </select>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">

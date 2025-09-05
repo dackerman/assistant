@@ -95,6 +95,7 @@ export interface Message {
     cost?: number;
     finishReason?: string;
     usage?: any;
+    promptId?: number;
   };
 }
 

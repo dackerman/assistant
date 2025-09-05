@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db as defaultDb } from "../db";
 import {
   prompts,
   messages,
@@ -15,16 +15,18 @@ import type { StreamEvent } from "./types";
 export class StreamingStateMachine {
   private promptId: number;
   private eventIndex: number = 0;
+  private db: any;
 
-  constructor(promptId: number) {
+  constructor(promptId: number, dbInstance: any = defaultDb) {
     this.promptId = promptId;
+    this.db = dbInstance;
   }
 
   /**
    * Process a stream event and update database state
    */
   async processStreamEvent(event: StreamEvent): Promise<void> {
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx: any) => {
       // 1. Store raw event
       await tx.insert(events).values({
         promptId: this.promptId,
@@ -134,7 +136,7 @@ export class StreamingStateMachine {
    */
   async handleMessageStop(): Promise<void> {
     // Check if there are pending tool calls
-    const pendingTools = await db
+    const pendingTools = await this.db
       .select()
       .from(toolCalls)
       .where(
@@ -146,7 +148,7 @@ export class StreamingStateMachine {
 
     if (pendingTools.length > 0) {
       // Transition to WAITING_FOR_TOOLS
-      await db
+      await this.db
         .update(prompts)
         .set({
           state: "WAITING_FOR_TOOLS",
@@ -163,7 +165,7 @@ export class StreamingStateMachine {
    * Complete the prompt and finalize blocks
    */
   async completePrompt(): Promise<void> {
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx: any) => {
       // Get prompt details
       const [prompt] = await tx
         .select()
@@ -208,7 +210,7 @@ export class StreamingStateMachine {
    * Handle stream error
    */
   async handleError(error: string): Promise<void> {
-    await db
+    await this.db
       .update(prompts)
       .set({
         state: "ERROR",
@@ -222,7 +224,7 @@ export class StreamingStateMachine {
    * Cancel the stream
    */
   async cancel(): Promise<void> {
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx: any) => {
       // Cancel any running tool calls
       await tx
         .update(toolCalls)
@@ -252,7 +254,7 @@ export class StreamingStateMachine {
    * Resume from error state
    */
   async resume(): Promise<{ status: string; data?: any }> {
-    const [prompt] = await db
+    const [prompt] = await this.db
       .select()
       .from(prompts)
       .where(eq(prompts.id, this.promptId));
@@ -268,7 +270,7 @@ export class StreamingStateMachine {
       case "FAILED":
       case "CREATED":
         // Retry from beginning
-        await db
+        await this.db
           .update(prompts)
           .set({ state: "IN_PROGRESS", lastUpdated: new Date() })
           .where(eq(prompts.id, this.promptId));
@@ -276,7 +278,7 @@ export class StreamingStateMachine {
 
       case "ERROR":
         // Get partial content for resume
-        const partialBlocks = await db
+        const partialBlocks = await this.db
           .select()
           .from(blocks)
           .where(eq(blocks.promptId, this.promptId));
@@ -284,7 +286,7 @@ export class StreamingStateMachine {
 
       case "WAITING_FOR_TOOLS":
         // Check tool status
-        const tools = await db
+        const tools = await this.db
           .select()
           .from(toolCalls)
           .where(eq(toolCalls.promptId, this.promptId));
@@ -298,7 +300,7 @@ export class StreamingStateMachine {
 
         if (allComplete) {
           // Ready to send results back to AI
-          await db
+          await this.db
             .update(prompts)
             .set({ state: "IN_PROGRESS", lastUpdated: new Date() })
             .where(eq(prompts.id, this.promptId));

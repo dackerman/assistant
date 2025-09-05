@@ -1,70 +1,22 @@
 import { createServer } from "http";
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
-import { xai } from "@ai-sdk/xai";
-import { type ToolSet, stepCountIs, streamText } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { WebSocketServer } from "ws";
+import "dotenv/config";
+
+import { db } from "./src/db";
+import { ConversationService } from "./src/services/conversationService";
+import { StreamingStateMachine } from "./src/streaming/stateMachine";
 
 const app = new Hono();
 
-// Model configuration
-function getModel(modelName?: string) {
-  const model =
-    modelName || process.env.DEFAULT_MODEL || "claude-sonnet-4-20250514";
+// Initialize services
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
 
-  switch (model) {
-    case "gpt-5-2025-08-07":
-    case "gpt-5-chat-latest":
-    case "gpt-5-nano-2025-08-07":
-      return openai.responses(model);
-
-    case "claude-sonnet-4-20250514":
-    case "claude-opus-4-1-20250805":
-      return anthropic(model);
-
-    case "gemini-2.5-pro":
-      return google(model);
-
-    case "grok-code-fast-1":
-    case "grok-4-latest":
-      return xai(model);
-  }
-
-  throw new Error(`Unknown model: ${model}`);
-}
-
-function getTools(model: string) {
-  const tools: ToolSet = {};
-  switch (model) {
-    case "gpt-5-2025-08-07": {
-      console.log("Adding web search tool");
-      const webSearch = openai.tools.webSearchPreview({
-        searchContextSize: "medium",
-        userLocation: {
-          type: "approximate",
-          country: "US",
-          city: "Summit",
-          region: "NJ",
-          timezone: "America/New_York",
-        },
-      });
-      tools.web_search = webSearch;
-      break;
-    }
-    case "claude-sonnet-4-20250514":
-    case "claude-opus-4-1-20250805": {
-      console.log("Adding web search tool");
-      const webSearch = anthropic.tools.webSearch_20250305();
-      tools.web_search = webSearch;
-      break;
-    }
-  }
-
-  return tools;
-}
+const conversationService = new ConversationService();
 
 // Enable CORS for frontend
 app.use(
@@ -84,78 +36,73 @@ app.use(
 
 // API routes
 app.get("/api/health", (c) => {
-  const providers = {
-    openai: !!process.env.OPENAI_API_KEY,
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
-    google: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    xai: !!process.env.XAI_API_KEY,
-  };
-
   return c.json({
     status: "ok",
     message: "Server is running",
-    defaultModel: process.env.DEFAULT_MODEL || "gpt-5-chat-latest",
-    providers,
+    providers: {
+      anthropic: !!process.env.ANTHROPIC_API_KEY,
+    },
   });
 });
 
-app.get("/api/models", (c) => {
-  const availableModels = [
-    {
-      id: "gpt-5-2025-08-07",
-      name: "GPT-5 (2025-08-07)",
-      provider: "openai",
-      enabled: !!process.env.OPENAI_API_KEY,
-    },
-    {
-      id: "gpt-5-chat-latest",
-      name: "GPT-5 Chat Latest",
-      provider: "openai",
-      enabled: !!process.env.OPENAI_API_KEY,
-    },
-    {
-      id: "gpt-5-nano-2025-08-07",
-      name: "GPT-5 Nano",
-      provider: "openai",
-      enabled: !!process.env.OPENAI_API_KEY,
-    },
-    {
-      id: "claude-sonnet-4-20250514",
-      name: "Claude Sonnet 4",
-      provider: "anthropic",
-      enabled: !!process.env.ANTHROPIC_API_KEY,
-    },
-    {
-      id: "claude-opus-4-1-20250805",
-      name: "Claude Opus 4.1",
-      provider: "anthropic",
-      enabled: !!process.env.ANTHROPIC_API_KEY,
-    },
-    {
-      id: "gemini-2.5-pro",
-      name: "Gemini 2.5 Pro",
-      provider: "google",
-      enabled: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    },
-    {
-      id: "grok-code-fast-1",
-      name: "Grok Code Fast",
-      provider: "xai",
-      enabled: !!process.env.XAI_API_KEY,
-    },
-    {
-      id: "grok-4-latest",
-      name: "Grok 4 Latest",
-      provider: "xai",
-      enabled: !!process.env.XAI_API_KEY,
-    },
-  ];
+// Conversation endpoints
+app.post("/api/conversations", async (c) => {
+  // TODO: Get userId from auth
+  const userId = 1; // Hardcoded for now
 
-  return c.json({ models: availableModels });
+  const body = await c.req.json();
+  const conversationId = await conversationService.createConversation(
+    userId,
+    body.title,
+  );
+
+  return c.json({ id: conversationId });
 });
 
-app.get("/api/hello", (c) => {
-  return c.json({ message: "Hello from the backend!" });
+app.get("/api/conversations/:id", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+  const userId = 1; // TODO: Get from auth
+
+  const conversation = await conversationService.getConversation(
+    conversationId,
+    userId,
+  );
+
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
+
+  return c.json(conversation);
+});
+
+app.get("/api/conversations/:id/stream", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+
+  const activeStream =
+    await conversationService.getActiveStream(conversationId);
+
+  return c.json({ activeStream });
+});
+
+app.post("/api/conversations/:id/messages", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+  const body = await c.req.json();
+
+  const result = await conversationService.createUserMessage(
+    conversationId,
+    body.content,
+    body.model || "claude-3-5-sonnet-20241022",
+  );
+
+  return c.json(result);
+});
+
+app.get("/api/conversations", async (c) => {
+  const userId = 1; // TODO: Get from auth
+
+  const conversations = await conversationService.listConversations(userId);
+
+  return c.json({ conversations });
 });
 
 // Serve static files for production (when frontend is built)
@@ -232,353 +179,23 @@ wss.on("connection", (ws) => {
     try {
       const message = JSON.parse(data.toString());
 
-      if (message.type === "chat") {
-        const result = await streamText({
-          model: getModel(message.model),
-          messages: message.messages,
-          tools: getTools(message.model),
-          stopWhen: stepCountIs(20), // Allow up to 5 steps for tool execution and follow-up
-        });
-
-        // Send start of stream
-        ws.send(
-          JSON.stringify({
-            type: "stream_start",
-            messageId: message.messageId,
-          }),
+      if (message.type === "send_message") {
+        // Create user message and start streaming
+        const result = await conversationService.createUserMessage(
+          message.conversationId,
+          message.content,
+          message.model,
         );
 
-        // Stream the response
-        for await (const part of result.fullStream) {
-          if (ws.readyState !== ws.OPEN) break;
-
-          switch (part.type) {
-            case "start":
-              ws.send(
-                JSON.stringify({
-                  type: "start",
-                  messageId: message.messageId,
-                }),
-              );
-              break;
-
-            case "text-start":
-              ws.send(
-                JSON.stringify({
-                  type: "text_start",
-                  messageId: message.messageId,
-                  id: part.id,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "text-end":
-              ws.send(
-                JSON.stringify({
-                  type: "text_end",
-                  messageId: message.messageId,
-                  id: part.id,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "text-delta":
-              ws.send(
-                JSON.stringify({
-                  type: "stream_text",
-                  messageId: message.messageId,
-                  id: part.id,
-                  text: part.text,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "reasoning-start":
-              ws.send(
-                JSON.stringify({
-                  type: "reasoning_start",
-                  messageId: message.messageId,
-                  id: part.id,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "reasoning-end":
-              ws.send(
-                JSON.stringify({
-                  type: "reasoning_end",
-                  messageId: message.messageId,
-                  id: part.id,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "reasoning-delta":
-              ws.send(
-                JSON.stringify({
-                  type: "reasoning_delta",
-                  messageId: message.messageId,
-                  id: part.id,
-                  text: part.text,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "tool-input-start":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_input_start",
-                  messageId: message.messageId,
-                  id: part.id,
-                  toolName: part.toolName,
-                  providerMetadata: part.providerMetadata,
-                  providerExecuted: part.providerExecuted,
-                  dynamic: part.dynamic,
-                }),
-              );
-              break;
-
-            case "tool-input-end":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_input_end",
-                  messageId: message.messageId,
-                  id: part.id,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "tool-input-delta":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_input_delta",
-                  messageId: message.messageId,
-                  id: part.id,
-                  delta: part.delta,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "tool-call":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_call",
-                  messageId: message.messageId,
-                  toolCall: {
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    parameters: part.input,
-                    providerExecuted: part.providerExecuted,
-                    dynamic: part.dynamic,
-                    invalid: part.invalid,
-                    error: part.error,
-                    providerMetadata: part.providerMetadata,
-                    status: "running",
-                    startTime: new Date().toISOString(),
-                    endTime: null,
-                    result: null,
-                  },
-                }),
-              );
-              break;
-
-            case "tool-result":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_result",
-                  messageId: message.messageId,
-                  toolResult: {
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    parameters: part.input,
-                    output: part.output,
-                    providerExecuted: part.providerExecuted,
-                    dynamic: part.dynamic,
-                    preliminary: part.preliminary,
-                    status: "completed",
-                    startTime: new Date().toISOString(),
-                    endTime: new Date().toISOString(),
-                    result:
-                      typeof part.output === "string"
-                        ? part.output
-                        : JSON.stringify(part.output),
-                  },
-                }),
-              );
-              break;
-
-            case "tool-error":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_error",
-                  messageId: message.messageId,
-                  toolError: {
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    parameters: part.input,
-                    error: part.error,
-                    providerExecuted: part.providerExecuted,
-                    dynamic: part.dynamic,
-                    status: "error",
-                    startTime: new Date().toISOString(),
-                    endTime: new Date().toISOString(),
-                    result: null,
-                  },
-                }),
-              );
-              break;
-
-            case "source":
-              ws.send(
-                JSON.stringify({
-                  type: "source",
-                  messageId: message.messageId,
-                  source: part, // Send the entire source object as it has different structures for url/document
-                }),
-              );
-              break;
-
-            case "file":
-              ws.send(
-                JSON.stringify({
-                  type: "file",
-                  messageId: message.messageId,
-                  file: {
-                    base64: part.file.base64,
-                    uint8Array: null, // Don't send binary data over WebSocket
-                    mediaType: part.file.mediaType,
-                  },
-                }),
-              );
-              break;
-
-            case "tool-error":
-              ws.send(
-                JSON.stringify({
-                  type: "tool_error",
-                  messageId: message.messageId,
-                  toolError: {
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    parameters: part.input,
-                    error: part.error,
-                    providerExecuted: part.providerExecuted,
-                    dynamic: part.dynamic,
-                    status: "error",
-                    startTime: new Date().toISOString(),
-                    endTime: new Date().toISOString(),
-                    result: null,
-                  },
-                }),
-              );
-              break;
-
-            case "source":
-              ws.send(
-                JSON.stringify({
-                  type: "source",
-                  messageId: message.messageId,
-                  source: part, // Send the entire source object as it has different structures for url/document
-                }),
-              );
-              break;
-
-            case "file":
-              ws.send(
-                JSON.stringify({
-                  type: "file",
-                  messageId: message.messageId,
-                  file: {
-                    base64: part.file.base64,
-                    uint8Array: null, // Don't send binary data over WebSocket
-                    mediaType: part.file.mediaType,
-                  },
-                }),
-              );
-              break;
-
-            case "start-step":
-              ws.send(
-                JSON.stringify({
-                  type: "start_step",
-                  messageId: message.messageId,
-                  request: part.request,
-                  warnings: part.warnings,
-                }),
-              );
-              break;
-
-            case "finish-step":
-              ws.send(
-                JSON.stringify({
-                  type: "finish_step",
-                  messageId: message.messageId,
-                  response: part.response,
-                  usage: part.usage,
-                  finishReason: part.finishReason,
-                  providerMetadata: part.providerMetadata,
-                }),
-              );
-              break;
-
-            case "finish":
-              ws.send(
-                JSON.stringify({
-                  type: "finish",
-                  messageId: message.messageId,
-                  finishReason: part.finishReason,
-                  totalUsage: part.totalUsage,
-                }),
-              );
-              break;
-
-            case "abort":
-              ws.send(
-                JSON.stringify({
-                  type: "abort",
-                  messageId: message.messageId,
-                }),
-              );
-              break;
-
-            case "error":
-              ws.send(
-                JSON.stringify({
-                  type: "stream_error",
-                  messageId: message.messageId,
-                  error:
-                    part.error instanceof Error
-                      ? part.error.message
-                      : String(part.error),
-                }),
-              );
-              break;
-
-            case "raw":
-              // Raw values might contain sensitive data, so we'll log it for debugging
-              // but not send it to the client unless specifically needed
-              console.log("Raw stream part:", part.rawValue);
-              break;
-
-            default:
-              // Exhaustive check - this should never happen with proper typing
-              console.warn("Unhandled stream part type:", (part as any).type);
-              break;
-          }
-        }
-        // Send end of stream
+        // Start streaming with Anthropic
+        await startAnthropicStream(result.promptId, ws);
+      } else if (message.type === "subscribe") {
+        // Subscribe to conversation updates
+        // TODO: Implement subscription management
         ws.send(
           JSON.stringify({
-            type: "stream_end",
-            messageId: message.messageId,
+            type: "subscribed",
+            conversationId: message.conversationId,
           }),
         );
       }
@@ -603,6 +220,79 @@ wss.on("connection", (ws) => {
     console.error("WebSocket error:", error);
   });
 });
+
+/**
+ * Start streaming with Anthropic SDK
+ */
+async function startAnthropicStream(promptId: number, ws: any) {
+  const stateMachine = new StreamingStateMachine(promptId);
+
+  try {
+    // Get conversation history
+    // TODO: Build proper conversation history from database
+    const messages = [
+      { role: "user" as const, content: "Hello" }, // Placeholder
+    ];
+
+    // Start streaming from Anthropic
+    const stream = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 4000,
+      messages,
+      stream: true,
+    });
+
+    // Process stream events
+    for await (const event of stream) {
+      if (event.type === "message_start") {
+        await stateMachine.processStreamEvent({
+          type: "block_start",
+          blockType: "text",
+          blockIndex: 0,
+        });
+      } else if (event.type === "content_block_delta") {
+        if (event.delta.type === "text_delta") {
+          await stateMachine.processStreamEvent({
+            type: "block_delta",
+            blockIndex: 0,
+            delta: event.delta.text,
+          });
+
+          // Forward to client
+          ws.send(
+            JSON.stringify({
+              type: "text_delta",
+              promptId,
+              delta: event.delta.text,
+            }),
+          );
+        }
+      } else if (event.type === "message_stop") {
+        await stateMachine.handleMessageStop();
+
+        ws.send(
+          JSON.stringify({
+            type: "stream_complete",
+            promptId,
+          }),
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Streaming error:", error);
+    await stateMachine.handleError(
+      error instanceof Error ? error.message : "Unknown error",
+    );
+
+    ws.send(
+      JSON.stringify({
+        type: "stream_error",
+        promptId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+}
 
 console.log(`🚀 Server is running on http://0.0.0.0:${port}`);
 console.log(`🔌 WebSocket server is running on ws://0.0.0.0:${port}`);

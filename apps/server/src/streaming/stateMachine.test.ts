@@ -12,7 +12,10 @@ import {
 } from "../db/schema";
 import { eq } from "drizzle-orm";
 
-describe("StreamingStateMachine", () => {
+const maybeDescribe =
+  process.env.RUN_DB_TESTS === "1" ? describe : describe.skip;
+
+maybeDescribe("StreamingStateMachine", () => {
   let userId: number;
   let conversationId: number;
   let promptId: number;
@@ -77,7 +80,7 @@ describe("StreamingStateMachine", () => {
       .returning();
     promptId = prompt.id;
 
-    stateMachine = new StreamingStateMachine(promptId);
+    stateMachine = new StreamingStateMachine(promptId, testDb);
   });
 
   describe("processStreamEvent", () => {
