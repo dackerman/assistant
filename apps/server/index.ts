@@ -9,6 +9,7 @@ import "dotenv/config";
 // import { db } from "./src/db";
 import { ConversationService } from "./src/services/conversationService";
 import { StreamingStateMachine } from "./src/streaming/stateMachine";
+import { logger } from "./src/utils/logger";
 
 const app = new Hono();
 
@@ -223,26 +224,64 @@ const wsToConversations = new Map<WebSocket, Set<number>>();
 
 function broadcast(conversationId: number, payload: OutgoingMessage) {
   const subs = subscriptions.get(conversationId);
-  if (!subs) return;
-  const data = JSON.stringify(payload);
-  for (const client of subs) {
-    if (client.readyState === client.OPEN) client.send(data);
+  if (!subs) {
+    logger.debug(
+      `No subscribers for conversation ${conversationId}, skipping broadcast`,
+    );
+    return;
   }
+
+  const broadcastLogger = logger.child({ conversationId });
+  const data = JSON.stringify(payload);
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const client of subs) {
+    if (client.readyState === client.OPEN) {
+      client.send(data);
+      sentCount++;
+    } else {
+      failedCount++;
+    }
+  }
+
+  broadcastLogger.debug(`Broadcast ${payload.type}`, {
+    totalSubscribers: subs.size,
+    sentCount,
+    failedCount,
+    payloadSize: data.length,
+  });
 }
 
 wss.on("connection", (ws: WebSocket) => {
-  console.log("New WebSocket connection");
+  const wsId = Math.random().toString(36).substring(7);
+  const wsLogger = logger.child({ wsClientId: wsId });
+  wsLogger.wsEvent("connection_established");
 
   ws.on("message", async (data: RawData) => {
     try {
       const message = JSON.parse(data.toString()) as ClientMessage;
+      wsLogger.wsEvent("message_received", { type: message.type });
 
       if (message.type === "send_message") {
+        const messageLogger = wsLogger.child({
+          conversationId: message.conversationId,
+          contentLength: message.content.length,
+          requestedModel: message.model,
+        });
+
+        messageLogger.wsEvent("send_message_request");
+
         // Validate and normalize model
         const requestedModel = message.model || DEFAULT_MODEL;
         const supportedModelsList = Object.values(SUPPORTED_MODELS);
 
         if (!supportedModelsList.includes(requestedModel as any)) {
+          messageLogger.warn("Unsupported model requested", {
+            requestedModel,
+            supportedModels: supportedModelsList,
+          });
+
           ws.send(
             JSON.stringify({
               type: "error",
@@ -255,17 +294,28 @@ wss.on("connection", (ws: WebSocket) => {
         // Type assertion is safe here because we validated above
         const model =
           requestedModel as (typeof SUPPORTED_MODELS)[keyof typeof SUPPORTED_MODELS];
+        messageLogger.info(`Using model: ${model}`);
 
         // Create user message and start streaming
+        messageLogger.info("Creating user message");
         const result = await conversationService.createUserMessage(
           message.conversationId,
           message.content,
           model,
         );
 
+        messageLogger.info("Starting Anthropic stream", {
+          promptId: result.promptId,
+        });
         // Start streaming with Anthropic
         await startAnthropicStream(result.promptId, message.conversationId);
       } else if (message.type === "subscribe") {
+        const subscribeLogger = wsLogger.child({
+          conversationId: message.conversationId,
+        });
+
+        subscribeLogger.wsEvent("subscription_request");
+
         // Subscribe to conversation updates
         const convId: number = message.conversationId;
         const set = subscriptions.get(convId) ?? new Set();
@@ -275,6 +325,10 @@ wss.on("connection", (ws: WebSocket) => {
         wsSet.add(convId);
         wsToConversations.set(ws, wsSet);
 
+        subscribeLogger.wsEvent("subscription_confirmed", {
+          totalSubscribers: set.size,
+        });
+
         ws.send(
           JSON.stringify({
             type: "subscribed",
@@ -283,12 +337,21 @@ wss.on("connection", (ws: WebSocket) => {
         );
 
         // Send snapshot if an active stream exists
+        subscribeLogger.info("Checking for active stream");
         const active = await conversationService.getActiveStream(convId);
         if (active) {
           const content = active.blocks
             .filter((b: any) => b.type === "text")
             .map((b: any) => b.content || "")
             .join("");
+
+          subscribeLogger.wsEvent("snapshot_sent", {
+            promptId: active.prompt.id,
+            currentState: active.prompt.state,
+            contentLength: content.length,
+            blockCount: active.blocks.length,
+          });
+
           ws.send(
             JSON.stringify({
               type: "snapshot",
@@ -298,10 +361,12 @@ wss.on("connection", (ws: WebSocket) => {
               content,
             }),
           );
+        } else {
+          subscribeLogger.info("No active stream found for conversation");
         }
       }
     } catch (error) {
-      console.error("WebSocket error:", error);
+      wsLogger.error("WebSocket message handling error", error);
       if (ws.readyState === ws.OPEN) {
         ws.send(
           JSON.stringify({
@@ -316,20 +381,33 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("close", () => {
     const convs = wsToConversations.get(ws);
     if (convs) {
+      wsLogger.wsEvent("connection_cleanup", {
+        conversationsCount: convs.size,
+        conversationIds: Array.from(convs),
+      });
+
       for (const id of convs) {
         const set = subscriptions.get(id);
         if (set) {
           set.delete(ws);
-          if (set.size === 0) subscriptions.delete(id);
+          wsLogger.debug(
+            `Unsubscribed from conversation ${id}, ${set.size} subscribers remaining`,
+          );
+          if (set.size === 0) {
+            subscriptions.delete(id);
+            wsLogger.debug(
+              `No more subscribers for conversation ${id}, deleted subscription`,
+            );
+          }
         }
       }
       wsToConversations.delete(ws);
     }
-    console.log("WebSocket connection closed");
+    wsLogger.wsEvent("connection_closed");
   });
 
   ws.on("error", (error) => {
-    console.error("WebSocket error:", error);
+    wsLogger.error("WebSocket connection error", error);
   });
 });
 
@@ -337,78 +415,245 @@ wss.on("connection", (ws: WebSocket) => {
  * Start streaming with Anthropic SDK
  */
 async function startAnthropicStream(promptId: number, conversationId: number) {
+  const streamLogger = logger.child({ promptId, conversationId });
+  streamLogger.info("Starting Anthropic stream");
+
   const stateMachine = new StreamingStateMachine(promptId);
 
   try {
     // Get prompt details to retrieve the model
+    streamLogger.info("Fetching prompt details");
     const promptDetails = await conversationService.getPromptById(promptId);
     if (!promptDetails) {
       throw new Error(`Prompt ${promptId} not found`);
     }
 
+    const anthropicLogger = streamLogger.child({
+      model: promptDetails.model,
+      systemMessage: promptDetails.systemMessage?.substring(0, 100) + "...",
+    });
+
     // Get conversation history
+    streamLogger.info("Building conversation history from database");
+
     // TODO: Build proper conversation history from database
+    // For now using placeholder - this should call conversationService.buildConversationHistory()
     const messages = [
       { role: "user" as const, content: "Hello" }, // Placeholder
     ];
 
-    // Start streaming from Anthropic with the correct model
-    const stream = await anthropic.messages.create({
+    streamLogger.info("Conversation history built", {
+      messageCount: messages.length,
+      messages: messages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        contentLength: msg.content.length,
+        contentPreview:
+          msg.content.substring(0, 100) +
+          (msg.content.length > 100 ? "..." : ""),
+      })),
+    });
+
+    const apiRequest = {
       model: promptDetails.model,
       max_tokens: 4000,
       messages,
-      stream: true,
+      stream: true as const,
+      ...(promptDetails.systemMessage && {
+        system: promptDetails.systemMessage,
+      }),
+    };
+
+    anthropicLogger.anthropicEvent("api_request_details", {
+      url: "https://api.anthropic.com/v1/messages",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": process.env.ANTHROPIC_API_KEY ? "[REDACTED]" : "[MISSING]",
+      },
+      body: {
+        model: apiRequest.model,
+        max_tokens: apiRequest.max_tokens,
+        messages: apiRequest.messages.map((msg) => ({
+          role: msg.role,
+          content:
+            msg.content.substring(0, 100) +
+            (msg.content.length > 100 ? "..." : ""),
+        })),
+        stream: apiRequest.stream,
+        system:
+          promptDetails.systemMessage?.substring(0, 200) +
+          (promptDetails.systemMessage &&
+          promptDetails.systemMessage.length > 200
+            ? "..."
+            : ""),
+      },
+    });
+
+    anthropicLogger.info("Making Anthropic API request", {
+      model: promptDetails.model,
+      maxTokens: 4000,
+      messageCount: messages.length,
+      systemMessageLength: promptDetails.systemMessage?.length || 0,
+    });
+
+    // Start streaming from Anthropic with the correct model
+    const streamStartTime = Date.now();
+    const stream = await anthropic.messages.create(apiRequest);
+
+    anthropicLogger.info("Anthropic stream created", {
+      requestDuration: Date.now() - streamStartTime,
+      streamType: "AsyncIterator",
     });
 
     // Process stream events
+    let eventCount = 0;
+    let totalTextReceived = 0;
+
     for await (const event of stream) {
+      eventCount++;
+
+      // Log the complete raw event
+      anthropicLogger.anthropicEvent(`raw_event_${eventCount}`, {
+        eventNumber: eventCount,
+        eventType: event.type,
+        rawEvent: event,
+      });
+
       if (event.type === "message_start") {
+        anthropicLogger.info(
+          "Message start received, initializing text block",
+          {
+            message: event.message,
+            usage: event.message.usage,
+          },
+        );
+
+        anthropicLogger.info("Processing block_start event for state machine");
         await stateMachine.processStreamEvent({
           type: "block_start",
           blockType: "text",
           blockIndex: 0,
         });
+      } else if (event.type === "content_block_start") {
+        anthropicLogger.info("Content block start received", {
+          index: event.index,
+          contentBlock: event.content_block,
+        });
       } else if (event.type === "content_block_delta") {
+        anthropicLogger.info("Content block delta received", {
+          index: event.index,
+          delta: event.delta,
+        });
+
         if (event.delta.type === "text_delta") {
+          totalTextReceived += event.delta.text.length;
+
+          anthropicLogger.info("Processing text delta", {
+            index: event.index,
+            deltaLength: event.delta.text.length,
+            totalTextReceived,
+            deltaText: event.delta.text,
+            deltaPreview:
+              event.delta.text.substring(0, 100) +
+              (event.delta.text.length > 100 ? "..." : ""),
+          });
+
+          anthropicLogger.info(
+            "Processing block_delta event for state machine",
+          );
           await stateMachine.processStreamEvent({
             type: "block_delta",
-            blockIndex: 0,
+            blockIndex: event.index,
             delta: event.delta.text,
           });
 
           // Forward to all subscribers
+          const subscriberCount = subscriptions.get(conversationId)?.size || 0;
+          anthropicLogger.info(
+            `Broadcasting delta to ${subscriberCount} subscribers`,
+            {
+              broadcastPayload: {
+                type: "text_delta",
+                promptId,
+                delta: event.delta.text,
+              },
+            },
+          );
+
           broadcast(conversationId, {
             type: "text_delta",
             promptId,
             delta: event.delta.text,
           });
+        } else {
+          anthropicLogger.info("Non-text delta received", {
+            deltaType: (event.delta as any).type,
+            delta: event.delta,
+          });
         }
+      } else if (event.type === "content_block_stop") {
+        anthropicLogger.info("Content block stop received", {
+          index: event.index,
+        });
+      } else if (event.type === "message_delta") {
+        anthropicLogger.info("Message delta received", {
+          delta: event.delta,
+          usage: event.usage,
+        });
       } else if (event.type === "message_stop") {
+        anthropicLogger.info("Message stop received", {
+          totalEvents: eventCount,
+          totalTextReceived,
+        });
+
         await stateMachine.handleMessageStop();
 
         broadcast(conversationId, {
           type: "stream_complete",
           promptId,
         });
+
+        anthropicLogger.info("Stream completed successfully");
+      } else {
+        anthropicLogger.debug(`Unhandled event type: ${(event as any).type}`, {
+          event,
+        });
       }
     }
   } catch (error) {
-    console.error("Streaming error:", error);
-    await stateMachine.handleError(
-      error instanceof Error ? error.message : "Unknown error",
-    );
+    streamLogger.error("Streaming error occurred", error);
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    streamLogger.anthropicEvent("stream_error", { errorMessage });
+
+    await stateMachine.handleError(errorMessage);
+
+    const subscriberCount = subscriptions.get(conversationId)?.size || 0;
+    streamLogger.info(`Broadcasting error to ${subscriberCount} subscribers`);
 
     broadcast(conversationId, {
       type: "stream_error",
       promptId,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     });
   }
 }
 
-console.log(`🚀 Server is running on http://0.0.0.0:${port}`);
-console.log(`🔌 WebSocket server is running on ws://0.0.0.0:${port}`);
+logger.info("Server starting up", {
+  port,
+  nodeEnv: process.env.NODE_ENV,
+  anthropicApiKey: !!process.env.ANTHROPIC_API_KEY,
+  supportedModels: Object.values(SUPPORTED_MODELS),
+  defaultModel: DEFAULT_MODEL,
+});
 
 server.listen(Number(port), "0.0.0.0", () => {
-  console.log(`✅ Server listening on port ${port}`);
+  logger.info("Server ready", {
+    httpUrl: `http://0.0.0.0:${port}`,
+    wsUrl: `ws://0.0.0.0:${port}`,
+    port: Number(port),
+  });
 });

@@ -12,12 +12,15 @@ import {
   messages,
   prompts,
 } from "../db/schema";
+import { Logger } from "../utils/logger";
 
 export class ConversationService {
   private db: DB;
+  private logger: Logger;
 
   constructor(dbInstance: DB = defaultDb) {
     this.db = dbInstance;
+    this.logger = new Logger({ service: "ConversationService" });
   }
 
   /**
@@ -137,16 +140,36 @@ export class ConversationService {
     content: string,
     model = "claude-sonnet-4-20250514",
   ): Promise<{ userMessageId: number; promptId: number }> {
-    return await this.db.transaction(async (tx: any) => {
+    const serviceLogger = this.logger.child({
+      conversationId,
+      contentLength: content.length,
+      model,
+    });
+
+    serviceLogger.info("Creating user message and starting assistant response");
+
+    return await this.db.transaction(async (tx: DB) => {
       // Create user message
+      const userMessageRecord = {
+        conversationId,
+        role: "user",
+        isComplete: true,
+      } as NewMessage;
+
+      serviceLogger.info("Creating user message record", {
+        table: "messages",
+        record: userMessageRecord,
+      });
+
       const [userMessage] = await tx
         .insert(messages)
-        .values({
-          conversationId,
-          role: "user",
-          isComplete: true,
-        } as NewMessage)
+        .values(userMessageRecord)
         .returning();
+
+      serviceLogger.info("User message created", {
+        userMessageId: userMessage?.id,
+        conversationId: userMessage?.conversationId,
+      });
 
       // Create assistant message placeholder
       const [assistantMessage] = await tx
