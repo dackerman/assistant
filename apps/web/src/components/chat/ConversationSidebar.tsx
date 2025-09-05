@@ -59,6 +59,7 @@ export function ConversationSidebar({
   };
 
   const handleConversationClick = (conversationId: string) => {
+    console.log("Sidebar: Conversation clicked:", conversationId);
     onConversationSelect(Number(conversationId));
   };
 

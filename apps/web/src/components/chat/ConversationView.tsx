@@ -124,8 +124,15 @@ export function ConversationView({
     handleSnapshot,
   );
 
+  // Sync internal state with conversation ID prop
+  useEffect(() => {
+    console.log("ConversationView prop conversationId changed:", conversationId);
+    setCurrentConversationId(conversationId || null);
+  }, [conversationId]);
+
   // Load conversation on mount or when ID changes
   useEffect(() => {
+    console.log("ConversationView currentConversationId changed:", currentConversationId);
     if (currentConversationId) {
       // Clear any existing error when switching conversations
       setConversationError(null);

@@ -24,6 +24,7 @@ function App() {
   }, []);
 
   const handleConversationSelect = (conversationId: number) => {
+    console.log("App: Conversation selected:", conversationId);
     setCurrentConversationId(conversationId);
     // Close sidebar on mobile after selection
     if (!isDesktop) {
