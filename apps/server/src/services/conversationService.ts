@@ -72,7 +72,7 @@ export class ConversationService {
           eq(messages.isComplete, true),
         ),
       )
-      .orderBy(messages.createdAt, blocks.indexNum);
+      .orderBy(messages.id, blocks.indexNum);
 
     // Group blocks by message
     const messageMap = new Map();
