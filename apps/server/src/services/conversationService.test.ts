@@ -169,7 +169,7 @@ describe("ConversationService", () => {
     expect(active).not.toBeNull();
     expect(active!.prompt.id).toBe(promptId);
     expect(active!.blocks.length).toBe(1);
-    expect(active!.blocks[0].isFinalized).toBe(false);
+    expect(active!.blocks.at(0)!.isFinalized).toBe(false);
   });
 
   it("lists conversations ordered by updatedAt desc", async () => {
@@ -187,7 +187,7 @@ describe("ConversationService", () => {
     const list = await service.listConversations(userId);
     expect(list.length).toBe(2);
     // B should come first
-    expect(list[0].title).toBe("B");
+    expect(list.at(0)!.title).toBe("B");
   });
 
   it("builds conversation history with user and assistant text only", async () => {

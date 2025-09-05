@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db as defaultDb } from "../db";
+import type { DB } from "../db";
 import {
   type Block,
   type NewBlock,
@@ -13,9 +14,9 @@ import {
 } from "../db/schema";
 
 export class ConversationService {
-  private db: any;
+  private db: DB;
 
-  constructor(dbInstance: any = defaultDb) {
+  constructor(dbInstance: DB = defaultDb) {
     this.db = dbInstance;
   }
 

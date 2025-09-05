@@ -1,7 +1,9 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 import "dotenv/config";
+
+export type DB = PostgresJsDatabase<typeof schema>;
 
 // Create a PostgreSQL connection
 const connectionString =
@@ -17,7 +19,7 @@ if (connectionString) {
 }
 
 // Create drizzle instance (guarded for test environments without DB)
-export const db = queryClient
+export const db: DB = queryClient
   ? drizzle(queryClient, { schema })
   : (new Proxy(
       {},
@@ -28,7 +30,7 @@ export const db = queryClient
           );
         },
       },
-    ) as any);
+    ) as unknown as DB);
 
 // Export schema for easy access
 export * from "./schema";
