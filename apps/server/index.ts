@@ -465,7 +465,21 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
           messages: [
             {
               role: "user",
-              content: `Generate a good conversation title for the following query: "${userQuery}"`,
+              content: `Generate a good conversation title for the following query:
+                ${userQuery}
+                
+                Respond ONLY with the title and nothing else. Keep it to just a few words.
+                
+                Examples:
+                Query: "What is the capital of France?"
+                Title: "France Capital Question"
+
+                Query: "Explain to me how the internet works"
+                Title: "Internet Explanation"
+
+                Query: "How do I cook a perfect medium-rare steak?"
+                Title: "Perfect Steak Recipe"
+                `,
             },
           ],
         })
