@@ -3,9 +3,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { WebSocketServer } from "ws";
+import type { WebSocket, RawData } from "ws";
 import "dotenv/config";
 
-import { db } from "./src/db";
+// import { db } from "./src/db";
 import { ConversationService } from "./src/services/conversationService";
 import { StreamingStateMachine } from "./src/streaming/stateMachine";
 
@@ -172,12 +173,47 @@ const server = createServer(async (req, res) => {
 // Create WebSocket server
 const wss = new WebSocketServer({ server });
 
-wss.on("connection", (ws) => {
+// Simple in-memory subscription registry
+type OutgoingMessage =
+  | { type: "text_delta"; promptId: number; delta: string }
+  | { type: "stream_complete"; promptId: number }
+  | { type: "stream_error"; promptId: number; error: string }
+  | { type: "subscribed"; conversationId: number }
+  | {
+      type: "snapshot";
+      conversationId: number;
+      promptId: number;
+      currentState: string;
+      content: string;
+    };
+
+type ClientMessage =
+  | {
+      type: "send_message";
+      conversationId: number;
+      content: string;
+      model?: string;
+    }
+  | { type: "subscribe"; conversationId: number };
+
+const subscriptions = new Map<number, Set<WebSocket>>();
+const wsToConversations = new Map<WebSocket, Set<number>>();
+
+function broadcast(conversationId: number, payload: OutgoingMessage) {
+  const subs = subscriptions.get(conversationId);
+  if (!subs) return;
+  const data = JSON.stringify(payload);
+  for (const client of subs) {
+    if (client.readyState === client.OPEN) client.send(data);
+  }
+}
+
+wss.on("connection", (ws: WebSocket) => {
   console.log("New WebSocket connection");
 
-  ws.on("message", async (data) => {
+  ws.on("message", async (data: RawData) => {
     try {
-      const message = JSON.parse(data.toString());
+      const message = JSON.parse(data.toString()) as ClientMessage;
 
       if (message.type === "send_message") {
         // Create user message and start streaming
@@ -188,16 +224,41 @@ wss.on("connection", (ws) => {
         );
 
         // Start streaming with Anthropic
-        await startAnthropicStream(result.promptId, ws);
+        await startAnthropicStream(result.promptId, message.conversationId);
       } else if (message.type === "subscribe") {
         // Subscribe to conversation updates
-        // TODO: Implement subscription management
+        const convId: number = message.conversationId;
+        const set = subscriptions.get(convId) ?? new Set();
+        set.add(ws);
+        subscriptions.set(convId, set);
+        const wsSet = wsToConversations.get(ws) ?? new Set<number>();
+        wsSet.add(convId);
+        wsToConversations.set(ws, wsSet);
+
         ws.send(
           JSON.stringify({
             type: "subscribed",
-            conversationId: message.conversationId,
+            conversationId: convId,
           }),
         );
+
+        // Send snapshot if an active stream exists
+        const active = await conversationService.getActiveStream(convId);
+        if (active) {
+          const content = active.blocks
+            .filter((b: any) => b.type === "text")
+            .map((b: any) => b.content || "")
+            .join("");
+          ws.send(
+            JSON.stringify({
+              type: "snapshot",
+              conversationId: convId,
+              promptId: active.prompt.id,
+              currentState: active.prompt.state,
+              content,
+            }),
+          );
+        }
       }
     } catch (error) {
       console.error("WebSocket error:", error);
@@ -213,6 +274,17 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
+    const convs = wsToConversations.get(ws);
+    if (convs) {
+      for (const id of convs) {
+        const set = subscriptions.get(id);
+        if (set) {
+          set.delete(ws);
+          if (set.size === 0) subscriptions.delete(id);
+        }
+      }
+      wsToConversations.delete(ws);
+    }
     console.log("WebSocket connection closed");
   });
 
@@ -224,7 +296,7 @@ wss.on("connection", (ws) => {
 /**
  * Start streaming with Anthropic SDK
  */
-async function startAnthropicStream(promptId: number, ws: any) {
+async function startAnthropicStream(promptId: number, conversationId: number) {
   const stateMachine = new StreamingStateMachine(promptId);
 
   try {
@@ -258,24 +330,20 @@ async function startAnthropicStream(promptId: number, ws: any) {
             delta: event.delta.text,
           });
 
-          // Forward to client
-          ws.send(
-            JSON.stringify({
-              type: "text_delta",
-              promptId,
-              delta: event.delta.text,
-            }),
-          );
+          // Forward to all subscribers
+          broadcast(conversationId, {
+            type: "text_delta",
+            promptId,
+            delta: event.delta.text,
+          });
         }
       } else if (event.type === "message_stop") {
         await stateMachine.handleMessageStop();
 
-        ws.send(
-          JSON.stringify({
-            type: "stream_complete",
-            promptId,
-          }),
-        );
+        broadcast(conversationId, {
+          type: "stream_complete",
+          promptId,
+        });
       }
     }
   } catch (error) {
@@ -284,13 +352,11 @@ async function startAnthropicStream(promptId: number, ws: any) {
       error instanceof Error ? error.message : "Unknown error",
     );
 
-    ws.send(
-      JSON.stringify({
-        type: "stream_error",
-        promptId,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-    );
+    broadcast(conversationId, {
+      type: "stream_error",
+      promptId,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
 

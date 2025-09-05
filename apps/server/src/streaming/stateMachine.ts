@@ -69,7 +69,11 @@ export class StreamingStateMachine {
     // Update prompt's current block
     await tx
       .update(prompts)
-      .set({ currentBlock: event.blockIndex, lastUpdated: new Date() })
+      .set({
+        state: "IN_PROGRESS",
+        currentBlock: event.blockIndex,
+        lastUpdated: new Date(),
+      })
       .where(eq(prompts.id, this.promptId));
   }
 

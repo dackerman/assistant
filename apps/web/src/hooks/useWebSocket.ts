@@ -34,6 +34,7 @@ export function useWebSocket(
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const lastConversationId = useRef<number | null>(null);
 
   useEffect(() => {
     const connect = () => {
@@ -46,6 +47,15 @@ export function useWebSocket(
       ws.current.onopen = () => {
         console.log("WebSocket connected");
         setIsConnected(true);
+        // Resubscribe if we had an active conversation
+        if (lastConversationId.current != null) {
+          ws.current?.send(
+            JSON.stringify({
+              type: "subscribe",
+              conversationId: lastConversationId.current,
+            }),
+          );
+        }
       };
 
       ws.current.onmessage = (event) => {
@@ -141,6 +151,7 @@ export function useWebSocket(
   };
 
   const subscribe = (conversationId: number) => {
+    lastConversationId.current = conversationId;
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
         JSON.stringify({
