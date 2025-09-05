@@ -11,7 +11,7 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { conversationService } from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
-import { MoreHorizontal, Send, Wifi, WifiOff, Pencil, Check, X as XIcon } from "lucide-react";
+import { MoreHorizontal, Send, Wifi, WifiOff, Check, X as XIcon } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 
@@ -435,23 +435,20 @@ export function ConversationView({
                   </Button>
                 </div>
               ) : (
-                <>
+                <div 
+                  onClick={currentConversationId && conversationTitle !== "New Conversation" ? handleTitleEditStart : undefined}
+                  className={`${
+                    currentConversationId && conversationTitle !== "New Conversation" 
+                      ? "cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors" 
+                      : ""
+                  }`}
+                >
                   <ConversationTitle 
                     title={conversationTitle}
                     className="font-semibold text-sm sm:text-base truncate"
                     shouldAnimate={shouldAnimateTitle}
                   />
-                  {currentConversationId && conversationTitle !== "New Conversation" && (
-                    <Button
-                      onClick={handleTitleEditStart}
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 opacity-60 hover:opacity-100 hover:bg-blue-100 hover:text-blue-600"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                  )}
-                </>
+                </div>
               )}
               {!isEditingTitle && (
                 <>
