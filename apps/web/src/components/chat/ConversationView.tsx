@@ -11,7 +11,7 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { conversationService } from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
-import { MoreHorizontal, Send, Wifi, WifiOff } from "lucide-react";
+import { MoreHorizontal, Send, Wifi, WifiOff, Pencil, Check, X as XIcon } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 
@@ -38,6 +38,8 @@ export function ConversationView({
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState("");
 
   // WebSocket handlers
   const handleTextDelta = useCallback((promptId: number, delta: string) => {
@@ -361,21 +363,104 @@ export function ConversationView({
     }
   };
 
+  const handleTitleEditStart = () => {
+    setIsEditingTitle(true);
+    setEditingTitle(conversationTitle);
+  };
+
+  const handleTitleEditSave = async () => {
+    if (!currentConversationId || editingTitle.trim() === "") {
+      return;
+    }
+
+    try {
+      await conversationService.updateTitle(currentConversationId, editingTitle.trim());
+      setConversationTitle(editingTitle.trim());
+      setIsEditingTitle(false);
+      setEditingTitle("");
+      // Notify parent to refresh sidebar
+      onTitleUpdate?.();
+    } catch (error) {
+      console.error("Failed to update conversation title:", error);
+      alert("Failed to update title. Please try again.");
+    }
+  };
+
+  const handleTitleEditCancel = () => {
+    setIsEditingTitle(false);
+    setEditingTitle("");
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleTitleEditSave();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleTitleEditCancel();
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="border-b px-3 sm:px-4 py-2 sm:py-3 bg-card">
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1 ml-10 sm:ml-0">
             <div className="flex items-center gap-2">
-              <ConversationTitle 
-                title={conversationTitle}
-                className="font-semibold text-sm sm:text-base truncate"
-                shouldAnimate={shouldAnimateTitle}
-              />
-              {isConnected ? (
-                <Wifi className="w-3 h-3 text-green-500" />
+              {isEditingTitle ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={handleTitleKeyDown}
+                    className="font-semibold text-sm sm:text-base bg-transparent border-b border-accent focus:outline-none focus:border-primary min-w-0 flex-1"
+                    autoFocus
+                  />
+                  <Button
+                    onClick={handleTitleEditSave}
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 hover:bg-green-100 hover:text-green-600"
+                  >
+                    <Check className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    onClick={handleTitleEditCancel}
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 hover:bg-gray-100 hover:text-gray-600"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </Button>
+                </div>
               ) : (
-                <WifiOff className="w-3 h-3 text-red-500" />
+                <>
+                  <ConversationTitle 
+                    title={conversationTitle}
+                    className="font-semibold text-sm sm:text-base truncate"
+                    shouldAnimate={shouldAnimateTitle}
+                  />
+                  {currentConversationId && conversationTitle !== "New Conversation" && (
+                    <Button
+                      onClick={handleTitleEditStart}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-60 hover:opacity-100 hover:bg-blue-100 hover:text-blue-600"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                  )}
+                </>
+              )}
+              {!isEditingTitle && (
+                <>
+                  {isConnected ? (
+                    <Wifi className="w-3 h-3 text-green-500" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-red-500" />
+                  )}
+                </>
               )}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { conversationService } from "@/services/conversationService";
 import type { Conversation } from "@/types/conversation";
-import { MessageCircle, Plus, X, Trash2 } from "lucide-react";
+import { MessageCircle, Plus, X, Trash2, Pencil, Check, X as XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ConversationTitle } from "@/components/ui/ConversationTitle";
 
@@ -28,6 +28,8 @@ export function ConversationSidebar({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [titleAnimationTriggers, setTitleAnimationTriggers] = useState<Map<string, number>>(new Map());
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   // Load conversations
   useEffect(() => {
@@ -100,6 +102,53 @@ export function ConversationSidebar({
     } catch (error) {
       console.error("Failed to delete conversation:", error);
       alert("Failed to delete conversation. Please try again.");
+    }
+  };
+
+  const handleEditClick = (conversationId: string, currentTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering conversation selection
+    setEditingConversationId(conversationId);
+    setEditingTitle(currentTitle);
+  };
+
+  const handleEditSave = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (editingTitle.trim() === "") {
+      return; // Don't allow empty titles
+    }
+
+    try {
+      // Update the conversation title via API
+      await conversationService.updateTitle(Number.parseInt(conversationId), editingTitle.trim());
+      
+      // Update local state
+      setConversations(prev => prev.map(c => 
+        c.id === conversationId ? { ...c, title: editingTitle.trim() } : c
+      ));
+      
+      // Exit editing mode
+      setEditingConversationId(null);
+      setEditingTitle("");
+    } catch (error) {
+      console.error("Failed to update conversation title:", error);
+      alert("Failed to update title. Please try again.");
+    }
+  };
+
+  const handleEditCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingConversationId(null);
+    setEditingTitle("");
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleEditSave(conversationId, e as any);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleEditCancel(e as any);
     }
   };
 
@@ -211,23 +260,69 @@ export function ConversationSidebar({
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <div className="flex-1 overflow-hidden">
-                  <ConversationTitle 
-                    title={truncateTitle(conversation.title)}
-                    className="font-medium truncate"
-                    animationTrigger={titleAnimationTriggers.get(conversation.id) || 0}
-                  />
+                  {editingConversationId === conversation.id ? (
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => handleTitleKeyDown(e, conversation.id)}
+                      className="font-medium text-sm w-full bg-transparent border-b border-accent focus:outline-none focus:border-primary"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <ConversationTitle 
+                      title={truncateTitle(conversation.title)}
+                      className="font-medium truncate"
+                      animationTrigger={titleAnimationTriggers.get(conversation.id) || 0}
+                      shouldAnimate={false} // Manual edits shouldn't trigger sparkles
+                    />
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {formatDate(conversation.updatedAt)}
                   </div>
                 </div>
-                <Button
-                  onClick={(e) => handleDeleteClick(conversation.id, e)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 flex-shrink-0"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                
+                {/* Edit buttons */}
+                {editingConversationId === conversation.id ? (
+                  <div className="flex flex-shrink-0">
+                    <Button
+                      onClick={(e) => handleEditSave(conversation.id, e)}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 hover:bg-green-100 hover:text-green-600"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      onClick={handleEditCancel}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 hover:bg-gray-100 hover:text-gray-600"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-shrink-0">
+                    <Button
+                      onClick={(e) => handleEditClick(conversation.id, conversation.title, e)}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-600"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      onClick={(e) => handleDeleteClick(conversation.id, e)}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

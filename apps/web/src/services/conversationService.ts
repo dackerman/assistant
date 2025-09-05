@@ -91,6 +91,21 @@ export class ConversationService {
   }
 
   /**
+   * Update conversation title
+   */
+  async updateTitle(conversationId: number, title: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/conversations/${conversationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update conversation title");
+    }
+  }
+
+  /**
    * Delete a conversation
    */
   async deleteConversation(conversationId: number): Promise<void> {

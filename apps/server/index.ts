@@ -142,6 +142,32 @@ app.delete("/api/conversations/:id", async (c) => {
   }
 });
 
+app.put("/api/conversations/:id", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+  const userId = 1; // TODO: Get from auth
+  
+  try {
+    const body = await c.req.json();
+    const { title } = body;
+    
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
+      return c.json({ error: "Title is required" }, 400);
+    }
+    
+    // Verify the user owns this conversation by trying to get it first
+    const conversation = await conversationService.getConversation(conversationId, userId);
+    if (!conversation) {
+      return c.json({ error: "Conversation not found" }, 404);
+    }
+    
+    await conversationService.setTitle(conversationId, title.trim());
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to update conversation title:", error);
+    return c.json({ error: "Failed to update title" }, 500);
+  }
+});
+
 // Serve static files for production (when frontend is built)
 app.get("*", (c) => {
   return c.text(
