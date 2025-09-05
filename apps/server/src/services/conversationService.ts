@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { db } from "../db";
+import { db as defaultDb } from "../db";
 import {
   type Block,
   type NewBlock,
@@ -13,11 +13,17 @@ import {
 } from "../db/schema";
 
 export class ConversationService {
+  private db: any;
+
+  constructor(dbInstance: any = defaultDb) {
+    this.db = dbInstance;
+  }
+
   /**
    * Create a new conversation
    */
   async createConversation(userId: number, title?: string): Promise<number> {
-    const [conversation] = await db
+    const [conversation] = await this.db
       .insert(conversations)
       .values({
         userId,
@@ -34,7 +40,7 @@ export class ConversationService {
    */
   async getConversation(conversationId: number, userId: number) {
     // Get conversation
-    const [conversation] = await db
+    const [conversation] = await this.db
       .select()
       .from(conversations)
       .where(
@@ -49,7 +55,7 @@ export class ConversationService {
     }
 
     // Get all completed messages with their blocks
-    const messagesWithBlocks = await db
+    const messagesWithBlocks = await this.db
       .select({
         message: messages,
         block: blocks,
@@ -90,7 +96,7 @@ export class ConversationService {
    */
   async getActiveStream(conversationId: number) {
     // Get active prompt
-    const [activePrompt] = await db
+    const [activePrompt] = await this.db
       .select()
       .from(prompts)
       .where(
@@ -105,7 +111,7 @@ export class ConversationService {
     }
 
     // Get streaming blocks (not yet finalized)
-    const streamingBlocks = await db
+    const streamingBlocks = await this.db
       .select()
       .from(blocks)
       .where(
@@ -130,7 +136,7 @@ export class ConversationService {
     content: string,
     model = "claude-3-5-sonnet-20241022",
   ): Promise<{ userMessageId: number; promptId: number }> {
-    return await db.transaction(async (tx) => {
+    return await this.db.transaction(async (tx: any) => {
       // Create user message
       const [userMessage] = await tx
         .insert(messages)
@@ -140,17 +146,6 @@ export class ConversationService {
           isComplete: true,
         } as NewMessage)
         .returning();
-
-      // Create user message block
-      await tx.insert(blocks).values({
-        promptId: 0, // Temporary, will be updated when we have a prompt
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        messageId: userMessage!.id,
-        type: "text",
-        indexNum: 0,
-        content,
-        isFinalized: true,
-      } as NewBlock);
 
       // Create assistant message placeholder
       const [assistantMessage] = await tx
@@ -175,13 +170,17 @@ export class ConversationService {
         } as NewPrompt)
         .returning();
 
-      // Update the user block with the prompt ID
-      await tx
-        .update(blocks)
+      // Create user message block after prompt exists
+      await tx.insert(blocks).values({
         // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        .set({ promptId: prompt!.id })
+        promptId: prompt!.id,
         // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        .where(eq(blocks.messageId, userMessage!.id));
+        messageId: userMessage!.id,
+        type: "text",
+        indexNum: -1,
+        content,
+        isFinalized: true,
+      });
 
       // Update conversation's active prompt
       await tx
@@ -203,7 +202,7 @@ export class ConversationService {
    * List conversations for a user
    */
   async listConversations(userId: number) {
-    return await db
+    return await this.db
       .select()
       .from(conversations)
       .where(eq(conversations.userId, userId))
@@ -213,8 +212,8 @@ export class ConversationService {
   /**
    * Build conversation history for AI model
    */
-  async buildConversationHistory(conversationId: number) {
-    const result = await this.getConversation(conversationId, 0); // TODO: Pass real userId
+  async buildConversationHistory(conversationId: number, userId: number) {
+    const result = await this.getConversation(conversationId, userId);
     if (!result) return [];
 
     const history = [];

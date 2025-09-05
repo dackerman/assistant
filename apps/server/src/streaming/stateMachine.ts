@@ -292,7 +292,7 @@ export class StreamingStateMachine {
           .where(eq(toolCalls.promptId, this.promptId));
 
         const allComplete = tools.every(
-          (t) =>
+          (t: any) =>
             t.state === "complete" ||
             t.state === "error" ||
             t.state === "canceled",
