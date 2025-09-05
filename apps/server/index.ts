@@ -466,21 +466,64 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
           messages: [
             {
               role: "user",
-              content: `Generate a good conversation title for the following query:
-                ${userQuery}
-                
-                Respond ONLY with the title and nothing else. Keep it to just a few words.
-                
-                Examples:
-                Query: "What is the capital of France?"
-                Title: "France Capital Question"
+              content: `<instructions>
+Goal:
+- Capture the Query's core outcome or object in ≤4 words (<5 words).
+- Make it specific and memorable without fluff.
 
-                Query: "Explain to me how the internet works"
-                Title: "Internet Explanation"
+Hard constraints:
+- Length: 1-4 words.
+- Casing: Title Case.
+- Characters: letters, spaces, optional hyphen (e.g., “Local-First”). No colons, quotes, emojis, brackets, or trailing punctuation.
+- Output: ONLY the title text. No prefix, no quotes, no commentary.
 
-                Query: "How do I cook a perfect medium-rare steak?"
-                Title: "Perfect Steak Recipe"
-                `,
+Style preferences:
+- Be concrete (nouns > vague adjectives).
+- Prefer strong domain nouns/modifiers (e.g., “Blueprint”, “Checklist”, “Kit”, “Plan”) when they fit.
+- Avoid clichés (“Ultimate”, “Next-Gen”, “Revolutionary”), clickbait, and filler (“Guide”, “101”) unless explicitly implied by the Query.
+- Use numbers only if they clarify (avoid gratuitous “Top 10”, etc.).
+- Don't invent facts beyond the Query.
+
+Validation checklist (must pass before emitting):
+- <5 words? Title Case? Allowed characters only?
+- Matches the Query's core ask?
+- Would you put this as a section or card title?
+
+Examples:
+Query: "Estimate my post-move insurance bundle in NH: auto (two vehicles), homeowners (Travelers ~$2k/yr), and $1M-$3M umbrella; show annual total and per-vehicle breakdown with bundling discounts."
+Title: "NH Insurance Bundle"
+
+Query: "Design a full 'Mulberry' brand guideline: palette, typography, spacing, logo usage, icon/illustration style, backgrounds, and ShadCN theme tokens; include a quick-start cheat sheet."
+Title: "Mulberry Brand Kit"
+
+Query: "Write a funny baby announcement as a Terraform plan with diff-style output (e.g., 1 to create, 3 to change, 0 to destroy) and a playful apply summary."
+Title: "Terraform Baby Announcement"
+
+Query: "Create a one-page, printable father's hospital-bag checklist with tick boxes; include minimalist essentials, day-of mini list, and newborn/partner support items."
+Title: "Dad Hospital Checklist"
+
+Query: "Explain retatrutide in plain English: mechanism of action, pathways involved, clinical efficacy vs semaglutide/tirzepatide, side effects, contraindications; define all terms."
+Title: "Retatrutide Explained"
+
+Query: "Give me an exact Starbucks order script that replicates a grande iced cortado (latte with less milk): wording, sizes, milk ratios, espresso counts, and fallback options."
+Title: "Iced Cortado Hack"
+
+Query: "Advise on mortgage prepayment vs investing given 6.375% rate, $1.25M purchase, ~$1.4M cash; include tax effects, breakeven, and sensitivity across market returns."
+Title: "Prepay vs Invest"
+
+Query: "Propose an offline-first Clojure/Malli architecture for my calorie tracker: schemas, sync/merge strategy, testing, REPL workflows, and maintainability patterns."
+Title: "Local-First Clojure Architecture"
+
+Query: "Recommend high-end SUVs that fit two car seats plus an adult in the middle; list usable hip/shoulder width, LATCH positions, and link to rear-bench photos."
+Title: "SUV Back-Seat Fit"
+
+Query: "Outline an MCP-centric 'Core' app: Postgres memory, sub-agents, browsing, Docker orchestration, safety/guardrails, and a shortlist of strong product names."
+Title: "MCP Core App Design"
+</instructions>
+
+<input>
+Query: ${userQuery}
+</input>`,
             },
           ],
         })
