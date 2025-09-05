@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { WebSocketServer } from "ws";
-import type { WebSocket, RawData } from "ws";
+import type { RawData, WebSocket } from "ws";
 import "dotenv/config";
 
 // import { db } from "./src/db";
@@ -438,9 +438,10 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
 
     // TODO: Build proper conversation history from database
     // For now using placeholder - this should call conversationService.buildConversationHistory()
-    const messages = [
-      { role: "user" as const, content: "Hello" }, // Placeholder
-    ];
+    const messages = await conversationService.buildConversationHistory(
+      conversationId,
+      1,
+    );
 
     streamLogger.info("Conversation history built", {
       messageCount: messages.length,
