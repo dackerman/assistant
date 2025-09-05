@@ -37,6 +37,7 @@ export function ConversationView({
     useState("New Conversation");
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
+  const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false);
 
   // WebSocket handlers
   const handleTextDelta = useCallback((promptId: number, delta: string) => {
@@ -122,9 +123,12 @@ export function ConversationView({
 
   const handleTitleGenerated = useCallback((title: string) => {
     console.log("Title generated:", title);
+    setShouldAnimateTitle(true); // Mark that this title change should animate
     setConversationTitle(title);
     // Notify parent component to refresh sidebar
     onTitleUpdate?.();
+    // Reset animation flag after the component has had a chance to use it
+    setTimeout(() => setShouldAnimateTitle(false), 100);
   }, [onTitleUpdate]);
 
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
@@ -366,6 +370,7 @@ export function ConversationView({
               <ConversationTitle 
                 title={conversationTitle}
                 className="font-semibold text-sm sm:text-base truncate"
+                shouldAnimate={shouldAnimateTitle}
               />
               {isConnected ? (
                 <Wifi className="w-3 h-3 text-green-500" />

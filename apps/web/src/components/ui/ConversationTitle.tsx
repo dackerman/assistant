@@ -7,46 +7,34 @@ interface ConversationTitleProps {
   onTitleChange?: (title: string) => void;
   /** Force animation trigger - increment this value to trigger sparkles */
   animationTrigger?: number;
+  /** Whether this title change should trigger sparkles - use for WebSocket updates only */
+  shouldAnimate?: boolean;
 }
 
 export function ConversationTitle({ 
   title, 
   className = "", 
   onTitleChange,
-  animationTrigger = 0 
+  animationTrigger = 0,
+  shouldAnimate = false
 }: ConversationTitleProps) {
   const [previousTitle, setPreviousTitle] = useState(title);
   const [sparkleKey, setSparkleKey] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Mark as initialized after first render to prevent initial animation
-  useEffect(() => {
-    setIsInitialized(true);
-  }, []);
 
   useEffect(() => {
-    // Only animate after initialization and when title actually changes from WebSocket updates
-    if (!isInitialized) {
-      setPreviousTitle(title);
-      return;
-    }
-
-    // Only animate if title changed from "New Conversation" to a real title
-    // This specifically targets WebSocket title generation events
-    const shouldAnimate = previousTitle === "New Conversation" && title !== "New Conversation";
-
-    if (shouldAnimate) {
+    // Only animate when explicitly told to via shouldAnimate prop
+    if (shouldAnimate && previousTitle === "New Conversation" && title !== "New Conversation") {
       setIsAnimating(true);
       setSparkleKey(prev => prev + 1);
       onTitleChange?.(title);
       
-      // Reset animation state after completion (increased to match longer sparkle duration)
+      // Reset animation state after completion
       setTimeout(() => setIsAnimating(false), 2000);
     }
     
     setPreviousTitle(title);
-  }, [title, previousTitle, onTitleChange, isInitialized]);
+  }, [title, previousTitle, onTitleChange, shouldAnimate]);
 
   // Also respond to external animation triggers (for sidebar refreshes)
   useEffect(() => {
