@@ -118,20 +118,31 @@ export function useWebSocket(
             break;
 
           case "snapshot":
-            if (data.promptId && data.content && data.currentState) {
-              console.log("Received snapshot for prompt:", data.promptId);
+            if (data.promptId && data.content !== undefined && data.currentState) {
+              console.log("Received snapshot for prompt:", data.promptId, {
+                state: data.currentState,
+                contentLength: data.content?.length || 0,
+                hasContent: !!data.content
+              });
+              
               onSnapshotReceivedRef.current?.(
                 data.promptId,
                 data.content,
                 data.currentState,
               );
-              // Continue streaming if not in final state
-              if (
-                data.currentState !== "completed" &&
-                data.currentState !== "error"
-              ) {
-                setIsStreaming(true);
-              }
+              
+              // Set streaming state based on prompt state
+              const isActiveState = data.currentState === "IN_PROGRESS" || 
+                                   data.currentState === "WAITING_FOR_TOOLS";
+              setIsStreaming(isActiveState);
+              
+              console.log(`Snapshot processed - streaming state: ${isActiveState}`);
+            } else {
+              console.warn("Incomplete snapshot data received:", {
+                promptId: data.promptId,
+                hasContent: data.content !== undefined,
+                currentState: data.currentState
+              });
             }
             break;
 

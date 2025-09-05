@@ -32,6 +32,8 @@ export function ConversationView({
   >(conversationId || null);
   const [conversationTitle, setConversationTitle] =
     useState("New Conversation");
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
 
   // WebSocket handlers
   const handleTextDelta = useCallback((promptId: number, delta: string) => {
@@ -75,32 +77,40 @@ export function ConversationView({
 
   const handleSnapshot = useCallback(
     (promptId: number, content: string, state: string) => {
-      console.log("Received snapshot for prompt:", promptId, "state:", state);
+      console.log("Received snapshot for prompt:", promptId, "state:", state, {
+        contentLength: content?.length || 0,
+        isStreaming: state === "IN_PROGRESS" || state === "WAITING_FOR_TOOLS"
+      });
+      
       setMessages((prev) => {
         const existingIndex = prev.findIndex(
           (m) => m.metadata?.promptId === promptId && m.type === "assistant",
         );
+
+        const snapshotMessage = {
+          id: `assistant-${promptId}`,
+          type: "assistant" as const,
+          content: content || "",
+          timestamp: new Date().toISOString(),
+          metadata: { 
+            promptId,
+            streamState: state,
+          },
+        };
 
         if (existingIndex >= 0) {
           // Update existing message with snapshot content
           const updated = [...prev];
           updated[existingIndex] = {
             ...updated[existingIndex],
-            content: content,
+            ...snapshotMessage,
+            // Preserve original timestamp if it exists
+            timestamp: updated[existingIndex].timestamp || snapshotMessage.timestamp,
           };
           return updated;
         } else {
           // Create new assistant message from snapshot
-          return [
-            ...prev,
-            {
-              id: `assistant-${promptId}`,
-              type: "assistant" as const,
-              content: content,
-              timestamp: new Date().toISOString(),
-              metadata: { promptId },
-            },
-          ];
+          return [...prev, snapshotMessage];
         }
       });
     },
@@ -114,48 +124,177 @@ export function ConversationView({
     handleSnapshot,
   );
 
-  // Load conversation on mount
+  // Load conversation on mount or when ID changes
   useEffect(() => {
     if (currentConversationId) {
+      // Clear any existing error when switching conversations
+      setConversationError(null);
       loadConversation(currentConversationId);
       subscribe(currentConversationId);
+    } else {
+      // Clear messages and error when no conversation selected
+      setMessages([]);
+      setConversationError(null);
+      setConversationTitle("New Conversation");
     }
   }, [currentConversationId, subscribe]);
 
   const loadConversation = async (id: number) => {
     try {
+      setIsLoadingConversation(true);
+      setConversationError(null);
+      
       console.log("Loading conversation:", id);
       const result = await conversationService.getConversation(id);
+      
+      if (!result) {
+        throw new Error("Conversation not found");
+      }
+      
       setMessages(formatMessagesFromAPI(result.messages));
       setConversationTitle(result.conversation.title || "Conversation");
 
-      // Check for active streaming - but don't call this immediately
-      // Only check if we're not already streaming
+      // Check for active streaming and restore streaming state
       if (!isStreaming) {
-        const activeStream = await conversationService.getActiveStream(id);
-        if (activeStream.activeStream) {
-          console.log("Active stream detected:", activeStream.activeStream);
-          // TODO: Handle reconnection to active stream properly
+        const activeStreamResult = await conversationService.getActiveStream(id);
+        if (activeStreamResult.activeStream) {
+          console.log("Active stream detected:", activeStreamResult.activeStream);
+          await restoreActiveStream(activeStreamResult.activeStream);
         }
       }
     } catch (error) {
       console.error("Failed to load conversation:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to load conversation";
+      setConversationError(errorMessage);
+      // Don't clear messages on error - keep existing state
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
+  const retryLoadConversation = () => {
+    if (currentConversationId) {
+      loadConversation(currentConversationId);
     }
   };
 
   const formatMessagesFromAPI = (apiMessages: any[]): Message[] => {
-    return apiMessages.map((msg) => ({
-      id: msg.id.toString(),
-      type: msg.role,
-      content:
-        msg.blocks
-          ?.filter((b: any) => b.type === "text")
-          .map((b: any) => b.content)
-          .join("") || "",
-      timestamp: msg.createdAt,
-      toolCalls: [], // TODO: Process tool calls from blocks
-      metadata: { promptId: msg.promptId },
-    }));
+    return apiMessages.map((msg) => {
+      // Combine text blocks for content
+      const textContent = msg.blocks
+        ?.filter((b: any) => b.type === "text")
+        .map((b: any) => b.content || "")
+        .join("") || "";
+
+      // Process tool calls from blocks
+      const toolCalls: any[] = [];
+      const toolResults: any[] = [];
+      
+      msg.blocks?.forEach((block: any) => {
+        if (block.type === "tool_call" && block.toolCall) {
+          const toolCall = {
+            id: block.toolCall.apiToolCallId || block.id.toString(),
+            name: block.toolCall.toolName,
+            parameters: block.toolCall.request || {},
+            result: block.toolCall.response,
+            status: mapToolCallState(block.toolCall.state),
+            startTime: block.createdAt,
+            endTime: block.toolCall.completedAt,
+          };
+          
+          if (toolCall.status === "completed" && toolCall.result) {
+            toolResults.push({
+              ...toolCall,
+              output: toolCall.result,
+            });
+          } else {
+            toolCalls.push(toolCall);
+          }
+        }
+      });
+
+      return {
+        id: msg.id.toString(),
+        type: msg.role,
+        content: textContent,
+        timestamp: msg.createdAt,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        toolResults: toolResults.length > 0 ? toolResults : undefined,
+        metadata: { 
+          promptId: msg.promptId,
+          model: msg.model,
+        },
+      };
+    });
+  };
+
+  const mapToolCallState = (dbState: string) => {
+    switch (dbState) {
+      case "created": return "pending";
+      case "running": return "running";
+      case "completed": return "completed";
+      case "failed": 
+      case "canceled": return "error";
+      default: return "pending";
+    }
+  };
+
+  const restoreActiveStream = async (activeStream: any) => {
+    const { prompt, blocks } = activeStream;
+    
+    console.log("Restoring active stream:", { 
+      promptId: prompt.id, 
+      state: prompt.state, 
+      blockCount: blocks.length 
+    });
+
+    // Build current content from streaming blocks
+    const streamingContent = blocks
+      .filter((b: any) => b.type === "text")
+      .map((b: any) => b.content || "")
+      .join("");
+
+    if (streamingContent) {
+      // Add or update the assistant message with current streaming content
+      const assistantMessage: Message = {
+        id: `assistant-${prompt.id}`,
+        type: "assistant",
+        content: streamingContent,
+        timestamp: prompt.createdAt,
+        metadata: { 
+          promptId: prompt.id,
+          model: prompt.model,
+        },
+      };
+
+      setMessages((prev) => {
+        // Check if we already have this assistant message
+        const existingIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === prompt.id && m.type === "assistant"
+        );
+
+        if (existingIndex >= 0) {
+          // Update existing message
+          const updated = [...prev];
+          updated[existingIndex] = assistantMessage;
+          return updated;
+        } else {
+          // Add new assistant message
+          return [...prev, assistantMessage];
+        }
+      });
+    }
+
+    // Set streaming state based on prompt state
+    if (prompt.state === "IN_PROGRESS") {
+      // WebSocket should handle continued streaming
+      console.log("Stream is actively IN_PROGRESS - WebSocket will handle updates");
+    } else if (prompt.state === "WAITING_FOR_TOOLS") {
+      console.log("Stream is waiting for tools - monitoring for completion");
+      // Could add UI indicator for tool execution status
+    } else {
+      console.log(`Stream in ${prompt.state} state - may need manual intervention`);
+    }
   };
 
   const handleSend = async () => {
@@ -238,7 +377,29 @@ export function ConversationView({
 
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="max-w-4xl mx-auto space-y-2 sm:space-y-4">
-          {messages.map((message) => (
+          {/* Loading state */}
+          {isLoadingConversation && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground">Loading conversation...</div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {conversationError && !isLoadingConversation && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="text-red-500 mb-2">{conversationError}</div>
+              <Button 
+                onClick={retryLoadConversation}
+                variant="outline" 
+                size="sm"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Messages */}
+          {!isLoadingConversation && !conversationError && messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}
         </div>
