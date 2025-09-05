@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface UseWebSocketReturn {
   sendMessage: (
@@ -36,6 +36,18 @@ export function useWebSocket(
   const [isStreaming, setIsStreaming] = useState(false);
   const lastConversationId = useRef<number | null>(null);
 
+  // Use refs to access latest callbacks without making them dependencies
+  const onTextDeltaRef = useRef(onTextDelta);
+  const onStreamCompleteRef = useRef(onStreamComplete);
+  const onStreamErrorRef = useRef(onStreamError);
+  const onSnapshotReceivedRef = useRef(onSnapshotReceived);
+
+  // Update refs when callbacks change
+  onTextDeltaRef.current = onTextDelta;
+  onStreamCompleteRef.current = onStreamComplete;
+  onStreamErrorRef.current = onStreamError;
+  onSnapshotReceivedRef.current = onSnapshotReceived;
+
   useEffect(() => {
     const connect = () => {
       const wsHost =
@@ -65,28 +77,31 @@ export function useWebSocket(
           case "text_delta":
             if (data.promptId && data.delta) {
               setIsStreaming(true);
-              onTextDelta(data.promptId, data.delta);
+              onTextDeltaRef.current(data.promptId, data.delta);
             }
             break;
 
           case "stream_complete":
             if (data.promptId) {
               setIsStreaming(false);
-              onStreamComplete(data.promptId);
+              onStreamCompleteRef.current(data.promptId);
             }
             break;
 
           case "stream_error":
             if (data.promptId) {
               setIsStreaming(false);
-              onStreamError(data.promptId, data.error || "Unknown error");
+              onStreamErrorRef.current(
+                data.promptId,
+                data.error || "Unknown error",
+              );
             }
             break;
 
           case "snapshot":
             if (data.promptId && data.content && data.currentState) {
               console.log("Received snapshot for prompt:", data.promptId);
-              onSnapshotReceived?.(
+              onSnapshotReceivedRef.current?.(
                 data.promptId,
                 data.content,
                 data.currentState,
@@ -131,26 +146,25 @@ export function useWebSocket(
         ws.current.close();
       }
     };
-  }, [onTextDelta, onStreamComplete, onStreamError]);
+  }, []); // Remove callback dependencies to prevent reconnection loops
 
-  const sendMessage = (
-    conversationId: number,
-    content: string,
-    model?: string,
-  ) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(
-        JSON.stringify({
-          type: "send_message",
-          conversationId,
-          content,
-          model: model || "claude-3-5-sonnet-20241022",
-        }),
-      );
-    }
-  };
+  const sendMessage = useCallback(
+    (conversationId: number, content: string, model?: string) => {
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: "send_message",
+            conversationId,
+            content,
+            model,
+          }),
+        );
+      }
+    },
+    [],
+  );
 
-  const subscribe = (conversationId: number) => {
+  const subscribe = useCallback((conversationId: number) => {
     lastConversationId.current = conversationId;
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
@@ -160,7 +174,7 @@ export function useWebSocket(
         }),
       );
     }
-  };
+  }, []);
 
   return {
     sendMessage,

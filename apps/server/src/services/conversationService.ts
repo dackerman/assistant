@@ -135,7 +135,7 @@ export class ConversationService {
   async createUserMessage(
     conversationId: number,
     content: string,
-    model = "claude-3-5-sonnet-20241022",
+    model = "claude-sonnet-4-20250514",
   ): Promise<{ userMessageId: number; promptId: number }> {
     return await this.db.transaction(async (tx: any) => {
       // Create user message
@@ -208,6 +208,18 @@ export class ConversationService {
       .from(conversations)
       .where(eq(conversations.userId, userId))
       .orderBy(desc(conversations.updatedAt));
+  }
+
+  /**
+   * Get prompt by ID
+   */
+  async getPromptById(promptId: number) {
+    const [prompt] = await this.db
+      .select()
+      .from(prompts)
+      .where(eq(prompts.id, promptId));
+
+    return prompt || null;
   }
 
   /**

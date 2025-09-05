@@ -1,6 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import {
+  DEFAULT_MODEL,
+  MODEL_DISPLAY_NAMES,
+  SUPPORTED_MODELS,
+  type SupportedModel,
+} from "@/constants/models";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { conversationService } from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
@@ -19,9 +25,8 @@ export function ConversationView({
 }: ConversationViewProps) {
   const [inputValue, setInputValue] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedModel, setSelectedModel] = useState(
-    "claude-3-5-sonnet-20241022",
-  );
+  const [selectedModel, setSelectedModel] =
+    useState<SupportedModel>(DEFAULT_MODEL);
   const [currentConversationId, setCurrentConversationId] = useState<
     number | null
   >(conversationId || null);
@@ -119,15 +124,19 @@ export function ConversationView({
 
   const loadConversation = async (id: number) => {
     try {
+      console.log("Loading conversation:", id);
       const result = await conversationService.getConversation(id);
       setMessages(formatMessagesFromAPI(result.messages));
       setConversationTitle(result.conversation.title || "Conversation");
 
-      // Check for active streaming
-      const activeStream = await conversationService.getActiveStream(id);
-      if (activeStream.activeStream) {
-        // TODO: Handle reconnection to active stream
-        console.log("Active stream detected:", activeStream.activeStream);
+      // Check for active streaming - but don't call this immediately
+      // Only check if we're not already streaming
+      if (!isStreaming) {
+        const activeStream = await conversationService.getActiveStream(id);
+        if (activeStream.activeStream) {
+          console.log("Active stream detected:", activeStream.activeStream);
+          // TODO: Handle reconnection to active stream properly
+        }
       }
     } catch (error) {
       console.error("Failed to load conversation:", error);
@@ -160,7 +169,7 @@ export function ConversationView({
         const newConv = await conversationService.createConversation();
         conversationIdToUse = newConv.id;
         setCurrentConversationId(conversationIdToUse);
-        subscribe(conversationIdToUse);
+        // No need to call subscribe here - useEffect will handle it
         onConversationCreate?.(conversationIdToUse);
       }
 
@@ -192,7 +201,7 @@ export function ConversationView({
     <div className="flex flex-col h-screen bg-background">
       <div className="border-b px-3 sm:px-4 py-2 sm:py-3 bg-card">
         <div className="flex items-center justify-between">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 ml-10 sm:ml-0">
             <div className="flex items-center gap-2">
               <h1 className="font-semibold text-sm sm:text-base truncate">
                 {conversationTitle}
@@ -209,15 +218,16 @@ export function ConversationView({
             </p>
             <select
               value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              onChange={(e) =>
+                setSelectedModel(e.target.value as SupportedModel)
+              }
               className="text-xs bg-transparent border-none focus:outline-none text-muted-foreground"
             >
-              <option value="claude-3-5-sonnet-20241022">
-                Claude 3.5 Sonnet
-              </option>
-              <option value="claude-3-5-haiku-20241022">
-                Claude 3.5 Haiku
-              </option>
+              {Object.values(SUPPORTED_MODELS).map((model) => (
+                <option key={model} value={model}>
+                  {MODEL_DISPLAY_NAMES[model]}
+                </option>
+              ))}
             </select>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">

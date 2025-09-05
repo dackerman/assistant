@@ -35,6 +35,14 @@ app.use(
   }),
 );
 
+// Constants for supported models
+const SUPPORTED_MODELS = {
+  SONNET_4: "claude-sonnet-4-20250514",
+  OPUS_4_1: "claude-opus-4-1-20250805",
+} as const;
+
+const DEFAULT_MODEL = SUPPORTED_MODELS.SONNET_4;
+
 // API routes
 app.get("/api/health", (c) => {
   return c.json({
@@ -43,6 +51,8 @@ app.get("/api/health", (c) => {
     providers: {
       anthropic: !!process.env.ANTHROPIC_API_KEY,
     },
+    supportedModels: Object.values(SUPPORTED_MODELS),
+    defaultModel: DEFAULT_MODEL,
   });
 });
 
@@ -89,10 +99,22 @@ app.post("/api/conversations/:id/messages", async (c) => {
   const conversationId = Number.parseInt(c.req.param("id"));
   const body = await c.req.json();
 
+  // Validate model if provided
+  const model = body.model || DEFAULT_MODEL;
+  if (!Object.values(SUPPORTED_MODELS).includes(model)) {
+    return c.json(
+      {
+        error: "Unsupported model",
+        supportedModels: Object.values(SUPPORTED_MODELS),
+      },
+      400,
+    );
+  }
+
   const result = await conversationService.createUserMessage(
     conversationId,
     body.content,
-    body.model || "claude-3-5-sonnet-20241022",
+    model,
   );
 
   return c.json(result);
@@ -216,11 +238,29 @@ wss.on("connection", (ws: WebSocket) => {
       const message = JSON.parse(data.toString()) as ClientMessage;
 
       if (message.type === "send_message") {
+        // Validate and normalize model
+        const requestedModel = message.model || DEFAULT_MODEL;
+        const supportedModelsList = Object.values(SUPPORTED_MODELS);
+
+        if (!supportedModelsList.includes(requestedModel as any)) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              error: `Unsupported model: ${requestedModel}. Supported models: ${supportedModelsList.join(", ")}`,
+            }),
+          );
+          return;
+        }
+
+        // Type assertion is safe here because we validated above
+        const model =
+          requestedModel as (typeof SUPPORTED_MODELS)[keyof typeof SUPPORTED_MODELS];
+
         // Create user message and start streaming
         const result = await conversationService.createUserMessage(
           message.conversationId,
           message.content,
-          message.model,
+          model,
         );
 
         // Start streaming with Anthropic
@@ -300,15 +340,21 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
   const stateMachine = new StreamingStateMachine(promptId);
 
   try {
+    // Get prompt details to retrieve the model
+    const promptDetails = await conversationService.getPromptById(promptId);
+    if (!promptDetails) {
+      throw new Error(`Prompt ${promptId} not found`);
+    }
+
     // Get conversation history
     // TODO: Build proper conversation history from database
     const messages = [
       { role: "user" as const, content: "Hello" }, // Placeholder
     ];
 
-    // Start streaming from Anthropic
+    // Start streaming from Anthropic with the correct model
     const stream = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: promptDetails.model,
       max_tokens: 4000,
       messages,
       stream: true,
