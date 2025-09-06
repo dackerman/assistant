@@ -157,7 +157,7 @@ export class StreamingStateMachine {
   }
 
   private async handleBlockDelta(tx: any, event: StreamEvent) {
-    if (event.blockIndex === undefined || !event.delta) {
+    if (event.blockIndex === undefined || event.delta === undefined || event.delta === null) {
       throw new Error("Block delta requires blockIndex and delta content");
     }
 
