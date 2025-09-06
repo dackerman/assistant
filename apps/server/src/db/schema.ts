@@ -200,6 +200,15 @@ export const toolCalls = pgTable(
     request: jsonb("request").notNull(),
     response: jsonb("response"),
     error: text("error"),
+    // Tool execution tracking columns
+    pid: integer("pid"),
+    startedAt: timestamp("started_at"),
+    timeoutAt: timestamp("timeout_at"),
+    retryCount: integer("retry_count").default(0).notNull(),
+    lastHeartbeat: timestamp("last_heartbeat"),
+    outputStream: text("output_stream"),
+    maxRetries: integer("max_retries").default(3).notNull(),
+    timeoutSeconds: integer("timeout_seconds").default(300).notNull(),
   },
   (table) => ({
     promptIdIdx: index("idx_tool_calls_prompt_id").on(table.promptId),
@@ -209,6 +218,20 @@ export const toolCalls = pgTable(
     promptStateIdx: index("idx_tool_calls_prompt_state").on(
       table.promptId,
       table.state,
+    ),
+    // New indexes for tool execution
+    pidIdx: index("idx_tool_calls_pid").on(table.pid),
+    staleToolsIdx: index("idx_tool_calls_stale").on(
+      table.state,
+      table.lastHeartbeat,
+    ),
+    retryIdx: index("idx_tool_calls_retry").on(
+      table.retryCount,
+      table.maxRetries,
+    ),
+    timeoutIdx: index("idx_tool_calls_timeout").on(
+      table.state,
+      table.timeoutAt,
     ),
   }),
 );

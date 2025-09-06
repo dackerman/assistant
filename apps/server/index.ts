@@ -145,21 +145,24 @@ app.delete("/api/conversations/:id", async (c) => {
 app.put("/api/conversations/:id", async (c) => {
   const conversationId = Number.parseInt(c.req.param("id"));
   const userId = 1; // TODO: Get from auth
-  
+
   try {
     const body = await c.req.json();
     const { title } = body;
-    
+
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return c.json({ error: "Title is required" }, 400);
     }
-    
+
     // Verify the user owns this conversation by trying to get it first
-    const conversation = await conversationService.getConversation(conversationId, userId);
+    const conversation = await conversationService.getConversation(
+      conversationId,
+      userId,
+    );
     if (!conversation) {
       return c.json({ error: "Conversation not found" }, 404);
     }
-    
+
     await conversationService.setTitle(conversationId, title.trim());
     return c.json({ success: true });
   } catch (error) {
@@ -478,10 +481,10 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
 
     // TODO: Build proper conversation history from database
     // For now using placeholder - this should call conversationService.buildConversationHistory()
-    const messages = await conversationService.buildConversationHistory(
+    const messages = (await conversationService.buildConversationHistory(
       conversationId,
       1,
-    );
+    )) as Anthropic.Message[];
 
     if (messages.length === 1) {
       const userQuery = messages[0]!.content;
@@ -579,10 +582,16 @@ Query: ${userQuery}
       })),
     });
 
-    const apiRequest = {
+    const apiRequest: Anthropic.MessageCreateParamsStreaming = {
       model: promptDetails.model,
       max_tokens: 4000,
       messages,
+      tools: [
+        {
+          type: "bash_20250124",
+          name: "bash",
+        },
+      ],
       stream: true as const,
       ...(promptDetails.systemMessage && {
         system: promptDetails.systemMessage,

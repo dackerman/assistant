@@ -12,18 +12,27 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import type { StreamEvent } from "./types";
 import { Logger } from "../utils/logger";
+import type { ToolExecutorService } from "../services/toolExecutorService";
 
 export class StreamingStateMachine {
   private promptId: number;
   private eventIndex: number = 0;
   private db: any;
   private logger: Logger;
+  private toolExecutor?: ToolExecutorService;
 
-  constructor(promptId: number, dbInstance: any = defaultDb) {
+  constructor(
+    promptId: number, 
+    dbInstance: any = defaultDb,
+    toolExecutor?: ToolExecutorService
+  ) {
     this.promptId = promptId;
     this.db = dbInstance;
+    this.toolExecutor = toolExecutor;
     this.logger = new Logger({ promptId });
-    this.logger.info("StreamingStateMachine initialized");
+    this.logger.info("StreamingStateMachine initialized", {
+      hasToolExecutor: !!toolExecutor
+    });
   }
 
   /**
@@ -314,6 +323,36 @@ export class StreamingStateMachine {
       this.logger.info(
         `Message stopped, waiting for ${pendingTools.length} pending tools`,
       );
+
+      // Execute tool calls if we have a tool executor
+      if (this.toolExecutor) {
+        this.logger.info("Starting tool execution", {
+          pendingToolsCount: pendingTools.length,
+        });
+        
+        // Execute all pending tool calls asynchronously
+        const execPromises = pendingTools.map(async (tool: any) => {
+          try {
+            await this.toolExecutor!.executeToolCall(tool.id);
+            this.logger.info(`Tool call ${tool.id} completed successfully`, {
+              toolName: tool.toolName,
+            });
+          } catch (error) {
+            this.logger.error(`Tool call ${tool.id} failed`, {
+              toolName: tool.toolName,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        });
+
+        // Don't wait for completion here - tools run in background
+        // The StreamingServer will check for completion periodically
+        Promise.allSettled(execPromises).then(() => {
+          this.logger.info("All tool executions completed or failed");
+        });
+      } else {
+        this.logger.warn("No tool executor available - tools will remain pending");
+      }
     } else {
       // Complete the prompt
       this.logger.info("Message stopped, no pending tools - completing prompt");
@@ -416,11 +455,136 @@ export class StreamingStateMachine {
   }
 
   /**
+   * Check if all tool calls are complete and ready to continue
+   */
+  async checkToolCompletion(): Promise<{
+    allComplete: boolean;
+    completedTools: any[];
+    pendingTools: any[];
+  }> {
+    this.logger.info("Checking tool completion status");
+
+    const allTools = await this.db
+      .select()
+      .from(toolCalls)
+      .where(eq(toolCalls.promptId, this.promptId));
+
+    const pendingTools = allTools.filter((t: any) => 
+      t.state === "created" || t.state === "running"
+    );
+    
+    const completedTools = allTools.filter((t: any) =>
+      t.state === "complete" || t.state === "error" || t.state === "canceled"
+    );
+
+    const allComplete = pendingTools.length === 0;
+
+    this.logger.info("Tool completion check result", {
+      totalTools: allTools.length,
+      pendingTools: pendingTools.length,
+      completedTools: completedTools.length,
+      allComplete,
+      pendingToolNames: pendingTools.map((t: any) => t.toolName),
+      completedToolNames: completedTools.map((t: any) => t.toolName),
+    });
+
+    return {
+      allComplete,
+      completedTools,
+      pendingTools,
+    };
+  }
+
+  /**
+   * Continue execution after tool completion
+   */
+  async continueAfterTools(): Promise<{ status: string; toolResults: any[] }> {
+    this.logger.info("Continuing after tool completion");
+
+    const { allComplete, completedTools } = await this.checkToolCompletion();
+
+    if (!allComplete) {
+      return { status: "still_waiting", toolResults: [] };
+    }
+
+    // Transition back to IN_PROGRESS so streaming can continue
+    this.logger.stateTransition("WAITING_FOR_TOOLS", "IN_PROGRESS", {
+      completedToolsCount: completedTools.length,
+    });
+
+    this.logger.dbOperation("update", "prompts", {
+      state: "IN_PROGRESS",
+    });
+    await this.db
+      .update(prompts)
+      .set({
+        state: "IN_PROGRESS",
+        lastUpdated: new Date(),
+      })
+      .where(eq(prompts.id, this.promptId));
+
+    // Prepare tool results for the AI
+    const toolResults = completedTools.map((tool: any) => ({
+      apiToolCallId: tool.apiToolCallId,
+      toolName: tool.toolName,
+      state: tool.state,
+      response: tool.response,
+      error: tool.error,
+    }));
+
+    this.logger.info("Ready to continue with tool results", {
+      toolResultsCount: toolResults.length,
+      successfulResults: toolResults.filter(r => r.state === "complete").length,
+      errorResults: toolResults.filter(r => r.state === "error").length,
+      canceledResults: toolResults.filter(r => r.state === "canceled").length,
+    });
+
+    return { status: "ready", toolResults };
+  }
+
+  /**
    * Cancel the stream
    */
   async cancel(): Promise<void> {
+    this.logger.info("Canceling stream and tool executions");
+
     await this.db.transaction(async (tx: any) => {
-      // Cancel any running tool calls
+      // Get all running tool calls to cancel
+      const runningTools = await tx
+        .select()
+        .from(toolCalls)
+        .where(
+          and(
+            eq(toolCalls.promptId, this.promptId),
+            inArray(toolCalls.state, ["created", "running"]),
+          ),
+        );
+
+      // Cancel tool executions via tool executor
+      if (this.toolExecutor && runningTools.length > 0) {
+        this.logger.info("Canceling tool executions", {
+          toolCount: runningTools.length,
+        });
+
+        // Cancel each tool execution
+        const cancelPromises = runningTools.map(async (tool: any) => {
+          try {
+            await this.toolExecutor!.cancelExecution(tool.id);
+            this.logger.info(`Canceled tool execution ${tool.id}`, {
+              toolName: tool.toolName,
+            });
+          } catch (error) {
+            this.logger.error(`Failed to cancel tool execution ${tool.id}`, {
+              toolName: tool.toolName,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        });
+
+        await Promise.allSettled(cancelPromises);
+      }
+
+      // Update database state for any remaining tool calls
       await tx
         .update(toolCalls)
         .set({
@@ -435,6 +599,7 @@ export class StreamingStateMachine {
         );
 
       // Update prompt state
+      this.logger.stateTransition("*", "CANCELED");
       await tx
         .update(prompts)
         .set({
@@ -443,6 +608,8 @@ export class StreamingStateMachine {
         })
         .where(eq(prompts.id, this.promptId));
     });
+
+    this.logger.info("Stream cancellation completed");
   }
 
   /**
@@ -480,28 +647,25 @@ export class StreamingStateMachine {
         return { status: "resume_with_partial", data: partialBlocks };
 
       case "WAITING_FOR_TOOLS":
-        // Check tool status
-        const tools = await this.db
-          .select()
-          .from(toolCalls)
-          .where(eq(toolCalls.promptId, this.promptId));
-
-        const allComplete = tools.every(
-          (t: any) =>
-            t.state === "complete" ||
-            t.state === "error" ||
-            t.state === "canceled",
-        );
+        // Use the new tool completion checking method
+        const { allComplete, completedTools, pendingTools } = await this.checkToolCompletion();
 
         if (allComplete) {
           // Ready to send results back to AI
-          await this.db
-            .update(prompts)
-            .set({ state: "IN_PROGRESS", lastUpdated: new Date() })
-            .where(eq(prompts.id, this.promptId));
-          return { status: "continue_with_tools", data: tools };
+          const continueResult = await this.continueAfterTools();
+          return { 
+            status: "continue_with_tools", 
+            data: continueResult.toolResults 
+          };
         } else {
-          return { status: "waiting_for_tools", data: tools };
+          return { 
+            status: "waiting_for_tools", 
+            data: { 
+              completedTools, 
+              pendingTools,
+              totalTools: completedTools.length + pendingTools.length
+            } 
+          };
         }
 
       case "CANCELED":

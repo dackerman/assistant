@@ -148,7 +148,16 @@ async function createTables() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       request JSONB NOT NULL,
       response JSONB,
-      error TEXT
+      error TEXT,
+      -- Tool execution tracking columns
+      pid INTEGER,
+      started_at TIMESTAMP,
+      timeout_at TIMESTAMP,
+      retry_count INTEGER DEFAULT 0 NOT NULL,
+      last_heartbeat TIMESTAMP,
+      output_stream TEXT,
+      max_retries INTEGER DEFAULT 3 NOT NULL,
+      timeout_seconds INTEGER DEFAULT 300 NOT NULL
     );
   `;
 
