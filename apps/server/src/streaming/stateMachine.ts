@@ -22,16 +22,16 @@ export class StreamingStateMachine {
   private toolExecutor?: ToolExecutorService;
 
   constructor(
-    promptId: number, 
+    promptId: number,
     dbInstance: any = defaultDb,
-    toolExecutor?: ToolExecutorService
+    toolExecutor?: ToolExecutorService,
   ) {
     this.promptId = promptId;
     this.db = dbInstance;
     this.toolExecutor = toolExecutor;
     this.logger = new Logger({ promptId });
     this.logger.info("StreamingStateMachine initialized", {
-      hasToolExecutor: !!toolExecutor
+      hasToolExecutor: !!toolExecutor,
     });
   }
 
@@ -157,7 +157,11 @@ export class StreamingStateMachine {
   }
 
   private async handleBlockDelta(tx: any, event: StreamEvent) {
-    if (event.blockIndex === undefined || event.delta === undefined || event.delta === null) {
+    if (
+      event.blockIndex === undefined ||
+      event.delta === undefined ||
+      event.delta === null
+    ) {
       throw new Error("Block delta requires blockIndex and delta content");
     }
 
@@ -329,7 +333,7 @@ export class StreamingStateMachine {
         this.logger.info("Starting tool execution", {
           pendingToolsCount: pendingTools.length,
         });
-        
+
         // Execute all pending tool calls asynchronously
         const execPromises = pendingTools.map(async (tool: any) => {
           try {
@@ -351,7 +355,9 @@ export class StreamingStateMachine {
           this.logger.info("All tool executions completed or failed");
         });
       } else {
-        this.logger.warn("No tool executor available - tools will remain pending");
+        this.logger.warn(
+          "No tool executor available - tools will remain pending",
+        );
       }
     } else {
       // Complete the prompt
@@ -469,12 +475,13 @@ export class StreamingStateMachine {
       .from(toolCalls)
       .where(eq(toolCalls.promptId, this.promptId));
 
-    const pendingTools = allTools.filter((t: any) => 
-      t.state === "created" || t.state === "running"
+    const pendingTools = allTools.filter(
+      (t: any) => t.state === "created" || t.state === "running",
     );
-    
-    const completedTools = allTools.filter((t: any) =>
-      t.state === "complete" || t.state === "error" || t.state === "canceled"
+
+    const completedTools = allTools.filter(
+      (t: any) =>
+        t.state === "complete" || t.state === "error" || t.state === "canceled",
     );
 
     const allComplete = pendingTools.length === 0;
@@ -534,9 +541,10 @@ export class StreamingStateMachine {
 
     this.logger.info("Ready to continue with tool results", {
       toolResultsCount: toolResults.length,
-      successfulResults: toolResults.filter(r => r.state === "complete").length,
-      errorResults: toolResults.filter(r => r.state === "error").length,
-      canceledResults: toolResults.filter(r => r.state === "canceled").length,
+      successfulResults: toolResults.filter((r) => r.state === "complete")
+        .length,
+      errorResults: toolResults.filter((r) => r.state === "error").length,
+      canceledResults: toolResults.filter((r) => r.state === "canceled").length,
     });
 
     return { status: "ready", toolResults };
@@ -648,23 +656,24 @@ export class StreamingStateMachine {
 
       case "WAITING_FOR_TOOLS":
         // Use the new tool completion checking method
-        const { allComplete, completedTools, pendingTools } = await this.checkToolCompletion();
+        const { allComplete, completedTools, pendingTools } =
+          await this.checkToolCompletion();
 
         if (allComplete) {
           // Ready to send results back to AI
           const continueResult = await this.continueAfterTools();
-          return { 
-            status: "continue_with_tools", 
-            data: continueResult.toolResults 
+          return {
+            status: "continue_with_tools",
+            data: continueResult.toolResults,
           };
         } else {
-          return { 
-            status: "waiting_for_tools", 
-            data: { 
-              completedTools, 
+          return {
+            status: "waiting_for_tools",
+            data: {
+              completedTools,
               pendingTools,
-              totalTools: completedTools.length + pendingTools.length
-            } 
+              totalTools: completedTools.length + pendingTools.length,
+            },
           };
         }
 

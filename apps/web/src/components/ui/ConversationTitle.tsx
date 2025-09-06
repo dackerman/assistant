@@ -11,12 +11,12 @@ interface ConversationTitleProps {
   shouldAnimate?: boolean;
 }
 
-export function ConversationTitle({ 
-  title, 
-  className = "", 
+export function ConversationTitle({
+  title,
+  className = "",
   onTitleChange,
   animationTrigger = 0,
-  shouldAnimate = false
+  shouldAnimate = false,
 }: ConversationTitleProps) {
   const [previousTitle, setPreviousTitle] = useState(title);
   const [sparkleKey, setSparkleKey] = useState(0);
@@ -24,15 +24,19 @@ export function ConversationTitle({
 
   useEffect(() => {
     // Only animate when explicitly told to via shouldAnimate prop
-    if (shouldAnimate && previousTitle === "New Conversation" && title !== "New Conversation") {
+    if (
+      shouldAnimate &&
+      previousTitle === "New Conversation" &&
+      title !== "New Conversation"
+    ) {
       setIsAnimating(true);
-      setSparkleKey(prev => prev + 1);
+      setSparkleKey((prev) => prev + 1);
       onTitleChange?.(title);
-      
+
       // Reset animation state after completion
       setTimeout(() => setIsAnimating(false), 2000);
     }
-    
+
     setPreviousTitle(title);
   }, [title, previousTitle, onTitleChange, shouldAnimate]);
 
@@ -40,19 +44,19 @@ export function ConversationTitle({
   useEffect(() => {
     if (animationTrigger > 0) {
       setIsAnimating(true);
-      setSparkleKey(prev => prev + 1);
+      setSparkleKey((prev) => prev + 1);
       setTimeout(() => setIsAnimating(false), 2000);
     }
   }, [animationTrigger]);
 
   return (
-    <SparkleExplosion 
+    <SparkleExplosion
       trigger={sparkleKey}
-      className={`${isAnimating ? 'title-sparkle-effect active' : ''}`}
+      className={`${isAnimating ? "title-sparkle-effect active" : ""}`}
     >
-      <div 
+      <div
         className={`${className} ${
-          isAnimating ? 'animate-sparkle-appear' : ''
+          isAnimating ? "animate-sparkle-appear" : ""
         }`}
       >
         {title}

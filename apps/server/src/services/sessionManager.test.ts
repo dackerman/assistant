@@ -1,8 +1,24 @@
-import { beforeAll, afterAll, describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  beforeAll,
+  afterAll,
+  describe,
+  test,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
 import { ProcessSession } from "./processSession";
-import { toolCalls, prompts, blocks, users, conversations, messages } from "../db/schema";
+import {
+  toolCalls,
+  prompts,
+  blocks,
+  users,
+  conversations,
+  messages,
+} from "../db/schema";
 
 // Mock child_process for ProcessSession tests
 vi.mock("child_process", () => ({
@@ -17,7 +33,7 @@ let originalDate: DateConstructor;
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
   originalDate = globalThis.Date;
-  
+
   globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
@@ -26,7 +42,7 @@ function stubClock() {
         super(...args);
       }
     }
-    
+
     static now() {
       return clockStub();
     }
@@ -68,43 +84,64 @@ describe("SessionManager Database Tests", () => {
     sessionManager = new SessionManager();
 
     // Create test data for multiple conversations
-    const [user] = await testDb.insert(users).values({
-      email: "test@example.com",
-    }).returning();
+    const [user] = await testDb
+      .insert(users)
+      .values({
+        email: "test@example.com",
+      })
+      .returning();
 
-    const [conversation1] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation 1",
-    }).returning();
+    const [conversation1] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation 1",
+      })
+      .returning();
 
-    const [conversation2] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation 2",
-    }).returning();
+    const [conversation2] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation 2",
+      })
+      .returning();
 
-    const [message1] = await testDb.insert(messages).values({
-      conversationId: conversation1.id,
-      role: "assistant",
-    }).returning();
+    const [message1] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation1.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [message2] = await testDb.insert(messages).values({
-      conversationId: conversation2.id,
-      role: "assistant",
-    }).returning();
+    const [message2] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation2.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [prompt1] = await testDb.insert(prompts).values({
-      conversationId: conversation1.id,
-      messageId: message1.id,
-      state: "IN_PROGRESS",
-      model: "claude-3",
-    }).returning();
+    const [prompt1] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation1.id,
+        messageId: message1.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
-    const [prompt2] = await testDb.insert(prompts).values({
-      conversationId: conversation2.id,
-      messageId: message2.id,
-      state: "IN_PROGRESS", 
-      model: "claude-3",
-    }).returning();
+    const [prompt2] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation2.id,
+        messageId: message2.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
     testData = {
       userId: user.id,
@@ -129,7 +166,8 @@ describe("SessionManager Database Tests", () => {
       killed: false,
     } as any;
 
-    const { spawn } = await vi.importMock<typeof import("child_process")>("child_process");
+    const { spawn } =
+      await vi.importMock<typeof import("child_process")>("child_process");
     (spawn as any).mockReturnValue(mockProcess);
   });
 
@@ -150,11 +188,11 @@ describe("SessionManager Database Tests", () => {
     test("should create separate sessions for different conversations", async () => {
       const session1 = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
       const session2 = await sessionManager.getOrCreateSession(
         testData.conversationId2,
-        "bash"
+        "bash",
       );
 
       expect(session1.id).toBe(`${testData.conversationId1}:bash`);
@@ -171,11 +209,11 @@ describe("SessionManager Database Tests", () => {
     test("should reuse existing session for same conversation and tool", async () => {
       const session1 = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
       const session2 = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
 
       expect(session1).toBe(session2);
@@ -188,27 +226,27 @@ describe("SessionManager Database Tests", () => {
       (TOOL_CONFIGS as any).calculator = {
         name: "calculator",
         requiresSession: true,
-        sessionType: 'memory',
+        sessionType: "memory",
         createSession: (conversationId: number) => ({
           id: `${conversationId}:calculator`,
-          toolType: 'calculator',
+          toolType: "calculator",
           conversationId,
           lastActivity: new Date(),
           execute: vi.fn(),
           restart: vi.fn(),
           cleanup: vi.fn(),
           isHealthy: vi.fn().mockResolvedValue(true),
-        })
+        }),
       };
 
       try {
         const bashSession = await sessionManager.getOrCreateSession(
           testData.conversationId1,
-          "bash"
+          "bash",
         );
         const calcSession = await sessionManager.getOrCreateSession(
           testData.conversationId1,
-          "calculator"
+          "calculator",
         );
 
         expect(bashSession.id).toBe(`${testData.conversationId1}:bash`);
@@ -220,7 +258,7 @@ describe("SessionManager Database Tests", () => {
         expect(stats.sessionsByConversation[testData.conversationId1]).toBe(2);
       } finally {
         // Restore original configs
-        Object.keys(TOOL_CONFIGS).forEach(key => {
+        Object.keys(TOOL_CONFIGS).forEach((key) => {
           if (!(key in originalConfigs)) {
             delete (TOOL_CONFIGS as any)[key];
           }
@@ -234,7 +272,7 @@ describe("SessionManager Database Tests", () => {
       // Create session
       const session = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
 
       expect(sessionManager.getSessionStats().totalSessions).toBe(1);
@@ -251,7 +289,7 @@ describe("SessionManager Database Tests", () => {
     test("should not cleanup active sessions", async () => {
       const session = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
 
       // Update activity timestamp
@@ -266,12 +304,12 @@ describe("SessionManager Database Tests", () => {
     });
 
     test("should restart specific session", async () => {
-      const session = await sessionManager.getOrCreateSession(
+      const session = (await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
-      ) as ProcessSession;
+        "bash",
+      )) as ProcessSession;
 
-      const restartSpy = vi.spyOn(session, 'restart');
+      const restartSpy = vi.spyOn(session, "restart");
 
       await sessionManager.restartSession(testData.conversationId1, "bash");
 
@@ -301,7 +339,10 @@ describe("SessionManager Database Tests", () => {
   describe("Tool Configuration", () => {
     test("should throw error for unknown tool", async () => {
       await expect(
-        sessionManager.getOrCreateSession(testData.conversationId1, "unknown_tool")
+        sessionManager.getOrCreateSession(
+          testData.conversationId1,
+          "unknown_tool",
+        ),
       ).rejects.toThrow("Unknown tool: unknown_tool");
     });
 
@@ -311,28 +352,28 @@ describe("SessionManager Database Tests", () => {
       (TOOL_CONFIGS as any).file_read = {
         name: "file_read",
         requiresSession: false,
-        sessionType: 'memory',
+        sessionType: "memory",
         createSession: () => ({
-          id: 'temp',
-          toolType: 'file_read', 
+          id: "temp",
+          toolType: "file_read",
           conversationId: 0,
           lastActivity: new Date(),
           execute: vi.fn(),
           restart: vi.fn(),
           cleanup: vi.fn(),
           isHealthy: vi.fn().mockResolvedValue(true),
-        })
+        }),
       };
 
       try {
         const session = await sessionManager.getOrCreateSession(
           testData.conversationId1,
-          "file_read"
+          "file_read",
         );
 
         // Should return a temporary session, not store it
         expect(sessionManager.getSessionStats().totalSessions).toBe(0);
-        expect(session.id).toBe('temp');
+        expect(session.id).toBe("temp");
       } finally {
         // Restore original configs
         delete (TOOL_CONFIGS as any).file_read;
@@ -350,12 +391,12 @@ describe("SessionManager Database Tests", () => {
       expect(stats).toEqual({
         totalSessions: 2,
         sessionsByTool: {
-          bash: 2
+          bash: 2,
         },
         sessionsByConversation: {
           [testData.conversationId1]: 1,
-          [testData.conversationId2]: 1
-        }
+          [testData.conversationId2]: 1,
+        },
       });
     });
 
@@ -369,7 +410,9 @@ describe("SessionManager Database Tests", () => {
 
       const stats = sessionManager.getSessionStats();
       expect(stats.totalSessions).toBe(1);
-      expect(stats.sessionsByConversation[testData.conversationId1]).toBeUndefined();
+      expect(
+        stats.sessionsByConversation[testData.conversationId1],
+      ).toBeUndefined();
       expect(stats.sessionsByConversation[testData.conversationId2]).toBe(1);
     });
   });
@@ -382,7 +425,7 @@ describe("SessionManager Database Tests", () => {
       });
 
       await expect(
-        sessionManager.getOrCreateSession(testData.conversationId1, "bash")
+        sessionManager.getOrCreateSession(testData.conversationId1, "bash"),
       ).rejects.toThrow();
 
       // Should not store failed session
@@ -392,11 +435,13 @@ describe("SessionManager Database Tests", () => {
     test("should handle cleanup errors gracefully", async () => {
       const session = await sessionManager.getOrCreateSession(
         testData.conversationId1,
-        "bash"
+        "bash",
       );
 
       // Mock cleanup to fail
-      vi.spyOn(session, 'cleanup').mockRejectedValue(new Error("Cleanup failed"));
+      vi.spyOn(session, "cleanup").mockRejectedValue(
+        new Error("Cleanup failed"),
+      );
 
       // Should not throw, just log error
       await expect(sessionManager.cleanupAllSessions()).resolves.not.toThrow();
@@ -410,14 +455,14 @@ describe("SessionManager Database Tests", () => {
     test("should handle concurrent session creation for same conversation", async () => {
       // Create multiple concurrent requests for same session
       const promises = Array.from({ length: 5 }, () =>
-        sessionManager.getOrCreateSession(testData.conversationId1, "bash")
+        sessionManager.getOrCreateSession(testData.conversationId1, "bash"),
       );
 
       const sessions = await Promise.all(promises);
 
       // Should all return the same session instance
       const firstSession = sessions[0];
-      expect(sessions.every(s => s === firstSession)).toBe(true);
+      expect(sessions.every((s) => s === firstSession)).toBe(true);
       expect(sessionManager.getSessionStats().totalSessions).toBe(1);
     });
 

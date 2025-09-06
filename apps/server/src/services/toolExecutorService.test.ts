@@ -1,8 +1,24 @@
-import { beforeAll, afterAll, describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  beforeAll,
+  afterAll,
+  describe,
+  test,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import { ChildProcess } from "child_process";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import { ToolExecutorService } from "./toolExecutorService";
-import { toolCalls, prompts, blocks, users, conversations, messages } from "../db/schema";
+import {
+  toolCalls,
+  prompts,
+  blocks,
+  users,
+  conversations,
+  messages,
+} from "../db/schema";
 
 // Mock child_process
 vi.mock("child_process", () => ({
@@ -21,7 +37,7 @@ let originalDate: DateConstructor;
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
   originalDate = globalThis.Date;
-  
+
   globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
@@ -30,7 +46,7 @@ function stubClock() {
         super(...args);
       }
     }
-    
+
     static now() {
       return clockStub();
     }
@@ -69,13 +85,14 @@ describe("ToolExecutorService", () => {
 
   beforeEach(async () => {
     stubClock();
-    
+
     // Get the mock spawn function
-    const childProcessMock = await vi.importMock<typeof import("child_process")>("child_process");
+    const childProcessMock =
+      await vi.importMock<typeof import("child_process")>("child_process");
     mockSpawn = childProcessMock.spawn;
-    
+
     // Replace process.kill for process checking
-    Object.defineProperty(process, 'kill', {
+    Object.defineProperty(process, "kill", {
       value: mockKill,
       writable: true,
       configurable: true,
@@ -90,41 +107,59 @@ describe("ToolExecutorService", () => {
     });
 
     // Create test data
-    const [user] = await testDb.insert(users).values({
-      email: "test@example.com",
-    }).returning();
+    const [user] = await testDb
+      .insert(users)
+      .values({
+        email: "test@example.com",
+      })
+      .returning();
 
-    const [conversation] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation",
-    }).returning();
+    const [conversation] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation",
+      })
+      .returning();
 
-    const [message] = await testDb.insert(messages).values({
-      conversationId: conversation.id,
-      role: "assistant",
-    }).returning();
+    const [message] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [prompt] = await testDb.insert(prompts).values({
-      conversationId: conversation.id,
-      messageId: message.id,
-      state: "IN_PROGRESS",
-      model: "claude-3",
-    }).returning();
+    const [prompt] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation.id,
+        messageId: message.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
-    const [block] = await testDb.insert(blocks).values({
-      promptId: prompt.id,
-      type: "tool_call",
-      indexNum: 0,
-      content: "test content",
-    }).returning();
+    const [block] = await testDb
+      .insert(blocks)
+      .values({
+        promptId: prompt.id,
+        type: "tool_call",
+        indexNum: 0,
+        content: "test content",
+      })
+      .returning();
 
-    const [toolCall] = await testDb.insert(toolCalls).values({
-      promptId: prompt.id,
-      blockId: block.id,
-      toolName: "Bash",
-      state: "created",
-      request: { command: "echo 'test'" },
-    }).returning();
+    const [toolCall] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt.id,
+        blockId: block.id,
+        toolName: "Bash",
+        state: "created",
+        request: { command: "echo 'test'" },
+      })
+      .returning();
 
     testData = {
       userId: user.id,
@@ -147,9 +182,9 @@ describe("ToolExecutorService", () => {
 
   afterEach(async () => {
     restoreClock();
-    
+
     // Restore original process.kill
-    Object.defineProperty(process, 'kill', {
+    Object.defineProperty(process, "kill", {
       value: originalKill,
       writable: true,
       configurable: true,
@@ -188,17 +223,17 @@ describe("ToolExecutorService", () => {
       // Simulate process events
       setTimeout(() => {
         const stdoutHandler = mockProcess.stdout.on.mock.calls.find(
-          (call: any) => call[0] === "data"
+          (call: any) => call[0] === "data",
         )?.[1];
-        
+
         if (stdoutHandler) {
           stdoutHandler("test output");
         }
 
         const closeHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "close"
+          (call: any) => call[0] === "close",
         )?.[1];
-        
+
         if (closeHandler) {
           closeHandler(0); // Success exit code
         }
@@ -242,23 +277,25 @@ describe("ToolExecutorService", () => {
 
       setTimeout(() => {
         const stderrHandler = mockProcess.stderr.on.mock.calls.find(
-          (call: any) => call[0] === "data"
+          (call: any) => call[0] === "data",
         )?.[1];
-        
+
         if (stderrHandler) {
           stderrHandler("error output");
         }
 
         const closeHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "close"
+          (call: any) => call[0] === "close",
         )?.[1];
-        
+
         if (closeHandler) {
           closeHandler(1); // Error exit code
         }
       }, 100);
 
-      await expect(executePromise).rejects.toThrow("Process exited with code 1");
+      await expect(executePromise).rejects.toThrow(
+        "Process exited with code 1",
+      );
 
       const updatedToolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId),
@@ -290,7 +327,7 @@ describe("ToolExecutorService", () => {
       await expect(executePromise).rejects.toThrow("Tool execution timed out");
 
       expect(mockProcess.kill).toHaveBeenCalledWith("SIGTERM");
-      
+
       const updatedToolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId),
       });
@@ -322,9 +359,9 @@ describe("ToolExecutorService", () => {
       // First attempt fails with retryable error
       setTimeout(() => {
         const errorHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "error"
+          (call: any) => call[0] === "error",
         )?.[1];
-        
+
         if (errorHandler && callCount === 1) {
           errorHandler(new Error("ECONNRESET: Connection reset"));
         }
@@ -334,9 +371,9 @@ describe("ToolExecutorService", () => {
       setTimeout(() => {
         if (callCount === 2) {
           const closeHandler = mockProcess.on.mock.calls.find(
-            (call: any) => call[0] === "close"
+            (call: any) => call[0] === "close",
           )?.[1];
-          
+
           if (closeHandler) {
             closeHandler(0);
           }
@@ -347,7 +384,7 @@ describe("ToolExecutorService", () => {
 
       // Should have been called twice (initial + 1 retry)
       expect(mockSpawn).toHaveBeenCalledTimes(2);
-      
+
       const updatedToolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId),
       });
@@ -372,9 +409,9 @@ describe("ToolExecutorService", () => {
 
       setTimeout(() => {
         const errorHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "error"
+          (call: any) => call[0] === "error",
         )?.[1];
-        
+
         if (errorHandler) {
           errorHandler(new Error("Permission denied"));
         }
@@ -406,9 +443,9 @@ describe("ToolExecutorService", () => {
         attempts++;
         setTimeout(() => {
           const errorHandler = mockProcess.on.mock.calls.find(
-            (call: any) => call[0] === "error"
+            (call: any) => call[0] === "error",
           )?.[1];
-          
+
           if (errorHandler) {
             errorHandler(new Error("ETIMEDOUT: Connection timed out"));
           }
@@ -437,7 +474,8 @@ describe("ToolExecutorService", () => {
   describe("Recovery mechanisms", () => {
     test("should cleanup orphaned processes on startup", async () => {
       // Create a running tool call with PID
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "running",
           pid: 99999,
@@ -468,7 +506,8 @@ describe("ToolExecutorService", () => {
 
       // Create a running tool call that's gone stale
       const staleTime = new Date(currentTime.getTime() - 10000); // 10 seconds ago
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "running",
           pid: 88888,
@@ -489,7 +528,7 @@ describe("ToolExecutorService", () => {
       advanceTime(3000);
 
       // Wait for stale check to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const updatedToolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId),
@@ -515,7 +554,7 @@ describe("ToolExecutorService", () => {
       const executePromise = service.executeToolCall(testData.toolCallId);
 
       // Let it start
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Initiate shutdown
       const shutdownPromise = service.gracefulShutdown();
@@ -524,9 +563,9 @@ describe("ToolExecutorService", () => {
       setTimeout(() => {
         mockProcess.killed = true;
         const closeHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "close"
+          (call: any) => call[0] === "close",
         )?.[1];
-        
+
         if (closeHandler) {
           closeHandler(130); // SIGTERM exit code
         }
@@ -534,7 +573,7 @@ describe("ToolExecutorService", () => {
 
       await Promise.all([
         expect(executePromise).rejects.toThrow(),
-        shutdownPromise
+        shutdownPromise,
       ]);
 
       expect(mockProcess.kill).toHaveBeenCalledWith("SIGTERM");
@@ -564,7 +603,7 @@ describe("ToolExecutorService", () => {
       const executePromise = service.executeToolCall(testData.toolCallId);
 
       // Let it start
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Cancel execution
       await service.cancelExecution(testData.toolCallId);
@@ -584,7 +623,8 @@ describe("ToolExecutorService", () => {
     test("should provide execution status", async () => {
       // Update tool call to running state
       const startTime = new Date();
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "running",
           startedAt: startTime,
@@ -613,34 +653,40 @@ describe("ToolExecutorService", () => {
 
   describe("Edge cases", () => {
     test("should handle tool call not found", async () => {
-      await expect(service.executeToolCall(99999))
-        .rejects.toThrow("Tool call 99999 not found");
+      await expect(service.executeToolCall(99999)).rejects.toThrow(
+        "Tool call 99999 not found",
+      );
     });
 
     test("should handle tool call not in created state", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId));
 
-      await expect(service.executeToolCall(testData.toolCallId))
-        .rejects.toThrow("is not in created state");
+      await expect(
+        service.executeToolCall(testData.toolCallId),
+      ).rejects.toThrow("is not in created state");
     });
 
     test("should handle unsupported tool", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ toolName: "UnsupportedTool" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId));
 
-      await expect(service.executeToolCall(testData.toolCallId))
-        .rejects.toThrow("Unsupported tool: UnsupportedTool");
+      await expect(
+        service.executeToolCall(testData.toolCallId),
+      ).rejects.toThrow("Unsupported tool: UnsupportedTool");
     });
 
     test("should prevent execution during shutdown", async () => {
       // Mark service as shutting down
       (service as any).isShuttingDown = true;
 
-      await expect(service.executeToolCall(testData.toolCallId))
-        .rejects.toThrow("Service is shutting down");
+      await expect(
+        service.executeToolCall(testData.toolCallId),
+      ).rejects.toThrow("Service is shutting down");
     });
   });
 
@@ -662,9 +708,9 @@ describe("ToolExecutorService", () => {
       // Simulate streaming output
       setTimeout(() => {
         const stdoutHandler = mockProcess.stdout.on.mock.calls.find(
-          (call: any) => call[0] === "data"
+          (call: any) => call[0] === "data",
         )?.[1];
-        
+
         if (stdoutHandler) {
           stdoutHandler("chunk 1\n");
         }
@@ -672,17 +718,17 @@ describe("ToolExecutorService", () => {
 
       setTimeout(() => {
         const stdoutHandler = mockProcess.stdout.on.mock.calls.find(
-          (call: any) => call[0] === "data"
+          (call: any) => call[0] === "data",
         )?.[1];
-        
+
         if (stdoutHandler) {
           stdoutHandler("chunk 2\n");
         }
 
         const closeHandler = mockProcess.on.mock.calls.find(
-          (call: any) => call[0] === "close"
+          (call: any) => call[0] === "close",
         )?.[1];
-        
+
         if (closeHandler) {
           closeHandler(0);
         }

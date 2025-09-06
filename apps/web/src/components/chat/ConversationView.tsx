@@ -11,7 +11,14 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { conversationService } from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
-import { MoreHorizontal, Send, Wifi, WifiOff, Check, X as XIcon } from "lucide-react";
+import {
+  MoreHorizontal,
+  Send,
+  Wifi,
+  WifiOff,
+  Check,
+  X as XIcon,
+} from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 
@@ -36,7 +43,9 @@ export function ConversationView({
   const [conversationTitle, setConversationTitle] =
     useState("New Conversation");
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
-  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [conversationError, setConversationError] = useState<string | null>(
+    null,
+  );
   const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState("");
@@ -85,9 +94,9 @@ export function ConversationView({
     (promptId: number, content: string, state: string) => {
       console.log("Received snapshot for prompt:", promptId, "state:", state, {
         contentLength: content?.length || 0,
-        isStreaming: state === "IN_PROGRESS" || state === "WAITING_FOR_TOOLS"
+        isStreaming: state === "IN_PROGRESS" || state === "WAITING_FOR_TOOLS",
       });
-      
+
       setMessages((prev) => {
         const existingIndex = prev.findIndex(
           (m) => m.metadata?.promptId === promptId && m.type === "assistant",
@@ -98,7 +107,7 @@ export function ConversationView({
           type: "assistant" as const,
           content: content || "",
           timestamp: new Date().toISOString(),
-          metadata: { 
+          metadata: {
             promptId,
             streamState: state,
           },
@@ -111,7 +120,8 @@ export function ConversationView({
             ...updated[existingIndex],
             ...snapshotMessage,
             // Preserve original timestamp if it exists
-            timestamp: updated[existingIndex].timestamp || snapshotMessage.timestamp,
+            timestamp:
+              updated[existingIndex].timestamp || snapshotMessage.timestamp,
           };
           return updated;
         } else {
@@ -123,15 +133,18 @@ export function ConversationView({
     [],
   );
 
-  const handleTitleGenerated = useCallback((title: string) => {
-    console.log("Title generated:", title);
-    setShouldAnimateTitle(true); // Mark that this title change should animate
-    setConversationTitle(title);
-    // Notify parent component to refresh sidebar
-    onTitleUpdate?.();
-    // Reset animation flag after the component has had a chance to use it
-    setTimeout(() => setShouldAnimateTitle(false), 100);
-  }, [onTitleUpdate]);
+  const handleTitleGenerated = useCallback(
+    (title: string) => {
+      console.log("Title generated:", title);
+      setShouldAnimateTitle(true); // Mark that this title change should animate
+      setConversationTitle(title);
+      // Notify parent component to refresh sidebar
+      onTitleUpdate?.();
+      // Reset animation flag after the component has had a chance to use it
+      setTimeout(() => setShouldAnimateTitle(false), 100);
+    },
+    [onTitleUpdate],
+  );
 
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
     handleTextDelta,
@@ -143,13 +156,19 @@ export function ConversationView({
 
   // Sync internal state with conversation ID prop
   useEffect(() => {
-    console.log("ConversationView prop conversationId changed:", conversationId);
+    console.log(
+      "ConversationView prop conversationId changed:",
+      conversationId,
+    );
     setCurrentConversationId(conversationId || null);
   }, [conversationId]);
 
   // Load conversation on mount or when ID changes
   useEffect(() => {
-    console.log("ConversationView currentConversationId changed:", currentConversationId);
+    console.log(
+      "ConversationView currentConversationId changed:",
+      currentConversationId,
+    );
     if (currentConversationId) {
       // Clear any existing error when switching conversations
       setConversationError(null);
@@ -167,14 +186,14 @@ export function ConversationView({
     try {
       setIsLoadingConversation(true);
       setConversationError(null);
-      
+
       console.log("Loading conversation:", id);
       const result = await conversationService.getConversation(id);
-      
+
       if (!result) {
         throw new Error("Conversation not found");
       }
-      
+
       console.log("Backend messages raw data:", result.messages);
       const formattedMessages = formatMessagesFromAPI(result.messages);
       console.log("Formatted messages for UI:", formattedMessages);
@@ -183,15 +202,20 @@ export function ConversationView({
 
       // Check for active streaming and restore streaming state
       if (!isStreaming) {
-        const activeStreamResult = await conversationService.getActiveStream(id);
+        const activeStreamResult =
+          await conversationService.getActiveStream(id);
         if (activeStreamResult.activeStream) {
-          console.log("Active stream detected:", activeStreamResult.activeStream);
+          console.log(
+            "Active stream detected:",
+            activeStreamResult.activeStream,
+          );
           await restoreActiveStream(activeStreamResult.activeStream);
         }
       }
     } catch (error) {
       console.error("Failed to load conversation:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to load conversation";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to load conversation";
       setConversationError(errorMessage);
       // Don't clear messages on error - keep existing state
     } finally {
@@ -208,15 +232,16 @@ export function ConversationView({
   const formatMessagesFromAPI = (apiMessages: any[]): Message[] => {
     return apiMessages.map((msg) => {
       // Combine text blocks for content
-      const textContent = msg.blocks
-        ?.filter((b: any) => b.type === "text")
-        .map((b: any) => b.content || "")
-        .join("") || "";
+      const textContent =
+        msg.blocks
+          ?.filter((b: any) => b.type === "text")
+          .map((b: any) => b.content || "")
+          .join("") || "";
 
       // Process tool calls from blocks
       const toolCalls: any[] = [];
       const toolResults: any[] = [];
-      
+
       msg.blocks?.forEach((block: any) => {
         if (block.type === "tool_call" && block.toolCall) {
           const toolCall = {
@@ -228,7 +253,7 @@ export function ConversationView({
             startTime: block.createdAt,
             endTime: block.toolCall.completedAt,
           };
-          
+
           if (toolCall.status === "completed" && toolCall.result) {
             toolResults.push({
               ...toolCall,
@@ -247,7 +272,7 @@ export function ConversationView({
         timestamp: msg.createdAt,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
-        metadata: { 
+        metadata: {
           promptId: msg.promptId,
           model: msg.model,
         },
@@ -257,22 +282,27 @@ export function ConversationView({
 
   const mapToolCallState = (dbState: string) => {
     switch (dbState) {
-      case "created": return "pending";
-      case "running": return "running";
-      case "completed": return "completed";
-      case "failed": 
-      case "canceled": return "error";
-      default: return "pending";
+      case "created":
+        return "pending";
+      case "running":
+        return "running";
+      case "completed":
+        return "completed";
+      case "failed":
+      case "canceled":
+        return "error";
+      default:
+        return "pending";
     }
   };
 
   const restoreActiveStream = async (activeStream: any) => {
     const { prompt, blocks } = activeStream;
-    
-    console.log("Restoring active stream:", { 
-      promptId: prompt.id, 
-      state: prompt.state, 
-      blockCount: blocks.length 
+
+    console.log("Restoring active stream:", {
+      promptId: prompt.id,
+      state: prompt.state,
+      blockCount: blocks.length,
     });
 
     // Build current content from streaming blocks
@@ -288,7 +318,7 @@ export function ConversationView({
         type: "assistant",
         content: streamingContent,
         timestamp: prompt.createdAt,
-        metadata: { 
+        metadata: {
           promptId: prompt.id,
           model: prompt.model,
         },
@@ -297,7 +327,7 @@ export function ConversationView({
       setMessages((prev) => {
         // Check if we already have this assistant message
         const existingIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === prompt.id && m.type === "assistant"
+          (m) => m.metadata?.promptId === prompt.id && m.type === "assistant",
         );
 
         if (existingIndex >= 0) {
@@ -315,12 +345,16 @@ export function ConversationView({
     // Set streaming state based on prompt state
     if (prompt.state === "IN_PROGRESS") {
       // WebSocket should handle continued streaming
-      console.log("Stream is actively IN_PROGRESS - WebSocket will handle updates");
+      console.log(
+        "Stream is actively IN_PROGRESS - WebSocket will handle updates",
+      );
     } else if (prompt.state === "WAITING_FOR_TOOLS") {
       console.log("Stream is waiting for tools - monitoring for completion");
       // Could add UI indicator for tool execution status
     } else {
-      console.log(`Stream in ${prompt.state} state - may need manual intervention`);
+      console.log(
+        `Stream in ${prompt.state} state - may need manual intervention`,
+      );
     }
   };
 
@@ -374,7 +408,10 @@ export function ConversationView({
     }
 
     try {
-      await conversationService.updateTitle(currentConversationId, editingTitle.trim());
+      await conversationService.updateTitle(
+        currentConversationId,
+        editingTitle.trim(),
+      );
       setConversationTitle(editingTitle.trim());
       setIsEditingTitle(false);
       setEditingTitle("");
@@ -435,15 +472,21 @@ export function ConversationView({
                   </Button>
                 </div>
               ) : (
-                <div 
-                  onClick={currentConversationId && conversationTitle !== "New Conversation" ? handleTitleEditStart : undefined}
+                <div
+                  onClick={
+                    currentConversationId &&
+                    conversationTitle !== "New Conversation"
+                      ? handleTitleEditStart
+                      : undefined
+                  }
                   className={`${
-                    currentConversationId && conversationTitle !== "New Conversation" 
-                      ? "cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors" 
+                    currentConversationId &&
+                    conversationTitle !== "New Conversation"
+                      ? "cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors"
                       : ""
                   }`}
                 >
-                  <ConversationTitle 
+                  <ConversationTitle
                     title={conversationTitle}
                     className="font-semibold text-sm sm:text-base truncate"
                     shouldAnimate={shouldAnimateTitle}
@@ -489,7 +532,9 @@ export function ConversationView({
           {/* Loading state */}
           {isLoadingConversation && (
             <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">Loading conversation...</div>
+              <div className="text-muted-foreground">
+                Loading conversation...
+              </div>
             </div>
           )}
 
@@ -497,9 +542,9 @@ export function ConversationView({
           {conversationError && !isLoadingConversation && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <div className="text-red-500 mb-2">{conversationError}</div>
-              <Button 
+              <Button
                 onClick={retryLoadConversation}
-                variant="outline" 
+                variant="outline"
                 size="sm"
               >
                 Retry
@@ -508,9 +553,11 @@ export function ConversationView({
           )}
 
           {/* Messages */}
-          {!isLoadingConversation && !conversationError && messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+          {!isLoadingConversation &&
+            !conversationError &&
+            messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
         </div>
       </div>
 

@@ -1,18 +1,23 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { ChevronRight, ChevronDown, Terminal } from 'lucide-react'
-import type { ToolCall } from '@/types/conversation'
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ChevronRight, ChevronDown, Terminal } from "lucide-react";
+import type { ToolCall } from "@/types/conversation";
 
 interface BashToolCallProps {
-  toolCall: ToolCall
-  isExpanded: boolean
-  onToggle: () => void
-  statusIcon: React.ReactNode
+  toolCall: ToolCall;
+  isExpanded: boolean;
+  onToggle: () => void;
+  statusIcon: React.ReactNode;
 }
 
-export function BashToolCall({ toolCall, isExpanded, onToggle, statusIcon }: BashToolCallProps) {
+export function BashToolCall({
+  toolCall,
+  isExpanded,
+  onToggle,
+  statusIcon,
+}: BashToolCallProps) {
   return (
     <Card className="border-l-4 border-l-green-400">
-      <CardHeader 
+      <CardHeader
         className="pb-1 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={onToggle}
       >
@@ -29,10 +34,10 @@ export function BashToolCall({ toolCall, isExpanded, onToggle, statusIcon }: Bas
           {statusIcon}
         </div>
         <div className="text-xs text-muted-foreground font-mono mt-1 leading-tight">
-          $ {toolCall.parameters.command || 'No command'}
+          $ {toolCall.parameters.command || "No command"}
         </div>
       </CardHeader>
-      
+
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-3">
@@ -47,32 +52,38 @@ export function BashToolCall({ toolCall, isExpanded, onToggle, statusIcon }: Bas
                   <span>bash</span>
                 </div>
                 <div className="text-green-400">
-                  <span className="text-blue-400">$</span> {toolCall.parameters.command}
+                  <span className="text-blue-400">$</span>{" "}
+                  {toolCall.parameters.command}
                 </div>
               </div>
             </div>
-            
+
             {toolCall.result && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1 font-medium">Output:</p>
+                <p className="text-xs text-muted-foreground mb-1 font-medium">
+                  Output:
+                </p>
                 <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-xs overflow-x-auto leading-relaxed whitespace-pre">
-                  {typeof toolCall.result === 'string' 
-                    ? toolCall.result 
-                    : JSON.stringify(toolCall.result, null, 2)
-                  }
+                  {typeof toolCall.result === "string"
+                    ? toolCall.result
+                    : JSON.stringify(toolCall.result, null, 2)}
                 </div>
               </div>
             )}
-            
+
             <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-muted-foreground pt-2 border-t gap-1">
-              <span>Started: {new Date(toolCall.startTime).toLocaleTimeString()}</span>
+              <span>
+                Started: {new Date(toolCall.startTime).toLocaleTimeString()}
+              </span>
               {toolCall.endTime && (
-                <span>Ended: {new Date(toolCall.endTime).toLocaleTimeString()}</span>
+                <span>
+                  Ended: {new Date(toolCall.endTime).toLocaleTimeString()}
+                </span>
               )}
             </div>
           </div>
         </CardContent>
       )}
     </Card>
-  )
+  );
 }

@@ -25,4 +25,4 @@
   },
   "typescript.preferences.importModuleSpecifier": "relative",
   "typescript.suggest.autoImports": true
-} 
+}

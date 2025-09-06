@@ -1,31 +1,36 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { ChevronRight, ChevronDown, CheckSquare } from 'lucide-react'
-import type { ToolCall } from '@/types/conversation'
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ChevronRight, ChevronDown, CheckSquare } from "lucide-react";
+import type { ToolCall } from "@/types/conversation";
 
 interface AsanaToolCallProps {
-  toolCall: ToolCall
-  isExpanded: boolean
-  onToggle: () => void
-  statusIcon: React.ReactNode
+  toolCall: ToolCall;
+  isExpanded: boolean;
+  onToggle: () => void;
+  statusIcon: React.ReactNode;
 }
 
-export function AsanaToolCall({ toolCall, isExpanded, onToggle, statusIcon }: AsanaToolCallProps) {
+export function AsanaToolCall({
+  toolCall,
+  isExpanded,
+  onToggle,
+  statusIcon,
+}: AsanaToolCallProps) {
   const getActionDescription = () => {
-    if (toolCall.parameters.action === 'create_task') {
-      return `Creating task: "${toolCall.parameters.name}"`
+    if (toolCall.parameters.action === "create_task") {
+      return `Creating task: "${toolCall.parameters.name}"`;
     }
-    if (toolCall.parameters.action === 'update_task') {
-      return `Updating task: "${toolCall.parameters.name}"`
+    if (toolCall.parameters.action === "update_task") {
+      return `Updating task: "${toolCall.parameters.name}"`;
     }
-    if (toolCall.parameters.action === 'get_tasks') {
-      return `Fetching tasks from project: ${toolCall.parameters.project}`
+    if (toolCall.parameters.action === "get_tasks") {
+      return `Fetching tasks from project: ${toolCall.parameters.project}`;
     }
-    return 'Asana operation'
-  }
+    return "Asana operation";
+  };
 
   return (
     <Card className="border-l-4 border-l-orange-400">
-      <CardHeader 
+      <CardHeader
         className="pb-1 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={onToggle}
       >
@@ -45,7 +50,7 @@ export function AsanaToolCall({ toolCall, isExpanded, onToggle, statusIcon }: As
           {getActionDescription()}
         </div>
       </CardHeader>
-      
+
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-3">
@@ -53,46 +58,65 @@ export function AsanaToolCall({ toolCall, isExpanded, onToggle, statusIcon }: As
               <div className="bg-orange-50 border border-orange-200 p-3 rounded">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckSquare className="w-4 h-4 text-orange-500" />
-                  <span className="text-xs font-medium text-orange-700">Task Details</span>
+                  <span className="text-xs font-medium text-orange-700">
+                    Task Details
+                  </span>
                 </div>
                 <div className="space-y-2 text-xs">
                   {toolCall.parameters.name && (
-                    <div><span className="font-medium">Task:</span> {toolCall.parameters.name}</div>
+                    <div>
+                      <span className="font-medium">Task:</span>{" "}
+                      {toolCall.parameters.name}
+                    </div>
                   )}
                   {toolCall.parameters.project && (
-                    <div><span className="font-medium">Project:</span> {toolCall.parameters.project}</div>
+                    <div>
+                      <span className="font-medium">Project:</span>{" "}
+                      {toolCall.parameters.project}
+                    </div>
                   )}
                   {toolCall.parameters.assignee && (
-                    <div><span className="font-medium">Assignee:</span> {toolCall.parameters.assignee}</div>
+                    <div>
+                      <span className="font-medium">Assignee:</span>{" "}
+                      {toolCall.parameters.assignee}
+                    </div>
                   )}
                   {toolCall.parameters.due_date && (
-                    <div><span className="font-medium">Due:</span> {toolCall.parameters.due_date}</div>
+                    <div>
+                      <span className="font-medium">Due:</span>{" "}
+                      {toolCall.parameters.due_date}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-            
+
             {toolCall.result && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1 font-medium">Result:</p>
+                <p className="text-xs text-muted-foreground mb-1 font-medium">
+                  Result:
+                </p>
                 <div className="bg-green-50 border border-green-200 p-3 rounded text-xs">
-                  {typeof toolCall.result === 'string' 
-                    ? toolCall.result 
-                    : JSON.stringify(toolCall.result, null, 2)
-                  }
+                  {typeof toolCall.result === "string"
+                    ? toolCall.result
+                    : JSON.stringify(toolCall.result, null, 2)}
                 </div>
               </div>
             )}
-            
+
             <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-muted-foreground pt-2 border-t gap-1">
-              <span>Started: {new Date(toolCall.startTime).toLocaleTimeString()}</span>
+              <span>
+                Started: {new Date(toolCall.startTime).toLocaleTimeString()}
+              </span>
               {toolCall.endTime && (
-                <span>Ended: {new Date(toolCall.endTime).toLocaleTimeString()}</span>
+                <span>
+                  Ended: {new Date(toolCall.endTime).toLocaleTimeString()}
+                </span>
               )}
             </div>
           </div>
         </CardContent>
       )}
     </Card>
-  )
+  );
 }

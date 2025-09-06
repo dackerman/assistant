@@ -17,7 +17,11 @@ interface SparkleExplosionProps {
   children: React.ReactNode;
 }
 
-export function SparkleExplosion({ trigger, className = "", children }: SparkleExplosionProps) {
+export function SparkleExplosion({
+  trigger,
+  className = "",
+  children,
+}: SparkleExplosionProps) {
   const [particles, setParticles] = useState<SparkleParticle[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,8 +40,8 @@ export function SparkleExplosion({ trigger, className = "", children }: SparkleE
     for (let i = 0; i < 5; i++) {
       // Distribute sparkles across the width of the title
       const widthProgress = i / 4; // 0, 0.25, 0.5, 0.75, 1
-      const startX = rect.left + (titleWidth * widthProgress);
-      
+      const startX = rect.left + titleWidth * widthProgress;
+
       newParticles.push({
         id: i,
         x: 0,
@@ -64,13 +68,13 @@ export function SparkleExplosion({ trigger, className = "", children }: SparkleE
         return;
       }
 
-      setParticles(prev =>
-        prev.map(particle => ({
+      setParticles((prev) =>
+        prev.map((particle) => ({
           ...particle,
           x: particle.vx * progress,
           y: particle.vy * progress + 0.5 * 150 * progress * progress, // stronger gravity
           life: Math.max(0, 1 - Math.pow(progress, 0.7)), // slower fade with easing
-        }))
+        })),
       );
 
       requestAnimationFrame(animate);
@@ -85,17 +89,17 @@ export function SparkleExplosion({ trigger, className = "", children }: SparkleE
         {children}
       </div>
       {/* Render sparkles at document level to avoid clipping */}
-      {particles.map(particle => (
+      {particles.map((particle) => (
         <div
           key={`${trigger}-${particle.id}`}
           className="pointer-events-none select-none"
           style={{
-            position: 'fixed',
+            position: "fixed",
             left: particle.startX + particle.x,
             top: particle.startY + particle.y,
-            transform: 'translate(-50%, -50%)',
+            transform: "translate(-50%, -50%)",
             opacity: particle.life,
-            fontSize: '18px',
+            fontSize: "18px",
             zIndex: 9999,
           }}
         >

@@ -57,7 +57,10 @@ export function useWebSocket(
   useEffect(() => {
     const connect = () => {
       // Prevent multiple simultaneous connection attempts
-      if (isConnectingRef.current || (ws.current?.readyState === WebSocket.CONNECTING)) {
+      if (
+        isConnectingRef.current ||
+        ws.current?.readyState === WebSocket.CONNECTING
+      ) {
         return;
       }
 
@@ -122,30 +125,37 @@ export function useWebSocket(
             break;
 
           case "snapshot":
-            if (data.promptId && data.content !== undefined && data.currentState) {
+            if (
+              data.promptId &&
+              data.content !== undefined &&
+              data.currentState
+            ) {
               console.log("Received snapshot for prompt:", data.promptId, {
                 state: data.currentState,
                 contentLength: data.content?.length || 0,
-                hasContent: !!data.content
+                hasContent: !!data.content,
               });
-              
+
               onSnapshotReceivedRef.current?.(
                 data.promptId,
                 data.content,
                 data.currentState,
               );
-              
+
               // Set streaming state based on prompt state
-              const isActiveState = data.currentState === "IN_PROGRESS" || 
-                                   data.currentState === "WAITING_FOR_TOOLS";
+              const isActiveState =
+                data.currentState === "IN_PROGRESS" ||
+                data.currentState === "WAITING_FOR_TOOLS";
               setIsStreaming(isActiveState);
-              
-              console.log(`Snapshot processed - streaming state: ${isActiveState}`);
+
+              console.log(
+                `Snapshot processed - streaming state: ${isActiveState}`,
+              );
             } else {
               console.warn("Incomplete snapshot data received:", {
                 promptId: data.promptId,
                 hasContent: data.content !== undefined,
-                currentState: data.currentState
+                currentState: data.currentState,
               });
             }
             break;
@@ -172,7 +182,7 @@ export function useWebSocket(
         isConnectingRef.current = false;
         setIsConnected(false);
         setIsStreaming(false);
-        
+
         // Only attempt reconnection if it wasn't a deliberate close (code 1000)
         // and we don't already have a reconnection scheduled
         if (event.code !== 1000 && !reconnectTimeoutRef.current) {
@@ -198,12 +208,12 @@ export function useWebSocket(
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      
+
       // Close WebSocket connection cleanly
       if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
         ws.current.close(1000, "Component unmounting");
       }
-      
+
       isConnectingRef.current = false;
     };
   }, []); // Remove callback dependencies to prevent reconnection loops

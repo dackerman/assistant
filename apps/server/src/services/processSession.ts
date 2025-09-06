@@ -20,33 +20,33 @@ export class ProcessSession extends BaseSession {
   constructor(
     toolType: string,
     conversationId: number,
-    createProcess: () => ChildProcess
+    createProcess: () => ChildProcess,
   ) {
     super(toolType, conversationId);
     this.createProcessFn = createProcess;
-    this.logger = new Logger({ 
-      sessionId: this.id, 
+    this.logger = new Logger({
+      sessionId: this.id,
       toolType: this.toolType,
-      conversationId: this.conversationId 
+      conversationId: this.conversationId,
     });
   }
 
   async execute(toolCall: ToolCall): Promise<ToolResult> {
     this.updateActivity();
-    
+
     return new Promise((resolve, reject) => {
       this.commandQueue.push({
         toolCall,
         resolve,
         reject,
-        startTime: new Date()
+        startTime: new Date(),
       });
-      
+
       this.logger.info("Tool call queued", {
         toolCallId: toolCall.id,
-        queueLength: this.commandQueue.length
+        queueLength: this.commandQueue.length,
       });
-      
+
       this.processQueue();
     });
   }
@@ -65,16 +65,15 @@ export class ProcessSession extends BaseSession {
 
       const result = await this.executeInProcess(command.toolCall);
       command.resolve(result);
-      
+
       this.logger.info("Tool call executed successfully", {
         toolCallId: command.toolCall.id,
-        duration: Date.now() - command.startTime.getTime()
+        duration: Date.now() - command.startTime.getTime(),
       });
-      
     } catch (error) {
       this.logger.error("Tool call execution failed", {
         toolCallId: command.toolCall.id,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       command.reject(error as Error);
     } finally {
@@ -86,28 +85,29 @@ export class ProcessSession extends BaseSession {
 
   private async createProcess(): Promise<void> {
     this.logger.info("Creating new process");
-    
+
     try {
       this.process = this.createProcessFn();
-      
+
       // Set up error handling
-      this.process.on('error', (error) => {
+      this.process.on("error", (error) => {
         this.logger.error("Process error", error);
         this.handleProcessFailure(error);
       });
 
-      this.process.on('exit', (code, signal) => {
+      this.process.on("exit", (code, signal) => {
         this.logger.warn("Process exited", { code, signal });
-        this.handleProcessFailure(new Error(`Process exited with code ${code}, signal ${signal}`));
+        this.handleProcessFailure(
+          new Error(`Process exited with code ${code}, signal ${signal}`),
+        );
       });
 
       // Wait a moment for process to start
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       this.logger.info("Process created successfully", {
-        pid: this.process.pid
+        pid: this.process.pid,
       });
-      
     } catch (error) {
       this.logger.error("Failed to create process", error);
       throw new Error(`Failed to create process: ${error}`);
@@ -120,14 +120,14 @@ export class ProcessSession extends BaseSession {
     }
 
     const request = toolCall.request as any;
-    
+
     // Handle restart command
     if (request.restart === true) {
       this.logger.info("Restart requested, recreating process");
       await this.restart();
       return {
         success: true,
-        output: "Session restarted successfully"
+        output: "Session restarted successfully",
       };
     }
 
@@ -137,7 +137,7 @@ export class ProcessSession extends BaseSession {
     }
 
     this.logger.info("Executing command", {
-      command: command.substring(0, 100) + (command.length > 100 ? "..." : "")
+      command: command.substring(0, 100) + (command.length > 100 ? "..." : ""),
     });
 
     return new Promise((resolve, reject) => {
@@ -172,23 +172,25 @@ export class ProcessSession extends BaseSession {
       const handleOutput = (data: Buffer) => {
         const text = data.toString();
         output += text;
-        
+
         // Check for completion marker
         if (text.includes("COMMAND_COMPLETE_")) {
           // Remove the completion marker from output
-          const cleanOutput = output.replace(/COMMAND_COMPLETE_\d+\s*\n?/g, "").trim();
-          
+          const cleanOutput = output
+            .replace(/COMMAND_COMPLETE_\d+\s*\n?/g, "")
+            .trim();
+
           // Clean up listeners
-          this.process!.stdout!.removeListener('data', handleOutput);
-          this.process!.stderr!.removeListener('data', handleError);
-          
+          this.process!.stdout!.removeListener("data", handleOutput);
+          this.process!.stderr!.removeListener("data", handleError);
+
           complete({
             success: true,
             output: cleanOutput,
             metadata: {
               pid: this.process!.pid,
-              executionTime: Date.now()
-            }
+              executionTime: Date.now(),
+            },
           });
         }
       };
@@ -197,8 +199,8 @@ export class ProcessSession extends BaseSession {
         output += data.toString();
       };
 
-      this.process!.stdout!.on('data', handleOutput);
-      this.process!.stderr!.on('data', handleError);
+      this.process!.stdout!.on("data", handleOutput);
+      this.process!.stderr!.on("data", handleError);
 
       // Send command to process
       this.process!.stdin!.write(`${command}\necho "COMMAND_COMPLETE_$$"\n`);
@@ -211,7 +213,7 @@ export class ProcessSession extends BaseSession {
       const command = this.commandQueue.shift()!;
       command.reject(new Error(`Process failed: ${error.message}`));
     }
-    
+
     this.isExecuting = false;
     this.process = undefined;
   }
@@ -219,31 +221,31 @@ export class ProcessSession extends BaseSession {
   async restart(): Promise<void> {
     this.logger.info("Restarting session");
     this.updateActivity();
-    
+
     // Kill existing process
     if (this.process && !this.process.killed) {
-      this.process.kill('SIGTERM');
-      
+      this.process.kill("SIGTERM");
+
       // Force kill after 5 seconds
       setTimeout(() => {
         if (this.process && !this.process.killed) {
-          this.process.kill('SIGKILL');
+          this.process.kill("SIGKILL");
         }
       }, 5000);
     }
 
     // Wait a moment for cleanup
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // Create new process
     await this.createProcess();
-    
+
     this.logger.info("Session restarted successfully");
   }
 
   async cleanup(): Promise<void> {
     this.logger.info("Cleaning up session");
-    
+
     // Reject any pending commands
     while (this.commandQueue.length > 0) {
       const command = this.commandQueue.shift()!;
@@ -252,18 +254,18 @@ export class ProcessSession extends BaseSession {
 
     // Kill process
     if (this.process && !this.process.killed) {
-      this.process.kill('SIGTERM');
-      
+      this.process.kill("SIGTERM");
+
       setTimeout(() => {
         if (this.process && !this.process.killed) {
-          this.process.kill('SIGKILL');
+          this.process.kill("SIGKILL");
         }
       }, 5000);
     }
 
     this.process = undefined;
     this.isExecuting = false;
-    
+
     this.logger.info("Session cleanup complete");
   }
 

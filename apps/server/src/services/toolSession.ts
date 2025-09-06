@@ -12,16 +12,16 @@ export interface ToolSession {
   readonly toolType: string;
   readonly conversationId: number;
   readonly lastActivity: Date;
-  
+
   // Execute a tool call in this session
   execute(toolCall: ToolCall): Promise<ToolResult>;
-  
+
   // Restart/reset the session state
   restart(): Promise<void>;
-  
+
   // Cleanup resources
   cleanup(): Promise<void>;
-  
+
   // Health check
   isHealthy(): Promise<boolean>;
 }
@@ -29,7 +29,7 @@ export interface ToolSession {
 export interface ToolConfig {
   name: string;
   requiresSession: boolean;
-  sessionType: 'process' | 'memory' | 'http' | 'custom';
+  sessionType: "process" | "memory" | "http" | "custom";
   sessionTimeout?: number;
   restartable?: boolean;
   createSession: (conversationId: number) => ToolSession;

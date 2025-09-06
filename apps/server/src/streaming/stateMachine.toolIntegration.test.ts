@@ -1,14 +1,23 @@
-import { beforeAll, afterAll, describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  beforeAll,
+  afterAll,
+  describe,
+  test,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import { StreamingStateMachine } from "./stateMachine";
 import { ToolExecutorService } from "../services/toolExecutorService";
-import { 
-  toolCalls, 
-  prompts, 
-  blocks, 
-  users, 
-  conversations, 
-  messages 
+import {
+  toolCalls,
+  prompts,
+  blocks,
+  users,
+  conversations,
+  messages,
 } from "../db/schema";
 
 // Mock ToolExecutorService
@@ -34,7 +43,7 @@ let originalDate: DateConstructor;
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
   originalDate = globalThis.Date;
-  
+
   globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
@@ -43,7 +52,7 @@ function stubClock() {
         super(...args);
       }
     }
-    
+
     static now() {
       return clockStub();
     }
@@ -85,50 +94,71 @@ describe("StateMachine Tool Integration", () => {
     stubClock();
 
     // Create test data
-    const [user] = await testDb.insert(users).values({
-      email: "test@example.com",
-    }).returning();
+    const [user] = await testDb
+      .insert(users)
+      .values({
+        email: "test@example.com",
+      })
+      .returning();
 
-    const [conversation] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation",
-    }).returning();
+    const [conversation] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation",
+      })
+      .returning();
 
-    const [message] = await testDb.insert(messages).values({
-      conversationId: conversation.id,
-      role: "assistant",
-    }).returning();
+    const [message] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [prompt] = await testDb.insert(prompts).values({
-      conversationId: conversation.id,
-      messageId: message.id,
-      state: "IN_PROGRESS",
-      model: "claude-3",
-    }).returning();
+    const [prompt] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation.id,
+        messageId: message.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
-    const [block] = await testDb.insert(blocks).values({
-      promptId: prompt.id,
-      type: "tool_call",
-      indexNum: 0,
-      content: "test content",
-    }).returning();
+    const [block] = await testDb
+      .insert(blocks)
+      .values({
+        promptId: prompt.id,
+        type: "tool_call",
+        indexNum: 0,
+        content: "test content",
+      })
+      .returning();
 
     // Create two tool calls for testing
-    const [toolCall1] = await testDb.insert(toolCalls).values({
-      promptId: prompt.id,
-      blockId: block.id,
-      toolName: "Bash",
-      state: "created",
-      request: { command: "echo 'test1'" },
-    }).returning();
+    const [toolCall1] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt.id,
+        blockId: block.id,
+        toolName: "Bash",
+        state: "created",
+        request: { command: "echo 'test1'" },
+      })
+      .returning();
 
-    const [toolCall2] = await testDb.insert(toolCalls).values({
-      promptId: prompt.id,
-      blockId: block.id,
-      toolName: "Bash",
-      state: "created",
-      request: { command: "echo 'test2'" },
-    }).returning();
+    const [toolCall2] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt.id,
+        blockId: block.id,
+        toolName: "Bash",
+        state: "created",
+        request: { command: "echo 'test2'" },
+      })
+      .returning();
 
     testData = {
       userId: user.id,
@@ -144,7 +174,7 @@ describe("StateMachine Tool Integration", () => {
     stateMachine = new StreamingStateMachine(
       testData.promptId,
       testDb,
-      mockToolExecutor
+      mockToolExecutor,
     );
 
     vi.clearAllMocks();
@@ -183,9 +213,12 @@ describe("StateMachine Tool Integration", () => {
 
     test("should complete immediately if no pending tools", async () => {
       // Mark tool calls as complete
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
-        .where((tc, { inArray }) => inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]));
+        .where((tc, { inArray }) =>
+          inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]),
+        );
 
       await stateMachine.handleMessageStop();
 
@@ -218,12 +251,14 @@ describe("StateMachine Tool Integration", () => {
     });
 
     test("should warn when no tool executor available", async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+
       // Create state machine without tool executor
       const stateMachineNoExecutor = new StreamingStateMachine(
         testData.promptId,
-        testDb
+        testDb,
       );
 
       await stateMachineNoExecutor.handleMessageStop();
@@ -238,7 +273,8 @@ describe("StateMachine Tool Integration", () => {
   describe("Tool completion checking", () => {
     test("should check tool completion status correctly", async () => {
       // Set up mixed completion states
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
       // Leave toolCallId2 as "created"
@@ -253,9 +289,12 @@ describe("StateMachine Tool Integration", () => {
     });
 
     test("should report all complete when all tools are done", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
-        .where((tc, { inArray }) => inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]));
+        .where((tc, { inArray }) =>
+          inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]),
+        );
 
       const result = await stateMachine.checkToolCompletion();
 
@@ -265,11 +304,13 @@ describe("StateMachine Tool Integration", () => {
     });
 
     test("should consider error and canceled states as complete", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "error" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "canceled" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -284,17 +325,19 @@ describe("StateMachine Tool Integration", () => {
   describe("Continue after tools", () => {
     test("should continue execution when all tools are complete", async () => {
       // Set tools as complete with responses
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "complete",
-          response: { output: "test output 1", exitCode: 0 }
+          response: { output: "test output 1", exitCode: 0 },
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "error",
-          error: "test error"
+          error: "test error",
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -304,19 +347,21 @@ describe("StateMachine Tool Integration", () => {
       expect(result.toolResults).toHaveLength(2);
 
       // Check successful tool result
-      const successResult = result.toolResults.find(r => r.state === "complete");
+      const successResult = result.toolResults.find(
+        (r) => r.state === "complete",
+      );
       expect(successResult).toMatchObject({
         toolName: "Bash",
         state: "complete",
-        response: { output: "test output 1", exitCode: 0 }
+        response: { output: "test output 1", exitCode: 0 },
       });
 
       // Check error tool result
-      const errorResult = result.toolResults.find(r => r.state === "error");
+      const errorResult = result.toolResults.find((r) => r.state === "error");
       expect(errorResult).toMatchObject({
         toolName: "Bash",
         state: "error",
-        error: "test error"
+        error: "test error",
       });
 
       // Should transition back to IN_PROGRESS
@@ -329,11 +374,13 @@ describe("StateMachine Tool Integration", () => {
 
     test("should return still_waiting when tools are not complete", async () => {
       // Leave one tool as "running"
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "running" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -354,16 +401,18 @@ describe("StateMachine Tool Integration", () => {
   describe("Cancellation with tool executor", () => {
     test("should cancel running tool executions", async () => {
       // Set tools as running
-      await testDb.update(toolCalls)
-        .set({ 
+      await testDb
+        .update(toolCalls)
+        .set({
           state: "running",
-          pid: 12345
+          pid: 12345,
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
-        .set({ 
-          state: "created"
+      await testDb
+        .update(toolCalls)
+        .set({
+          state: "created",
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -388,13 +437,16 @@ describe("StateMachine Tool Integration", () => {
         where: (tc, { eq }) => eq(tc.promptId, testData.promptId),
       });
 
-      expect(updatedTools.every(t => t.state === "canceled")).toBe(true);
+      expect(updatedTools.every((t) => t.state === "canceled")).toBe(true);
     });
 
     test("should handle cancellation errors gracefully", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "running" })
-        .where((tc, { inArray }) => inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]));
+        .where((tc, { inArray }) =>
+          inArray(tc.id, [testData.toolCallId1, testData.toolCallId2]),
+        );
 
       mockCancelExecution
         .mockResolvedValueOnce(undefined) // First succeeds
@@ -410,29 +462,32 @@ describe("StateMachine Tool Integration", () => {
         where: (tc, { eq }) => eq(tc.promptId, testData.promptId),
       });
 
-      expect(updatedTools.every(t => t.state === "canceled")).toBe(true);
+      expect(updatedTools.every((t) => t.state === "canceled")).toBe(true);
     });
   });
 
   describe("Resume with tool integration", () => {
     test("should resume WAITING_FOR_TOOLS state with completed tools", async () => {
       // Set prompt to WAITING_FOR_TOOLS
-      await testDb.update(prompts)
+      await testDb
+        .update(prompts)
         .set({ state: "WAITING_FOR_TOOLS" })
         .where((p, { eq }) => eq(p.id, testData.promptId));
 
       // Complete both tools
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "complete",
-          response: { output: "output1", exitCode: 0 }
+          response: { output: "output1", exitCode: 0 },
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({
           state: "complete",
-          response: { output: "output2", exitCode: 0 }
+          response: { output: "output2", exitCode: 0 },
         })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -452,16 +507,19 @@ describe("StateMachine Tool Integration", () => {
 
     test("should resume WAITING_FOR_TOOLS state with pending tools", async () => {
       // Set prompt to WAITING_FOR_TOOLS
-      await testDb.update(prompts)
+      await testDb
+        .update(prompts)
         .set({ state: "WAITING_FOR_TOOLS" })
         .where((p, { eq }) => eq(p.id, testData.promptId));
 
       // Complete one tool, leave one running
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "running" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId2));
 
@@ -479,17 +537,20 @@ describe("StateMachine Tool Integration", () => {
       // Mock database error
       const mockDb = {
         ...testDb,
-        select: vi.fn().mockRejectedValue(new Error("Database connection lost"))
+        select: vi
+          .fn()
+          .mockRejectedValue(new Error("Database connection lost")),
       };
 
       const errorStateMachine = new StreamingStateMachine(
         testData.promptId,
         mockDb,
-        mockToolExecutor
+        mockToolExecutor,
       );
 
-      await expect(errorStateMachine.checkToolCompletion())
-        .rejects.toThrow("Database connection lost");
+      await expect(errorStateMachine.checkToolCompletion()).rejects.toThrow(
+        "Database connection lost",
+      );
     });
   });
 
@@ -505,8 +566,8 @@ describe("StateMachine Tool Integration", () => {
           toolName: "Bash",
           state: "complete",
           request: { command: `echo 'test${i}'` },
-          response: { output: `output${i}`, exitCode: 0 }
-        })
+          response: { output: `output${i}`, exitCode: 0 },
+        }),
       );
 
       await Promise.all(toolCallPromises);

@@ -10,7 +10,7 @@ function ConversationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const conversationId = id ? parseInt(id, 10) : undefined;
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -36,7 +36,7 @@ function ConversationPage() {
   };
 
   const handleNewConversation = () => {
-    navigate('/');
+    navigate("/");
     // Close sidebar on mobile after creating new conversation
     if (!isDesktop) {
       setIsSidebarOpen(false);
@@ -52,7 +52,7 @@ function ConversationPage() {
   const handleConversationDelete = (deletedConversationId: number) => {
     // If we're currently viewing the deleted conversation, navigate to home
     if (conversationId === deletedConversationId) {
-      navigate('/');
+      navigate("/");
     }
     // Trigger sidebar refresh to remove the deleted conversation from the list
     setRefreshTrigger((prev) => prev + 1);

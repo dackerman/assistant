@@ -1,7 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { conversationService } from "@/services/conversationService";
 import type { Conversation } from "@/types/conversation";
-import { MessageCircle, Plus, X, Trash2, Pencil, Check, X as XIcon } from "lucide-react";
+import {
+  MessageCircle,
+  Plus,
+  X,
+  Trash2,
+  Pencil,
+  Check,
+  X as XIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { ConversationTitle } from "@/components/ui/ConversationTitle";
 
@@ -27,8 +35,12 @@ export function ConversationSidebar({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [titleAnimationTriggers, setTitleAnimationTriggers] = useState<Map<string, number>>(new Map());
-  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [titleAnimationTriggers, setTitleAnimationTriggers] = useState<
+    Map<string, number>
+  >(new Map());
+  const [editingConversationId, setEditingConversationId] = useState<
+    string | null
+  >(null);
   const [editingTitle, setEditingTitle] = useState("");
 
   // Load conversations
@@ -55,19 +67,26 @@ export function ConversationSidebar({
         }),
       );
 
-      // Check for title changes and trigger animations  
-      setConversations(prev => {
-        const prevTitleMap = new Map(prev.map(c => [c.id, c.title]));
+      // Check for title changes and trigger animations
+      setConversations((prev) => {
+        const prevTitleMap = new Map(prev.map((c) => [c.id, c.title]));
         const newTriggers = new Map(titleAnimationTriggers);
-        
-        formattedConversations.forEach(conv => {
+
+        formattedConversations.forEach((conv) => {
           const prevTitle = prevTitleMap.get(conv.id);
           // Trigger animation if title changed from "New Conversation" to something else, or if it's different
-          if (prevTitle && (prevTitle === "New Conversation" || prevTitle !== conv.title) && conv.title !== "New Conversation") {
-            newTriggers.set(conv.id, (titleAnimationTriggers.get(conv.id) || 0) + 1);
+          if (
+            prevTitle &&
+            (prevTitle === "New Conversation" || prevTitle !== conv.title) &&
+            conv.title !== "New Conversation"
+          ) {
+            newTriggers.set(
+              conv.id,
+              (titleAnimationTriggers.get(conv.id) || 0) + 1,
+            );
           }
         });
-        
+
         setTitleAnimationTriggers(newTriggers);
         return formattedConversations;
       });
@@ -84,19 +103,26 @@ export function ConversationSidebar({
     onConversationSelect(Number(conversationId));
   };
 
-  const handleDeleteClick = async (conversationId: string, e: React.MouseEvent) => {
+  const handleDeleteClick = async (
+    conversationId: string,
+    e: React.MouseEvent,
+  ) => {
     // Stop propagation to prevent conversation selection
     e.stopPropagation();
-    
-    const confirmed = window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.");
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this conversation? This action cannot be undone.",
+    );
     if (!confirmed) return;
 
     try {
       await conversationService.deleteConversation(Number(conversationId));
-      
+
       // Remove from local state
-      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-      
+      setConversations((prev) =>
+        prev.filter((conv) => conv.id !== conversationId),
+      );
+
       // Notify parent component about deletion
       onConversationDelete?.(Number(conversationId));
     } catch (error) {
@@ -105,28 +131,40 @@ export function ConversationSidebar({
     }
   };
 
-  const handleEditClick = (conversationId: string, currentTitle: string, e: React.MouseEvent) => {
+  const handleEditClick = (
+    conversationId: string,
+    currentTitle: string,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation(); // Prevent triggering conversation selection
     setEditingConversationId(conversationId);
     setEditingTitle(currentTitle);
   };
 
-  const handleEditSave = async (conversationId: string, e: React.MouseEvent) => {
+  const handleEditSave = async (
+    conversationId: string,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation();
-    
+
     if (editingTitle.trim() === "") {
       return; // Don't allow empty titles
     }
 
     try {
       // Update the conversation title via API
-      await conversationService.updateTitle(Number.parseInt(conversationId), editingTitle.trim());
-      
+      await conversationService.updateTitle(
+        Number.parseInt(conversationId),
+        editingTitle.trim(),
+      );
+
       // Update local state
-      setConversations(prev => prev.map(c => 
-        c.id === conversationId ? { ...c, title: editingTitle.trim() } : c
-      ));
-      
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, title: editingTitle.trim() } : c,
+        ),
+      );
+
       // Exit editing mode
       setEditingConversationId(null);
       setEditingTitle("");
@@ -142,7 +180,10 @@ export function ConversationSidebar({
     setEditingTitle("");
   };
 
-  const handleTitleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
+  const handleTitleKeyDown = (
+    e: React.KeyboardEvent,
+    conversationId: string,
+  ) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleEditSave(conversationId, e as any);
@@ -271,10 +312,12 @@ export function ConversationSidebar({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <ConversationTitle 
+                    <ConversationTitle
                       title={truncateTitle(conversation.title)}
                       className="font-medium truncate"
-                      animationTrigger={titleAnimationTriggers.get(conversation.id) || 0}
+                      animationTrigger={
+                        titleAnimationTriggers.get(conversation.id) || 0
+                      }
                       shouldAnimate={false} // Manual edits shouldn't trigger sparkles
                     />
                   )}
@@ -282,7 +325,7 @@ export function ConversationSidebar({
                     {formatDate(conversation.updatedAt)}
                   </div>
                 </div>
-                
+
                 {/* Edit buttons */}
                 {editingConversationId === conversation.id ? (
                   <div className="flex flex-shrink-0">
@@ -306,7 +349,9 @@ export function ConversationSidebar({
                 ) : (
                   <div className="flex flex-shrink-0">
                     <Button
-                      onClick={(e) => handleEditClick(conversation.id, conversation.title, e)}
+                      onClick={(e) =>
+                        handleEditClick(conversation.id, conversation.title, e)
+                      }
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-600"

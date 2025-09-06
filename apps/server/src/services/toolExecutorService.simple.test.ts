@@ -27,7 +27,9 @@ const mockDb = {
   },
   update: mock(() => ({
     set: mock(() => ({
-      where: mock(() => ({ returning: mock(() => [{ id: 1, state: "running", pid: 12345 }]) })),
+      where: mock(() => ({
+        returning: mock(() => [{ id: 1, state: "running", pid: 12345 }]),
+      })),
     })),
   })),
   insert: mock(() => ({
@@ -48,10 +50,10 @@ describe("ToolExecutorService Simple Tests", () => {
     sessionManager = new SessionManager();
     service = new ToolExecutorService(sessionManager, mockDb);
     mockSpawn.mockClear();
-    
+
     // Reset all database mocks
-    Object.values(mockDb).forEach(mockFn => {
-      if (typeof mockFn === 'function') mockFn.mockClear();
+    Object.values(mockDb).forEach((mockFn) => {
+      if (typeof mockFn === "function") mockFn.mockClear();
     });
   });
 
@@ -64,7 +66,7 @@ describe("ToolExecutorService Simple Tests", () => {
   });
 
   test("should have sessionManager and db properties", () => {
-    expect(service).toHaveProperty('sessionManager');
+    expect(service).toHaveProperty("sessionManager");
     expect(service.sessionManager).toBeInstanceOf(SessionManager);
   });
 
@@ -81,7 +83,9 @@ describe("ToolExecutorService Simple Tests", () => {
     // Mock database updates
     mockDb.update.mockReturnValue({
       set: mock(() => ({
-        where: mock(() => ({ returning: mock(() => [{ id: 1, state: "running", pid: 12345 }]) })),
+        where: mock(() => ({
+          returning: mock(() => [{ id: 1, state: "running", pid: 12345 }]),
+        })),
       })),
     });
 

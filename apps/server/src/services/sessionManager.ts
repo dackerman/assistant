@@ -5,7 +5,7 @@ import { Logger } from "../utils/logger.js";
 
 export class SessionManager {
   private sessions = new Map<string, ToolSession>();
-  private logger = new Logger({ component: 'SessionManager' });
+  private logger = new Logger({ component: "SessionManager" });
   private cleanupTimer?: NodeJS.Timeout;
 
   constructor() {
@@ -13,9 +13,12 @@ export class SessionManager {
     this.startCleanupTimer();
   }
 
-  async getOrCreateSession(conversationId: number, toolName: string): Promise<ToolSession> {
+  async getOrCreateSession(
+    conversationId: number,
+    toolName: string,
+  ): Promise<ToolSession> {
     const config = TOOL_CONFIGS[toolName];
-    
+
     if (!config) {
       throw new Error(`Unknown tool: ${toolName}`);
     }
@@ -27,42 +30,50 @@ export class SessionManager {
 
     const sessionId = `${conversationId}:${toolName}`;
     let session = this.sessions.get(sessionId);
-    
+
     if (!session) {
       this.logger.info("Creating new session", {
         sessionId,
         toolName,
-        conversationId
+        conversationId,
       });
-      
+
       session = config.createSession(conversationId);
       this.sessions.set(sessionId, session);
-      
+
       this.logger.info("Session created", {
         sessionId,
-        totalSessions: this.sessions.size
+        totalSessions: this.sessions.size,
       });
     }
-    
+
     return session;
   }
 
-  async restartSession(conversationId: number, toolName: string): Promise<void> {
+  async restartSession(
+    conversationId: number,
+    toolName: string,
+  ): Promise<void> {
     const sessionId = `${conversationId}:${toolName}`;
     const session = this.sessions.get(sessionId);
-    
+
     if (session) {
       this.logger.info("Restarting session", { sessionId });
       await session.restart();
     } else {
-      this.logger.warn("Attempted to restart non-existent session", { sessionId });
+      this.logger.warn("Attempted to restart non-existent session", {
+        sessionId,
+      });
     }
   }
 
-  async cleanupSession(conversationId: number, toolName: string): Promise<void> {
+  async cleanupSession(
+    conversationId: number,
+    toolName: string,
+  ): Promise<void> {
     const sessionId = `${conversationId}:${toolName}`;
     const session = this.sessions.get(sessionId);
-    
+
     if (session) {
       this.logger.info("Cleaning up session", { sessionId });
       await session.cleanup();
@@ -72,21 +83,21 @@ export class SessionManager {
 
   async cleanupAllSessions(): Promise<void> {
     this.logger.info("Cleaning up all sessions", {
-      sessionCount: this.sessions.size
+      sessionCount: this.sessions.size,
     });
 
-    const cleanupPromises = Array.from(this.sessions.values()).map(session => 
-      session.cleanup().catch(error => {
+    const cleanupPromises = Array.from(this.sessions.values()).map((session) =>
+      session.cleanup().catch((error) => {
         this.logger.error("Error during session cleanup", {
           sessionId: session.id,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
-      })
+      }),
     );
 
     await Promise.allSettled(cleanupPromises);
     this.sessions.clear();
-    
+
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
     }
@@ -95,9 +106,12 @@ export class SessionManager {
   }
 
   private startCleanupTimer(): void {
-    this.cleanupTimer = setInterval(async () => {
-      await this.cleanupIdleSessions();
-    }, 5 * 60 * 1000); // Check every 5 minutes
+    this.cleanupTimer = setInterval(
+      async () => {
+        await this.cleanupIdleSessions();
+      },
+      5 * 60 * 1000,
+    ); // Check every 5 minutes
   }
 
   private async cleanupIdleSessions(): Promise<void> {
@@ -112,7 +126,7 @@ export class SessionManager {
       if (idleTime > timeout) {
         this.logger.info("Session idle timeout", {
           sessionId,
-          idleMinutes: Math.floor(idleTime / 60000)
+          idleMinutes: Math.floor(idleTime / 60000),
         });
         sessionsToCleanup.push(session);
       }
@@ -123,14 +137,14 @@ export class SessionManager {
       try {
         await session.cleanup();
         this.sessions.delete(session.id);
-        
+
         this.logger.info("Cleaned up idle session", {
-          sessionId: session.id
+          sessionId: session.id,
         });
       } catch (error) {
         this.logger.error("Failed to cleanup idle session", {
           sessionId: session.id,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -146,14 +160,16 @@ export class SessionManager {
     const sessionsByConversation: Record<number, number> = {};
 
     for (const session of this.sessions.values()) {
-      sessionsByTool[session.toolType] = (sessionsByTool[session.toolType] || 0) + 1;
-      sessionsByConversation[session.conversationId] = (sessionsByConversation[session.conversationId] || 0) + 1;
+      sessionsByTool[session.toolType] =
+        (sessionsByTool[session.toolType] || 0) + 1;
+      sessionsByConversation[session.conversationId] =
+        (sessionsByConversation[session.conversationId] || 0) + 1;
     }
 
     return {
       totalSessions: this.sessions.size,
       sessionsByTool,
-      sessionsByConversation
+      sessionsByConversation,
     };
   }
 }
@@ -163,21 +179,20 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
   bash: {
     name: "bash",
     requiresSession: true,
-    sessionType: 'process',
+    sessionType: "process",
     sessionTimeout: 30 * 60 * 1000, // 30 minutes
     restartable: true,
-    createSession: (conversationId: number) => new ProcessSession(
-      'bash',
-      conversationId,
-      () => spawn("bash", ["-i"], {
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { 
-          ...process.env, 
-          PS1: "$ ",
-          // Disable bash history to avoid file conflicts
-          HISTFILE: "/dev/null"
-        }
-      })
-    )
-  }
+    createSession: (conversationId: number) =>
+      new ProcessSession("bash", conversationId, () =>
+        spawn("bash", ["-i"], {
+          stdio: ["pipe", "pipe", "pipe"],
+          env: {
+            ...process.env,
+            PS1: "$ ",
+            // Disable bash history to avoid file conflicts
+            HISTFILE: "/dev/null",
+          },
+        }),
+      ),
+  },
 };

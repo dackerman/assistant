@@ -85,11 +85,11 @@ export class ToolExecutorService {
     try {
       // Get the conversation ID from the tool call
       const conversationId = await this.getConversationIdForToolCall(toolCall);
-      
+
       // Get or create session for this tool
       const session = await this.sessionManager.getOrCreateSession(
         conversationId,
-        toolCall.toolName
+        toolCall.toolName,
       );
 
       // Execute the tool call in the session
@@ -103,7 +103,7 @@ export class ToolExecutorService {
             state: "complete",
             response: {
               output: result.output,
-              metadata: result.metadata
+              metadata: result.metadata,
             },
             outputStream: result.output,
           })
@@ -111,7 +111,6 @@ export class ToolExecutorService {
       } else {
         throw new Error(result.error || "Tool execution failed");
       }
-
     } catch (error) {
       // Mark as failed
       await db
@@ -121,16 +120,18 @@ export class ToolExecutorService {
           error: error instanceof Error ? error.message : String(error),
         })
         .where(eq(toolCalls.id, toolCall.id));
-      
+
       throw error;
     }
   }
 
-  private async getConversationIdForToolCall(toolCall: ToolCall): Promise<number> {
+  private async getConversationIdForToolCall(
+    toolCall: ToolCall,
+  ): Promise<number> {
     // Get the prompt to find the conversation ID
     const prompt = await db.query.prompts.findFirst({
       where: (prompts, { eq }) => eq(prompts.id, toolCall.promptId),
-      columns: { conversationId: true }
+      columns: { conversationId: true },
     });
 
     if (!prompt) {
