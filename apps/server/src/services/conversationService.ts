@@ -11,6 +11,7 @@ import {
   conversations,
   messages,
   prompts,
+  toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
 
@@ -87,6 +88,40 @@ export class ConversationService {
         // biome-ignore lint/style/noNonNullAssertion: We know the message exists in the map
         messageMap.get(row.message.id)!.blocks.push(row.block);
       }
+    }
+
+    // Get all tool calls for this conversation's blocks
+    const conversationToolCalls = await this.db
+      .select({
+        toolCall: toolCalls,
+        blockId: toolCalls.blockId,
+      })
+      .from(toolCalls)
+      .innerJoin(blocks, eq(toolCalls.blockId, blocks.id))
+      .innerJoin(messages, eq(blocks.messageId, messages.id))
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.isComplete, true),
+        ),
+      )
+      .orderBy(toolCalls.id);
+
+    // Create a map of blockId -> toolCall for quick lookup
+    const toolCallsByBlockId = new Map();
+    for (const row of conversationToolCalls) {
+      toolCallsByBlockId.set(row.blockId, row.toolCall);
+    }
+
+    // Attach tool calls to their respective blocks within messages
+    for (const message of messageMap.values()) {
+      for (const block of message.blocks) {
+        if (toolCallsByBlockId.has(block.id)) {
+          block.toolCall = toolCallsByBlockId.get(block.id);
+        }
+      }
+      // Remove the toolCalls array since we're embedding them in blocks
+      delete message.toolCalls;
     }
 
     return {

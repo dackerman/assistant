@@ -147,6 +147,66 @@ describe("ConversationService", () => {
     expect(assistant.blocks[0].content).toBe("A1");
   });
 
+  it("returns conversation with tool calls attached to messages", async () => {
+    const convId = await service.createConversation(userId);
+    const { userMessageId, promptId } = await service.createUserMessage(
+      convId,
+      "Can you run ls command?",
+    );
+
+    // finalize assistant message with a tool call block
+    const [prompt] = await testDb
+      .select()
+      .from(prompts)
+      .where(eq(prompts.id, promptId));
+
+    // create assistant tool_call block
+    const [toolCallBlock] = await testDb.insert(blocks).values({
+      promptId,
+      messageId: prompt.messageId!,
+      type: "tool_call",
+      indexNum: 0,
+      content: "Running ls command",
+      isFinalized: true,
+    }).returning();
+
+    // create a tool call associated with this block
+    const [toolCall] = await testDb.insert(toolCalls).values({
+      promptId,
+      blockId: toolCallBlock.id,
+      apiToolCallId: "call_123",
+      toolName: "Bash",
+      state: "complete",
+      request: { command: "ls" },
+      response: { output: "file1.txt\nfile2.txt" },
+    }).returning();
+
+    // mark assistant message as complete
+    await testDb
+      .update(messages)
+      .set({ isComplete: true })
+      .where(eq(messages.id, prompt.messageId!));
+
+    // Test: get conversation should include tool calls
+    const result = await service.getConversation(convId, userId);
+    expect(result).not.toBeNull();
+    expect(result!.conversation.id).toBe(convId);
+    expect(result!.messages.length).toBe(2);
+
+    // Check assistant message has tool call embedded in block
+    const assistant = result!.messages.find((m: any) => m.role === "assistant");
+    expect(assistant).toBeDefined();
+    expect(assistant.blocks).toBeDefined();
+    expect(assistant.blocks.length).toBe(1);
+    expect(assistant.blocks[0].type).toBe("tool_call");
+    expect(assistant.blocks[0].toolCall).toBeDefined();
+    expect(assistant.blocks[0].toolCall.id).toBe(toolCall.id);
+    expect(assistant.blocks[0].toolCall.toolName).toBe("Bash");
+    expect(assistant.blocks[0].toolCall.state).toBe("complete");
+    expect(assistant.blocks[0].toolCall.request).toEqual({ command: "ls" });
+    expect(assistant.blocks[0].toolCall.response).toEqual({ output: "file1.txt\nfile2.txt" });
+  });
+
   it("getActiveStream returns active prompt and non-finalized blocks", async () => {
     const convId = await service.createConversation(userId);
     const { promptId } = await service.createUserMessage(convId, "stream me");
