@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { StreamingStateMachine } from "./stateMachine";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  users,
+  events,
+  blocks,
   conversations,
   messages,
   prompts,
-  blocks,
   toolCalls,
-  events,
+  users,
 } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { StreamingStateMachine } from "./stateMachine";
 
 const maybeDescribe =
   process.env.RUN_DB_TESTS === "1" ? describe : describe.skip;

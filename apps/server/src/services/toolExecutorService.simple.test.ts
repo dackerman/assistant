@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
-import { ToolExecutorService } from "./toolExecutorService";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { SessionManager } from "./sessionManager";
+import { ToolExecutorService } from "./toolExecutorService";
 
 // Mock child_process using bun's mock
 const mockSpawn = mock(() => ({

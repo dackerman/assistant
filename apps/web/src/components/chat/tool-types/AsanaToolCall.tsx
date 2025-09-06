@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ChevronRight, ChevronDown, CheckSquare } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
+import { CheckSquare, ChevronDown, ChevronRight } from "lucide-react";
 
 interface AsanaToolCallProps {
   toolCall: ToolCall;

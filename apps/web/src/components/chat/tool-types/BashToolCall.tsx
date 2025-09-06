@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ChevronRight, ChevronDown, Terminal } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
+import { ChevronDown, ChevronRight, Terminal } from "lucide-react";
 
 interface BashToolCallProps {
   toolCall: ToolCall;

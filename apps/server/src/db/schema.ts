@@ -1,16 +1,16 @@
+import { relations } from "drizzle-orm";
 import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
   pgTable,
   serial,
   text,
   timestamp,
-  integer,
-  boolean,
-  jsonb,
-  index,
   uniqueIndex,
-  pgEnum,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 
 // Enums
 export const promptStateEnum = pgEnum("prompt_state", [

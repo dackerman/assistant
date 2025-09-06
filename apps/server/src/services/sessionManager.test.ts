@@ -1,24 +1,24 @@
 import {
-  beforeAll,
   afterAll,
-  describe,
-  test,
-  expect,
-  vi,
-  beforeEach,
   afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
 } from "vitest";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
-import { ProcessSession } from "./processSession";
 import {
-  toolCalls,
-  prompts,
   blocks,
-  users,
   conversations,
   messages,
+  prompts,
+  toolCalls,
+  users,
 } from "../db/schema";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import type { ProcessSession } from "./processSession";
+import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
 
 // Mock child_process for ProcessSession tests
 vi.mock("child_process", () => ({

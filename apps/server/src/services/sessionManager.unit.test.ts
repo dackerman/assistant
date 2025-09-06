@@ -5,9 +5,9 @@ vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
 
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import type { ProcessSession } from "./processSession";
 import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
-import { ProcessSession } from "./processSession";
 
 describe("SessionManager Unit Tests", () => {
   let sessionManager: SessionManager;

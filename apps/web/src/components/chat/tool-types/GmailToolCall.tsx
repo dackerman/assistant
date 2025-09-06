@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ChevronRight, ChevronDown, Mail } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
+import { ChevronDown, ChevronRight, Mail } from "lucide-react";
 
 interface GmailToolCallProps {
   toolCall: ToolCall;

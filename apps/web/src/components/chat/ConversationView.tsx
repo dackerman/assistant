@@ -1,7 +1,7 @@
+import { ConversationTitle } from "@/components/ui/ConversationTitle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { ConversationTitle } from "@/components/ui/ConversationTitle";
 import {
   DEFAULT_MODEL,
   MODEL_DISPLAY_NAMES,
@@ -12,14 +12,14 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { conversationService } from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
 import {
+  Check,
   MoreHorizontal,
   Send,
   Wifi,
   WifiOff,
-  Check,
   X as XIcon,
 } from "lucide-react";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 
 interface ConversationViewProps {

@@ -1,24 +1,24 @@
 import {
-  beforeAll,
   afterAll,
-  describe,
-  test,
-  expect,
-  vi,
-  beforeEach,
   afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
 } from "vitest";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { StreamingStateMachine } from "./stateMachine";
-import { ToolExecutorService } from "../services/toolExecutorService";
 import {
-  toolCalls,
-  prompts,
   blocks,
-  users,
   conversations,
   messages,
+  prompts,
+  toolCalls,
+  users,
 } from "../db/schema";
+import { ToolExecutorService } from "../services/toolExecutorService";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { StreamingStateMachine } from "./stateMachine";
 
 // Mock ToolExecutorService
 const mockExecuteToolCall = vi.fn();

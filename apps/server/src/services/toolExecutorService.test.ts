@@ -1,24 +1,24 @@
-import {
-  beforeAll,
-  afterAll,
-  describe,
-  test,
-  expect,
-  vi,
-  beforeEach,
-  afterEach,
-} from "vitest";
 import { ChildProcess } from "child_process";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { ToolExecutorService } from "./toolExecutorService";
 import {
-  toolCalls,
-  prompts,
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vitest";
+import {
   blocks,
-  users,
   conversations,
   messages,
+  prompts,
+  toolCalls,
+  users,
 } from "../db/schema";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { ToolExecutorService } from "./toolExecutorService";
 
 // Mock child_process
 vi.mock("child_process", () => ({

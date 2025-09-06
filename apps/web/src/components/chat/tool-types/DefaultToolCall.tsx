@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronRight, ChevronDown } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface DefaultToolCallProps {
   toolCall: ToolCall;

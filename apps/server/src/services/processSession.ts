@@ -1,7 +1,7 @@
-import { spawn, type ChildProcess } from "child_process";
-import { BaseSession, type ToolResult } from "./toolSession.js";
+import { type ChildProcess, spawn } from "child_process";
 import type { ToolCall } from "../db/schema.js";
 import { Logger } from "../utils/logger.js";
+import { BaseSession, type ToolResult } from "./toolSession.js";
 
 interface QueuedCommand {
   toolCall: ToolCall;

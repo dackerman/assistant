@@ -5,26 +5,26 @@ vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
 
+import { and, desc, eq } from "drizzle-orm";
 import {
-  beforeAll,
   afterAll,
-  describe,
-  test,
-  expect,
-  beforeEach,
   afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
 } from "vitest";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { ToolExecutorService } from "./toolExecutorService";
 import {
-  toolCalls,
-  prompts,
   blocks,
-  users,
   conversations,
   messages,
+  prompts,
+  toolCalls,
+  users,
 } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { ToolExecutorService } from "./toolExecutorService";
 
 // Mock process.kill for process checking
 const originalKill = process.kill;
@@ -636,7 +636,7 @@ describe("ToolExecutorService Database Integration Tests", () => {
   });
 
   // Helper function to create mock process
-  function createMockProcess(pid: number = 12345) {
+  function createMockProcess(pid = 12345) {
     return {
       pid,
       stdout: {

@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { ConversationService } from "./conversationService";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { and, desc, eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  users,
+  events,
+  attachments,
+  blocks,
   conversations,
   messages,
   prompts,
-  blocks,
   toolCalls,
-  events,
-  attachments,
+  users,
 } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { ConversationService } from "./conversationService";
 
 describe("ConversationService", () => {
   let userId: number;

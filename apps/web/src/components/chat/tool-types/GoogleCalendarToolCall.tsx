@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ChevronRight, ChevronDown, Calendar } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
+import { Calendar, ChevronDown, ChevronRight } from "lucide-react";
 
 interface GoogleCalendarToolCallProps {
   toolCall: ToolCall;

@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Clock, Play, CheckCircle, XCircle } from "lucide-react";
 import type { ToolCall } from "@/types/conversation";
-import { BashToolCall } from "./tool-types/BashToolCall";
+import { CheckCircle, Clock, Play, XCircle } from "lucide-react";
+import { useState } from "react";
 import { AsanaToolCall } from "./tool-types/AsanaToolCall";
-import { GoogleCalendarToolCall } from "./tool-types/GoogleCalendarToolCall";
-import { GmailToolCall } from "./tool-types/GmailToolCall";
+import { BashToolCall } from "./tool-types/BashToolCall";
 import { DefaultToolCall } from "./tool-types/DefaultToolCall";
+import { GmailToolCall } from "./tool-types/GmailToolCall";
+import { GoogleCalendarToolCall } from "./tool-types/GoogleCalendarToolCall";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;

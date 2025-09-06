@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
 
 // Mock child_process using bun's mock

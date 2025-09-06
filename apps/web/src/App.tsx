@@ -1,15 +1,15 @@
-import { ConversationView } from "@/components/chat/ConversationView";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
+import { ConversationView } from "@/components/chat/ConversationView";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Routes, Route, useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 // Component for the conversation route
 function ConversationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const conversationId = id ? parseInt(id, 10) : undefined;
+  const conversationId = id ? Number.parseInt(id, 10) : undefined;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);

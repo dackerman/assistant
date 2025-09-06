@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
-import type { ToolSession, ToolConfig } from "./toolSession.js";
-import { ProcessSession } from "./processSession.js";
 import { Logger } from "../utils/logger.js";
+import { ProcessSession } from "./processSession.js";
+import type { ToolConfig, ToolSession } from "./toolSession.js";
 
 export class SessionManager {
   private sessions = new Map<string, ToolSession>();

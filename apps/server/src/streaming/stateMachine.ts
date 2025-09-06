@@ -1,22 +1,22 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import {
-  prompts,
-  messages,
-  blocks,
   events,
-  toolCalls,
-  type NewEvent,
   type NewBlock,
+  type NewEvent,
   type NewToolCall,
+  blocks,
+  messages,
+  prompts,
+  toolCalls,
 } from "../db/schema";
-import { eq, and, inArray } from "drizzle-orm";
-import type { StreamEvent } from "./types";
-import { Logger } from "../utils/logger";
 import type { ToolExecutorService } from "../services/toolExecutorService";
+import { Logger } from "../utils/logger";
+import type { StreamEvent } from "./types";
 
 export class StreamingStateMachine {
   private promptId: number;
-  private eventIndex: number = 0;
+  private eventIndex = 0;
   private db: any;
   private logger: Logger;
   private toolExecutor?: ToolExecutorService;
