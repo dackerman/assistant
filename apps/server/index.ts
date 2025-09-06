@@ -25,10 +25,6 @@ const anthropic = new Anthropic({
 });
 
 const conversationService = new ConversationService();
-const toolExecutorService = new ToolExecutorService();
-
-// Initialize the tool executor
-toolExecutorService.initialize();
 
 // Enable CORS for frontend
 app.use(
@@ -206,6 +202,7 @@ const server = createServer(async (req, res) => {
             },
           })
         : undefined,
+    duplex: req.method !== "GET" && req.method !== "HEAD" ? "half" : undefined,
   });
 
   try {
@@ -261,6 +258,32 @@ type OutgoingMessage =
       promptId: number;
       currentState: string;
       content: string;
+    }
+  | {
+      type: "tool_call_started";
+      promptId: number;
+      toolCallId: number;
+      toolName: string;
+      parameters: Record<string, unknown>;
+    }
+  | {
+      type: "tool_call_output_delta";
+      promptId: number;
+      toolCallId: number;
+      stream: "stdout" | "stderr";
+      delta: string;
+    }
+  | {
+      type: "tool_call_completed";
+      promptId: number;
+      toolCallId: number;
+      exitCode: number;
+    }
+  | {
+      type: "tool_call_error";
+      promptId: number;
+      toolCallId: number;
+      error: string;
     };
 
 type ClientMessage =
@@ -305,6 +328,10 @@ function broadcast(conversationId: number, payload: OutgoingMessage) {
     payloadSize: data.length,
   });
 }
+
+// Initialize ToolExecutorService with broadcast capability
+const toolExecutorService = new ToolExecutorService({}, broadcast);
+toolExecutorService.initialize();
 
 wss.on("connection", (ws: WebSocket) => {
   const wsId = Math.random().toString(36).substring(7);
@@ -480,6 +507,13 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
     undefined, // Use default db
     toolExecutorService,
   );
+
+  // Track tool call information by block index
+  const toolCallsByBlockIndex = new Map<number, {
+    apiToolCallId: string;
+    toolName: string;
+    input: any;
+  }>();
 
   try {
     // Get prompt details to retrieve the model
@@ -721,6 +755,13 @@ Query: ${userQuery}
             blockIndex: event.index,
           });
 
+          // Store tool call info for later use in block_end
+          toolCallsByBlockIndex.set(event.index, {
+            apiToolCallId: event.content_block.id,
+            toolName: event.content_block.name,
+            input: event.content_block.input || {},
+          });
+
           await stateMachine.processStreamEvent({
             type: "block_start",
             blockType: "tool_call",
@@ -784,6 +825,8 @@ Query: ${userQuery}
             partialJson: event.delta.partial_json,
           });
 
+          // We'll parse the complete JSON when the block ends
+
           await stateMachine.processStreamEvent({
             type: "block_delta",
             blockIndex: event.index,
@@ -800,10 +843,49 @@ Query: ${userQuery}
           index: event.index,
         });
 
+        // Check if this is a tool call block and get the complete data
+        const toolCallInfo = toolCallsByBlockIndex.get(event.index);
+        let toolCallData = undefined;
+        
+        if (toolCallInfo) {
+          // Get the complete JSON content from the block to parse the final input
+          try {
+            const blockContent = await stateMachine.getBlockContent(event.index);
+            if (blockContent) {
+              try {
+                const parsedInput = JSON.parse(blockContent);
+                toolCallData = {
+                  apiToolCallId: toolCallInfo.apiToolCallId,
+                  toolName: toolCallInfo.toolName,
+                  request: parsedInput,
+                };
+                
+                anthropicLogger.info("Tool call data prepared for block end", {
+                  toolName: toolCallInfo.toolName,
+                  apiToolCallId: toolCallInfo.apiToolCallId,
+                  request: parsedInput,
+                });
+              } catch (parseError) {
+                anthropicLogger.warn("Failed to parse tool call JSON", {
+                  blockContent,
+                  error: parseError instanceof Error ? parseError.message : String(parseError),
+                });
+              }
+            }
+          } catch (error) {
+            anthropicLogger.error("Failed to get block content for tool call", {
+              blockIndex: event.index,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
         // Process block end event for state machine
         await stateMachine.processStreamEvent({
           type: "block_end",
+          blockType: toolCallData ? "tool_call" : undefined,
           blockIndex: event.index,
+          toolCallData,
         });
       } else if (event.type === "message_delta") {
         anthropicLogger.info("Message delta received", {

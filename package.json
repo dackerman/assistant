@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "turbo dev",
+    "dev:logs": "LOG_TO_FILE=true LOG_DIR=./logs turbo dev",
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",

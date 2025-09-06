@@ -20,6 +20,11 @@ interface WebSocketMessage {
   currentState?: string;
   content?: string;
   title?: string;
+  toolCallId?: number;
+  toolName?: string;
+  parameters?: Record<string, unknown>;
+  stream?: "stdout" | "stderr";
+  exitCode?: number;
 }
 
 export function useWebSocket(
@@ -32,6 +37,10 @@ export function useWebSocket(
     state: string,
   ) => void,
   onTitleGenerated?: (title: string) => void,
+  onToolCallStarted?: (promptId: number, toolCallId: number, toolName: string, parameters: Record<string, unknown>) => void,
+  onToolCallOutputDelta?: (promptId: number, toolCallId: number, stream: "stdout" | "stderr", delta: string) => void,
+  onToolCallCompleted?: (promptId: number, toolCallId: number, exitCode: number) => void,
+  onToolCallError?: (promptId: number, toolCallId: number, error: string) => void,
 ): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -46,6 +55,10 @@ export function useWebSocket(
   const onStreamErrorRef = useRef(onStreamError);
   const onSnapshotReceivedRef = useRef(onSnapshotReceived);
   const onTitleGeneratedRef = useRef(onTitleGenerated);
+  const onToolCallStartedRef = useRef(onToolCallStarted);
+  const onToolCallOutputDeltaRef = useRef(onToolCallOutputDelta);
+  const onToolCallCompletedRef = useRef(onToolCallCompleted);
+  const onToolCallErrorRef = useRef(onToolCallError);
 
   // Update refs when callbacks change
   onTextDeltaRef.current = onTextDelta;
@@ -53,6 +66,10 @@ export function useWebSocket(
   onStreamErrorRef.current = onStreamError;
   onSnapshotReceivedRef.current = onSnapshotReceived;
   onTitleGeneratedRef.current = onTitleGenerated;
+  onToolCallStartedRef.current = onToolCallStarted;
+  onToolCallOutputDeltaRef.current = onToolCallOutputDelta;
+  onToolCallCompletedRef.current = onToolCallCompleted;
+  onToolCallErrorRef.current = onToolCallError;
 
   useEffect(() => {
     const connect = () => {
@@ -168,6 +185,34 @@ export function useWebSocket(
             if (data.title) {
               console.log("Title generated:", data.title);
               onTitleGeneratedRef.current?.(data.title);
+            }
+            break;
+
+          case "tool_call_started":
+            if (data.promptId && data.toolCallId && data.toolName && data.parameters) {
+              console.log("Tool call started:", data.toolName, data.toolCallId);
+              onToolCallStartedRef.current?.(data.promptId, data.toolCallId, data.toolName, data.parameters);
+            }
+            break;
+
+          case "tool_call_output_delta":
+            if (data.promptId && data.toolCallId && data.stream && data.delta !== undefined) {
+              console.log("Tool call output delta:", data.toolCallId, data.stream, data.delta.length);
+              onToolCallOutputDeltaRef.current?.(data.promptId, data.toolCallId, data.stream, data.delta);
+            }
+            break;
+
+          case "tool_call_completed":
+            if (data.promptId && data.toolCallId && data.exitCode !== undefined) {
+              console.log("Tool call completed:", data.toolCallId, "exit code:", data.exitCode);
+              onToolCallCompletedRef.current?.(data.promptId, data.toolCallId, data.exitCode);
+            }
+            break;
+
+          case "tool_call_error":
+            if (data.promptId && data.toolCallId && data.error) {
+              console.log("Tool call error:", data.toolCallId, data.error);
+              onToolCallErrorRef.current?.(data.promptId, data.toolCallId, data.error);
             }
             break;
 

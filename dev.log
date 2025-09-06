@@ -1,0 +1,1013 @@
+
+> core@ dev /home/david/code/core
+> turbo dev
+
+turbo 2.5.6
+
+• Packages in scope: server, web
+• Running dev in 2 packages
+• Remote caching disabled
+web:dev: cache bypass, force executing 3c89b4e13d8d7dbc
+server:dev: cache bypass, force executing 9cb61a43b263df7f
+server:dev: 
+server:dev: > server@ dev /home/david/code/core/apps/server
+server:dev: > tsx watch index.ts
+server:dev: 
+web:dev: 
+web:dev: > web@0.0.0 dev /home/david/code/core/apps/web
+web:dev: > vite
+web:dev: 
+web:dev: 
+web:dev:   VITE v7.1.4  ready in 143 ms
+web:dev: 
+web:dev:   ➜  Local:   http://localhost:4000/
+web:dev:   ➜  Network: http://192.168.1.239:4000/
+web:dev:   ➜  Network: http://100.65.188.67:4000/
+web:dev:   ➜  Network: http://172.18.0.1:4000/
+web:dev:   ➜  Network: http://172.17.0.1:4000/
+web:dev:   ➜  Network: http://172.20.0.1:4000/
+web:dev:   ➜  Network: http://172.19.0.1:4000/
+web:dev:   ➜  Network: http://172.21.0.1:4000/
+server:dev: 2025-09-06T22:36:34.945Z INFO  Server starting up {
+server:dev:   port: '4001',
+server:dev:   nodeEnv: 'development',
+server:dev:   anthropicApiKey: true,
+server:dev:   supportedModels: [ 'claude-sonnet-4-20250514', 'claude-opus-4-1-20250805' ],
+server:dev:   defaultModel: 'claude-sonnet-4-20250514'
+server:dev: }
+server:dev: 2025-09-06T22:36:34.954Z INFO  Server ready {
+server:dev:   httpUrl: 'http://0.0.0.0:4001',
+server:dev:   wsUrl: 'ws://0.0.0.0:4001',
+server:dev:   port: 4001
+server:dev: }
+server:dev: 2025-09-06T22:36:42.084Z INFO  Checking for active stream [wsClientId=jqt59r, conversationId=15] 
+server:dev: 2025-09-06T22:36:42.101Z INFO  No active stream found for conversation [wsClientId=jqt59r, conversationId=15] 
+server:dev: 2025-09-06T22:41:43.127Z INFO  Checking for active stream [wsClientId=tcdc9n, conversationId=25] 
+server:dev: 2025-09-06T22:41:43.130Z INFO  No active stream found for conversation [wsClientId=tcdc9n, conversationId=25] 
+server:dev: 2025-09-06T22:41:44.546Z INFO  Checking for active stream [wsClientId=lwxlxf, conversationId=25] 
+server:dev: 2025-09-06T22:41:44.589Z INFO  No active stream found for conversation [wsClientId=lwxlxf, conversationId=25] 
+server:dev: 2025-09-06T22:41:47.616Z INFO  Checking for active stream [wsClientId=xe8vr, conversationId=25] 
+server:dev: 2025-09-06T22:41:47.619Z INFO  No active stream found for conversation [wsClientId=xe8vr, conversationId=25] 
+server:dev: 2025-09-06T22:42:18.837Z INFO  Using model: claude-sonnet-4-20250514 [wsClientId=xe8vr, conversationId=26, contentLength=36, requestedModel=claude-sonnet-4-20250514] 
+server:dev: 2025-09-06T22:42:18.838Z INFO  Creating user message [wsClientId=xe8vr, conversationId=26, contentLength=36, requestedModel=claude-sonnet-4-20250514] 
+server:dev: 2025-09-06T22:42:18.838Z INFO  Creating user message and starting assistant response [service=ConversationService, conversationId=26, contentLength=36, model=claude-sonnet-4-20250514] 
+server:dev: 2025-09-06T22:42:18.844Z INFO  Creating user message record [service=ConversationService, conversationId=26, contentLength=36, model=claude-sonnet-4-20250514] {
+server:dev:   table: 'messages',
+server:dev:   record: { conversationId: 26, role: 'user', isComplete: true }
+server:dev: }
+server:dev: 2025-09-06T22:42:18.851Z INFO  User message created [service=ConversationService, conversationId=26, contentLength=36, model=claude-sonnet-4-20250514] { userMessageId: 43, conversationId: 26 }
+server:dev: 2025-09-06T22:42:18.864Z INFO  Starting Anthropic stream [wsClientId=xe8vr, conversationId=26, contentLength=36, requestedModel=claude-sonnet-4-20250514] { promptId: 43 }
+server:dev: 2025-09-06T22:42:18.865Z INFO  Starting Anthropic stream [promptId=43, conversationId=26] 
+server:dev: 2025-09-06T22:42:18.865Z INFO  StreamingStateMachine initialized [promptId=43] { hasToolExecutor: true }
+server:dev: 2025-09-06T22:42:18.865Z INFO  Fetching prompt details [promptId=43, conversationId=26] 
+server:dev: 2025-09-06T22:42:18.866Z INFO  Building conversation history from database [promptId=43, conversationId=26] 
+server:dev: 2025-09-06T22:42:18.871Z INFO  Conversation history built [promptId=43, conversationId=26] {
+server:dev:   messageCount: 1,
+server:dev:   messages: [
+server:dev:     {
+server:dev:       index: 0,
+server:dev:       role: 'user',
+server:dev:       contentLength: 36,
+server:dev:       contentPreview: 'curl the top 3 links on hacker news '
+server:dev:     }
+server:dev:   ]
+server:dev: }
+server:dev: 2025-09-06T22:42:18.871Z INFO  Making Anthropic API request [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   model: 'claude-sonnet-4-20250514',
+server:dev:   maxTokens: 4000,
+server:dev:   messageCount: 1,
+server:dev:   systemMessageLength: 601
+server:dev: }
+server:dev: 2025-09-06T22:42:18.896Z INFO  Checking for active stream [wsClientId=xe8vr, conversationId=26] 
+server:dev: 2025-09-06T22:42:18.898Z INFO  No active stream found for conversation [wsClientId=xe8vr, conversationId=26] 
+server:dev: 2025-09-06T22:42:21.241Z INFO  Anthropic stream created [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { requestDuration: 2370, streamType: 'AsyncIterator' }
+server:dev: 2025-09-06T22:42:21.247Z INFO  Message start received, initializing text block [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   message: {
+server:dev:     id: 'msg_01SWuig94n1QCCQGLpkZzijd',
+server:dev:     type: 'message',
+server:dev:     role: 'assistant',
+server:dev:     model: 'claude-sonnet-4-20250514',
+server:dev:     content: [],
+server:dev:     stop_reason: null,
+server:dev:     stop_sequence: null,
+server:dev:     usage: {
+server:dev:       input_tokens: 721,
+server:dev:       cache_creation_input_tokens: 0,
+server:dev:       cache_read_input_tokens: 0,
+server:dev:       cache_creation: [Object],
+server:dev:       output_tokens: 5,
+server:dev:       service_tier: 'standard'
+server:dev:     }
+server:dev:   },
+server:dev:   usage: {
+server:dev:     input_tokens: 721,
+server:dev:     cache_creation_input_tokens: 0,
+server:dev:     cache_read_input_tokens: 0,
+server:dev:     cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 },
+server:dev:     output_tokens: 5,
+server:dev:     service_tier: 'standard'
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.248Z INFO  Processing block_start event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.249Z INFO  Processing stream event: block_start [promptId=43, eventIndex=0, eventType=block_start, blockType=text, blockIndex=0] { deltaLength: undefined, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.252Z INFO  Storing raw event in database [promptId=43, eventIndex=0, eventType=block_start, blockType=text, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 0,
+server:dev:   eventType: 'block_start',
+server:dev:   blockType: 'text',
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: 'undefined',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.256Z INFO  Starting new block: text [promptId=43, blockType=text, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.256Z INFO  Creating new block in database [promptId=43, blockType=text, blockIndex=0] {
+server:dev:   table: 'blocks',
+server:dev:   record: {
+server:dev:     promptId: 43,
+server:dev:     type: 'text',
+server:dev:     indexNum: 0,
+server:dev:     content: '',
+server:dev:     metadata: undefined
+server:dev:   },
+server:dev:   hasMetadata: false,
+server:dev:   metadataKeys: []
+server:dev: }
+server:dev: 2025-09-06T22:42:21.257Z INFO  State transition: CREATED → IN_PROGRESS [promptId=43, blockType=text, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.257Z INFO  Block started successfully: text [promptId=43, blockType=text, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.265Z INFO  Successfully processed stream event: block_start [promptId=43, eventIndex=0, eventType=block_start, blockType=text, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.265Z INFO  Content block start received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 0, contentBlock: { type: 'text', text: '' } }
+server:dev: 2025-09-06T22:42:21.265Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 0, delta: { type: 'text_delta', text: "I'll help you curl" } }
+server:dev: 2025-09-06T22:42:21.265Z INFO  Processing text delta [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   deltaLength: 18,
+server:dev:   totalTextReceived: 18,
+server:dev:   deltaText: "I'll help you curl",
+server:dev:   deltaPreview: "I'll help you curl"
+server:dev: }
+server:dev: 2025-09-06T22:42:21.265Z INFO  Processing block_delta event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.265Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=1, eventType=block_delta, blockType=undefined, blockIndex=0] { deltaLength: 18, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.266Z INFO  Storing raw event in database [promptId=43, eventIndex=1, eventType=block_delta, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 1,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 18,
+server:dev:   deltaContent: "I'll help you curl",
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.268Z INFO  Updating block content in database [promptId=43, blockIndex=0, deltaLength=18] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 61,
+server:dev:   blockIndex: 0,
+server:dev:   oldContentLength: 0,
+server:dev:   newContentLength: 18,
+server:dev:   deltaLength: 18,
+server:dev:   deltaContent: "I'll help you curl",
+server:dev:   newContentPreview: "I'll help you curl"
+server:dev: }
+server:dev: 2025-09-06T22:42:21.271Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=1, eventType=block_delta, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.271Z INFO  Broadcasting delta to 1 subscribers [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   broadcastPayload: { type: 'text_delta', promptId: 43, delta: "I'll help you curl" }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.272Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   delta: {
+server:dev:     type: 'text_delta',
+server:dev:     text: ' the top 3 links on Hacker News. First'
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.272Z INFO  Processing text delta [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   deltaLength: 38,
+server:dev:   totalTextReceived: 56,
+server:dev:   deltaText: ' the top 3 links on Hacker News. First',
+server:dev:   deltaPreview: ' the top 3 links on Hacker News. First'
+server:dev: }
+server:dev: 2025-09-06T22:42:21.272Z INFO  Processing block_delta event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.272Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=2, eventType=block_delta, blockType=undefined, blockIndex=0] { deltaLength: 38, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.273Z INFO  Storing raw event in database [promptId=43, eventIndex=2, eventType=block_delta, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 2,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 38,
+server:dev:   deltaContent: ' the top 3 links on Hacker News. First',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.274Z INFO  Updating block content in database [promptId=43, blockIndex=0, deltaLength=38] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 61,
+server:dev:   blockIndex: 0,
+server:dev:   oldContentLength: 18,
+server:dev:   newContentLength: 56,
+server:dev:   deltaLength: 38,
+server:dev:   deltaContent: ' the top 3 links on Hacker News. First',
+server:dev:   newContentPreview: "I'll help you curl the top 3 links on Hacker News. First"
+server:dev: }
+server:dev: 2025-09-06T22:42:21.277Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=2, eventType=block_delta, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.277Z INFO  Broadcasting delta to 1 subscribers [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   broadcastPayload: {
+server:dev:     type: 'text_delta',
+server:dev:     promptId: 43,
+server:dev:     delta: ' the top 3 links on Hacker News. First'
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.297Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   delta: { type: 'text_delta', text: ', let me fetch the Hacker News front' }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.298Z INFO  Processing text delta [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   deltaLength: 36,
+server:dev:   totalTextReceived: 92,
+server:dev:   deltaText: ', let me fetch the Hacker News front',
+server:dev:   deltaPreview: ', let me fetch the Hacker News front'
+server:dev: }
+server:dev: 2025-09-06T22:42:21.298Z INFO  Processing block_delta event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.298Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=3, eventType=block_delta, blockType=undefined, blockIndex=0] { deltaLength: 36, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.298Z INFO  Storing raw event in database [promptId=43, eventIndex=3, eventType=block_delta, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 3,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 36,
+server:dev:   deltaContent: ', let me fetch the Hacker News front',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.300Z INFO  Updating block content in database [promptId=43, blockIndex=0, deltaLength=36] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 61,
+server:dev:   blockIndex: 0,
+server:dev:   oldContentLength: 56,
+server:dev:   newContentLength: 92,
+server:dev:   deltaLength: 36,
+server:dev:   deltaContent: ', let me fetch the Hacker News front',
+server:dev:   newContentPreview: "I'll help you curl the top 3 links on Hacker News. First, let me fetch the Hacker News front"
+server:dev: }
+server:dev: 2025-09-06T22:42:21.303Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=3, eventType=block_delta, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.303Z INFO  Broadcasting delta to 1 subscribers [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   broadcastPayload: {
+server:dev:     type: 'text_delta',
+server:dev:     promptId: 43,
+server:dev:     delta: ', let me fetch the Hacker News front'
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.304Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   delta: { type: 'text_delta', text: ' page and extract the top 3 story' }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.304Z INFO  Processing text delta [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   deltaLength: 33,
+server:dev:   totalTextReceived: 125,
+server:dev:   deltaText: ' page and extract the top 3 story',
+server:dev:   deltaPreview: ' page and extract the top 3 story'
+server:dev: }
+server:dev: 2025-09-06T22:42:21.304Z INFO  Processing block_delta event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.304Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=4, eventType=block_delta, blockType=undefined, blockIndex=0] { deltaLength: 33, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.304Z INFO  Storing raw event in database [promptId=43, eventIndex=4, eventType=block_delta, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 4,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 33,
+server:dev:   deltaContent: ' page and extract the top 3 story',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.306Z INFO  Updating block content in database [promptId=43, blockIndex=0, deltaLength=33] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 61,
+server:dev:   blockIndex: 0,
+server:dev:   oldContentLength: 92,
+server:dev:   newContentLength: 125,
+server:dev:   deltaLength: 33,
+server:dev:   deltaContent: ' page and extract the top 3 story',
+server:dev:   newContentPreview: "I'll help you curl the top 3 links on Hacker News. First, let me fetch the Hacker News front page and extract the top 3 story"
+server:dev: }
+server:dev: 2025-09-06T22:42:21.310Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=4, eventType=block_delta, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.310Z INFO  Broadcasting delta to 1 subscribers [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   broadcastPayload: {
+server:dev:     type: 'text_delta',
+server:dev:     promptId: 43,
+server:dev:     delta: ' page and extract the top 3 story'
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.310Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 0, delta: { type: 'text_delta', text: ' URLs.' } }
+server:dev: 2025-09-06T22:42:21.310Z INFO  Processing text delta [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 0,
+server:dev:   deltaLength: 6,
+server:dev:   totalTextReceived: 131,
+server:dev:   deltaText: ' URLs.',
+server:dev:   deltaPreview: ' URLs.'
+server:dev: }
+server:dev: 2025-09-06T22:42:21.310Z INFO  Processing block_delta event for state machine [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:21.310Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=5, eventType=block_delta, blockType=undefined, blockIndex=0] { deltaLength: 6, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.311Z INFO  Storing raw event in database [promptId=43, eventIndex=5, eventType=block_delta, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 5,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: ' URLs.',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.313Z INFO  Updating block content in database [promptId=43, blockIndex=0, deltaLength=6] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 61,
+server:dev:   blockIndex: 0,
+server:dev:   oldContentLength: 125,
+server:dev:   newContentLength: 131,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: ' URLs.',
+server:dev:   newContentPreview: "I'll help you curl the top 3 links on Hacker News. First, let me fetch the Hacker News front page and extract the top 3 story URLs."
+server:dev: }
+server:dev: 2025-09-06T22:42:21.315Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=5, eventType=block_delta, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.315Z INFO  Broadcasting delta to 1 subscribers [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   broadcastPayload: { type: 'text_delta', promptId: 43, delta: ' URLs.' }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.526Z INFO  Content block stop received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 0 }
+server:dev: 2025-09-06T22:42:21.527Z INFO  Processing stream event: block_end [promptId=43, eventIndex=6, eventType=block_end, blockType=undefined, blockIndex=0] { deltaLength: undefined, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.529Z INFO  Storing raw event in database [promptId=43, eventIndex=6, eventType=block_end, blockType=undefined, blockIndex=0] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 6,
+server:dev:   eventType: 'block_end',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 0,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: 'undefined',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.533Z INFO  Block end: undefined [promptId=43, blockType=undefined, blockIndex=0] { hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.534Z INFO  Block end completed (no tool call data) [promptId=43, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.546Z INFO  Successfully processed stream event: block_end [promptId=43, eventIndex=6, eventType=block_end, blockType=undefined, blockIndex=0] 
+server:dev: 2025-09-06T22:42:21.547Z INFO  Content block start received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   contentBlock: {
+server:dev:     type: 'tool_use',
+server:dev:     id: 'toolu_01TNwS8f17ehPSpuPqBjwSyv',
+server:dev:     name: 'bash',
+server:dev:     input: {}
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:21.548Z INFO  Processing tool_use block start [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   toolName: 'bash',
+server:dev:   toolId: 'toolu_01TNwS8f17ehPSpuPqBjwSyv',
+server:dev:   blockIndex: 1
+server:dev: }
+server:dev: 2025-09-06T22:42:21.549Z INFO  Processing stream event: block_start [promptId=43, eventIndex=7, eventType=block_start, blockType=tool_call, blockIndex=1] { deltaLength: undefined, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.550Z INFO  Storing raw event in database [promptId=43, eventIndex=7, eventType=block_start, blockType=tool_call, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 7,
+server:dev:   eventType: 'block_start',
+server:dev:   blockType: 'tool_call',
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: 'undefined',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.555Z INFO  Starting new block: tool_call [promptId=43, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:21.555Z INFO  Creating new block in database [promptId=43, blockType=tool_call, blockIndex=1] {
+server:dev:   table: 'blocks',
+server:dev:   record: {
+server:dev:     promptId: 43,
+server:dev:     type: 'tool_call',
+server:dev:     indexNum: 1,
+server:dev:     content: '',
+server:dev:     metadata: undefined
+server:dev:   },
+server:dev:   hasMetadata: false,
+server:dev:   metadataKeys: []
+server:dev: }
+server:dev: 2025-09-06T22:42:21.559Z INFO  State transition: CREATED → IN_PROGRESS [promptId=43, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:21.564Z INFO  Block started successfully: tool_call [promptId=43, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:21.567Z INFO  Successfully processed stream event: block_start [promptId=43, eventIndex=7, eventType=block_start, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:21.567Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: '' } }
+server:dev: 2025-09-06T22:42:21.568Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: '' }
+server:dev: 2025-09-06T22:42:21.568Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=8, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 0, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:21.569Z INFO  Storing raw event in database [promptId=43, eventIndex=8, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 8,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: '',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:21.578Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=0] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 0,
+server:dev:   newContentLength: 0,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: '',
+server:dev:   newContentPreview: ''
+server:dev: }
+server:dev: 2025-09-06T22:42:21.585Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=8, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.236Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: '{"command":' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.237Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: '{"command":' }
+server:dev: 2025-09-06T22:42:22.237Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=9, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 11, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.239Z INFO  Storing raw event in database [promptId=43, eventIndex=9, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 9,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 11,
+server:dev:   deltaContent: '{"command":',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.246Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=11] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 0,
+server:dev:   newContentLength: 11,
+server:dev:   deltaLength: 11,
+server:dev:   deltaContent: '{"command":',
+server:dev:   newContentPreview: '{"command":'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.252Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=9, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.252Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: ' "c' } }
+server:dev: 2025-09-06T22:42:22.253Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: ' "c' }
+server:dev: 2025-09-06T22:42:22.253Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=10, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 3, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.254Z INFO  Storing raw event in database [promptId=43, eventIndex=10, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 10,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: ' "c',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.262Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=3] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 11,
+server:dev:   newContentLength: 14,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: ' "c',
+server:dev:   newContentPreview: '{"command": "c'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.267Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=10, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.268Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: 'url' } }
+server:dev: 2025-09-06T22:42:22.269Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: 'url' }
+server:dev: 2025-09-06T22:42:22.269Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=11, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 3, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.270Z INFO  Storing raw event in database [promptId=43, eventIndex=11, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 11,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: 'url',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.278Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=3] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 14,
+server:dev:   newContentLength: 17,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: 'url',
+server:dev:   newContentPreview: '{"command": "curl'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.284Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=11, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.285Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: ' -s https://' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.285Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: ' -s https://' }
+server:dev: 2025-09-06T22:42:22.286Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=12, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 12, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.287Z INFO  Storing raw event in database [promptId=43, eventIndex=12, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 12,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: ' -s https://',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.293Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=12] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 17,
+server:dev:   newContentLength: 29,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: ' -s https://',
+server:dev:   newContentPreview: '{"command": "curl -s https://'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.297Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=12, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.298Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: 'news.' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.298Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: 'news.' }
+server:dev: 2025-09-06T22:42:22.298Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=13, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 5, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.299Z INFO  Storing raw event in database [promptId=43, eventIndex=13, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 13,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 5,
+server:dev:   deltaContent: 'news.',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.302Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=5] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 29,
+server:dev:   newContentLength: 34,
+server:dev:   deltaLength: 5,
+server:dev:   deltaContent: 'news.',
+server:dev:   newContentPreview: '{"command": "curl -s https://news.'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.305Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=13, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.305Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: 'ycom' } }
+server:dev: 2025-09-06T22:42:22.306Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: 'ycom' }
+server:dev: 2025-09-06T22:42:22.306Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=14, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 4, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.306Z INFO  Storing raw event in database [promptId=43, eventIndex=14, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 14,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 4,
+server:dev:   deltaContent: 'ycom',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.309Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=4] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 34,
+server:dev:   newContentLength: 38,
+server:dev:   deltaLength: 4,
+server:dev:   deltaContent: 'ycom',
+server:dev:   newContentPreview: '{"command": "curl -s https://news.ycom'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.312Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=14, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.312Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: 'binator.com/' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.313Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: 'binator.com/' }
+server:dev: 2025-09-06T22:42:22.313Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=15, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 12, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.314Z INFO  Storing raw event in database [promptId=43, eventIndex=15, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 15,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: 'binator.com/',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.318Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=12] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 38,
+server:dev:   newContentLength: 50,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: 'binator.com/',
+server:dev:   newContentPreview: '{"command": "curl -s https://news.ycombinator.com/'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.322Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=15, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.322Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: ' | gre' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.322Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: ' | gre' }
+server:dev: 2025-09-06T22:42:22.323Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=16, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 6, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.324Z INFO  Storing raw event in database [promptId=43, eventIndex=16, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 16,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: ' | gre',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.328Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=6] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 50,
+server:dev:   newContentLength: 56,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: ' | gre',
+server:dev:   newContentPreview: '{"command": "curl -s https://news.ycombinator.com/ | gre'
+server:dev: }
+server:dev: 2025-09-06T22:42:22.332Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=16, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.332Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: "p -o '" }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.332Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: "p -o '" }
+server:dev: 2025-09-06T22:42:22.332Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=17, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 6, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.333Z INFO  Storing raw event in database [promptId=43, eventIndex=17, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 17,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: "p -o '",
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.337Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=6] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 56,
+server:dev:   newContentLength: 62,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: "p -o '",
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o '`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.342Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=17, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.342Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: 'href=\\"[^\\"]' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.342Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: 'href=\\"[^\\"]' }
+server:dev: 2025-09-06T22:42:22.342Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=18, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 12, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.342Z INFO  Storing raw event in database [promptId=43, eventIndex=18, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 18,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: 'href=\\"[^\\"]',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.345Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=12] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 62,
+server:dev:   newContentLength: 74,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: 'href=\\"[^\\"]',
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.348Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=18, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.348Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: '*\\"' } }
+server:dev: 2025-09-06T22:42:22.348Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: '*\\"' }
+server:dev: 2025-09-06T22:42:22.349Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=19, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 3, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.349Z INFO  Storing raw event in database [promptId=43, eventIndex=19, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 19,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: '*\\"',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.351Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=3] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 74,
+server:dev:   newContentLength: 77,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: '*\\"',
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.354Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=19, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.354Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: "' | gr" }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.354Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: "' | gr" }
+server:dev: 2025-09-06T22:42:22.354Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=20, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 6, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.354Z INFO  Storing raw event in database [promptId=43, eventIndex=20, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 20,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: "' | gr",
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.356Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=6] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 77,
+server:dev:   newContentLength: 83,
+server:dev:   deltaLength: 6,
+server:dev:   deltaContent: "' | gr",
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"' | gr`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.359Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=20, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.359Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: "ep -E '^href" }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.359Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: "ep -E '^href" }
+server:dev: 2025-09-06T22:42:22.359Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=21, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 12, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.359Z INFO  Storing raw event in database [promptId=43, eventIndex=21, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 21,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: "ep -E '^href",
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.361Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=12] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 83,
+server:dev:   newContentLength: 95,
+server:dev:   deltaLength: 12,
+server:dev:   deltaContent: "ep -E '^href",
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"' | grep -E '^href`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.364Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=21, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.364Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: `=\\"http' ` }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.364Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: `=\\"http' ` }
+server:dev: 2025-09-06T22:42:22.364Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=22, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 9, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.364Z INFO  Storing raw event in database [promptId=43, eventIndex=22, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 22,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 9,
+server:dev:   deltaContent: `=\\"http' `,
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.366Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=9] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 95,
+server:dev:   newContentLength: 104,
+server:dev:   deltaLength: 9,
+server:dev:   deltaContent: `=\\"http' `,
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"' | grep -E '^href=\\"http' `
+server:dev: }
+server:dev: 2025-09-06T22:42:22.368Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=22, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.368Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   index: 1,
+server:dev:   delta: { type: 'input_json_delta', partial_json: '| head -' }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.368Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: '| head -' }
+server:dev: 2025-09-06T22:42:22.368Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=23, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 8, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.369Z INFO  Storing raw event in database [promptId=43, eventIndex=23, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 23,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 8,
+server:dev:   deltaContent: '| head -',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.371Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=8] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 104,
+server:dev:   newContentLength: 112,
+server:dev:   deltaLength: 8,
+server:dev:   deltaContent: '| head -',
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"' | grep -E '^href=\\"http' | head -`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.373Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=23, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.373Z INFO  Content block delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, delta: { type: 'input_json_delta', partial_json: '3"}' } }
+server:dev: 2025-09-06T22:42:22.373Z INFO  Processing input JSON delta for tool call [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1, partialJson: '3"}' }
+server:dev: 2025-09-06T22:42:22.373Z INFO  Processing stream event: block_delta [promptId=43, eventIndex=24, eventType=block_delta, blockType=undefined, blockIndex=1] { deltaLength: 3, hasMetadata: false, hasToolCallData: false }
+server:dev: 2025-09-06T22:42:22.374Z INFO  Storing raw event in database [promptId=43, eventIndex=24, eventType=block_delta, blockType=undefined, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 24,
+server:dev:   eventType: 'block_delta',
+server:dev:   blockType: undefined,
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: '3"}',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.376Z INFO  Updating block content in database [promptId=43, blockIndex=1, deltaLength=3] {
+server:dev:   table: 'blocks',
+server:dev:   blockId: 62,
+server:dev:   blockIndex: 1,
+server:dev:   oldContentLength: 112,
+server:dev:   newContentLength: 115,
+server:dev:   deltaLength: 3,
+server:dev:   deltaContent: '3"}',
+server:dev:   newContentPreview: `{"command": "curl -s https://news.ycombinator.com/ | grep -o 'href=\\"[^\\"]*\\"' | grep -E '^href=\\"http' | head -3"}`
+server:dev: }
+server:dev: 2025-09-06T22:42:22.378Z INFO  Successfully processed stream event: block_delta [promptId=43, eventIndex=24, eventType=block_delta, blockType=undefined, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.378Z INFO  Content block stop received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { index: 1 }
+server:dev: 2025-09-06T22:42:22.380Z INFO  Tool call data prepared for block end [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   toolName: 'bash',
+server:dev:   apiToolCallId: 'toolu_01TNwS8f17ehPSpuPqBjwSyv',
+server:dev:   request: {
+server:dev:     command: `curl -s https://news.ycombinator.com/ | grep -o 'href="[^"]*"' | grep -E '^href="http' | head -3`
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.380Z INFO  Processing stream event: block_end [promptId=43, eventIndex=25, eventType=block_end, blockType=tool_call, blockIndex=1] { deltaLength: undefined, hasMetadata: false, hasToolCallData: true }
+server:dev: 2025-09-06T22:42:22.380Z INFO  Storing raw event in database [promptId=43, eventIndex=25, eventType=block_end, blockType=tool_call, blockIndex=1] {
+server:dev:   table: 'events',
+server:dev:   promptId: 43,
+server:dev:   eventIndex: 25,
+server:dev:   eventType: 'block_end',
+server:dev:   blockType: 'tool_call',
+server:dev:   blockIndex: 1,
+server:dev:   deltaLength: 0,
+server:dev:   deltaContent: 'undefined',
+server:dev:   hasMetadata: false
+server:dev: }
+server:dev: 2025-09-06T22:42:22.381Z INFO  Block end: tool_call [promptId=43, blockType=tool_call, blockIndex=1] { hasToolCallData: true }
+server:dev: 2025-09-06T22:42:22.381Z INFO  Processing tool call block end [promptId=43, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.382Z INFO  Creating tool call record in database [promptId=43, blockType=tool_call, blockIndex=1] {
+server:dev:   table: 'tool_calls',
+server:dev:   blockId: 62,
+server:dev:   toolName: 'bash',
+server:dev:   apiToolCallId: 'toolu_01TNwS8f17ehPSpuPqBjwSyv',
+server:dev:   request: {
+server:dev:     command: `curl -s https://news.ycombinator.com/ | grep -o 'href="[^"]*"' | grep -E '^href="http' | head -3`
+server:dev:   },
+server:dev:   record: {
+server:dev:     promptId: 43,
+server:dev:     blockId: 62,
+server:dev:     apiToolCallId: 'toolu_01TNwS8f17ehPSpuPqBjwSyv',
+server:dev:     toolName: 'bash',
+server:dev:     state: 'created',
+server:dev:     request: {
+server:dev:       command: `curl -s https://news.ycombinator.com/ | grep -o 'href="[^"]*"' | grep -E '^href="http' | head -3`
+server:dev:     }
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.385Z INFO  Successfully processed stream event: block_end [promptId=43, eventIndex=25, eventType=block_end, blockType=tool_call, blockIndex=1] 
+server:dev: 2025-09-06T22:42:22.753Z INFO  Message delta received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] {
+server:dev:   delta: { stop_reason: 'tool_use', stop_sequence: null },
+server:dev:   usage: {
+server:dev:     input_tokens: 721,
+server:dev:     cache_creation_input_tokens: 0,
+server:dev:     cache_read_input_tokens: 0,
+server:dev:     output_tokens: 132
+server:dev:   }
+server:dev: }
+server:dev: 2025-09-06T22:42:22.754Z INFO  Message stop received [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] { totalEvents: 29, totalTextReceived: 131 }
+server:dev: 2025-09-06T22:42:22.755Z INFO  Handling message stop event [promptId=43] 
+server:dev: 2025-09-06T22:42:22.764Z INFO  State transition: IN_PROGRESS → WAITING_FOR_TOOLS [promptId=43] { pendingToolsCount: 1, toolNames: [ 'bash' ] }
+server:dev: 2025-09-06T22:42:22.777Z INFO  Message stopped, waiting for 1 pending tools [promptId=43] 
+server:dev: 2025-09-06T22:42:22.778Z INFO  Starting tool execution [promptId=43] { pendingToolsCount: 1 }
+server:dev: 2025-09-06T22:42:22.781Z INFO  Stream completed successfully [promptId=43, conversationId=26, model=claude-sonnet-4-20250514, systemMessage=You are a helpful assistant with access to a bash terminal. When users ask you to:
+server:dev: - List files or d...] 
+server:dev: 2025-09-06T22:42:23.404Z INFO  StreamingStateMachine initialized [promptId=43] { hasToolExecutor: false }
+server:dev: 2025-09-06T22:42:23.404Z INFO  Checking tool completion status [promptId=43] 
+server:dev: 2025-09-06T22:42:23.409Z INFO  Tool completion check result [promptId=43] {
+server:dev:   totalTools: 1,
+server:dev:   pendingTools: 0,
+server:dev:   completedTools: 1,
+server:dev:   allComplete: true,
+server:dev:   pendingToolNames: [],
+server:dev:   completedToolNames: [ 'bash' ]
+server:dev: }
+server:dev: 2025-09-06T22:42:23.410Z INFO  Continuing after tool completion [promptId=43] 
+server:dev: 2025-09-06T22:42:23.410Z INFO  Checking tool completion status [promptId=43] 
+server:dev: 2025-09-06T22:42:23.414Z INFO  Tool completion check result [promptId=43] {
+server:dev:   totalTools: 1,
+server:dev:   pendingTools: 0,
+server:dev:   completedTools: 1,
+server:dev:   allComplete: true,
+server:dev:   pendingToolNames: [],
+server:dev:   completedToolNames: [ 'bash' ]
+server:dev: }
+server:dev: 2025-09-06T22:42:23.415Z INFO  State transition: WAITING_FOR_TOOLS → IN_PROGRESS [promptId=43] { completedToolsCount: 1 }
+server:dev: 2025-09-06T22:42:23.420Z INFO  Ready to continue with tool results [promptId=43] {
+server:dev:   toolResultsCount: 1,
+server:dev:   successfulResults: 1,
+server:dev:   errorResults: 0,
+server:dev:   canceledResults: 0
+server:dev: }
+server:dev: 2025-09-06T22:42:23.420Z INFO  Completing prompt [promptId=43] 
+server:dev: 2025-09-06T22:42:23.432Z INFO  State transition: IN_PROGRESS → COMPLETED [promptId=43, messageId=44] 
+server:dev: 2025-09-06T22:42:23.436Z INFO  Prompt completed successfully [promptId=43] 
+server:dev: 2025-09-06T22:42:23.436Z INFO  Tool call 12 completed successfully [promptId=43] { toolName: 'bash' }
+server:dev: 2025-09-06T22:42:23.436Z INFO  All tool executions completed or failed [promptId=43] 
+server:dev: 2025-09-06T22:50:51.841Z INFO  Checking for active stream [wsClientId=2z83ug, conversationId=26] 
+server:dev: 2025-09-06T22:50:51.848Z INFO  No active stream found for conversation [wsClientId=2z83ug, conversationId=26] 

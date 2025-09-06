@@ -146,12 +146,162 @@ export function ConversationView({
     [onTitleUpdate],
   );
 
+  // Tool call handlers for streaming
+  const handleToolCallStarted = useCallback((promptId: number, toolCallId: number, toolName: string, parameters: Record<string, unknown>) => {
+    console.log("Tool call started:", toolName, toolCallId);
+    
+    setMessages((prev) => {
+      const messageIndex = prev.findIndex(
+        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+      );
+
+      if (messageIndex >= 0) {
+        const updated = [...prev];
+        const message = updated[messageIndex];
+        
+        // Initialize toolCalls array if it doesn't exist
+        if (!message.toolCalls) {
+          message.toolCalls = [];
+        }
+        
+        // Add or update tool call
+        const existingToolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
+        const toolCall = {
+          id: toolCallId.toString(),
+          name: toolName,
+          parameters: parameters,
+          status: "running" as const,
+          startTime: new Date().toISOString(),
+        };
+        
+        if (existingToolCallIndex >= 0) {
+          message.toolCalls[existingToolCallIndex] = toolCall;
+        } else {
+          message.toolCalls.push(toolCall);
+        }
+        
+        updated[messageIndex] = { ...message };
+        return updated;
+      }
+      
+      return prev;
+    });
+  }, []);
+
+  const handleToolCallOutputDelta = useCallback((promptId: number, toolCallId: number, stream: "stdout" | "stderr", delta: string) => {
+    console.log("Tool call output delta:", toolCallId, stream, delta.length);
+    
+    setMessages((prev) => {
+      const messageIndex = prev.findIndex(
+        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+      );
+
+      if (messageIndex >= 0) {
+        const updated = [...prev];
+        const message = updated[messageIndex];
+        
+        if (message.toolCalls) {
+          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
+          if (toolCallIndex >= 0) {
+            const toolCall = { ...message.toolCalls[toolCallIndex] };
+            
+            // Initialize result if it doesn't exist
+            if (!toolCall.result) {
+              toolCall.result = "";
+            }
+            
+            // Append delta to result
+            if (typeof toolCall.result === "string") {
+              toolCall.result += delta;
+            } else {
+              toolCall.result = delta;
+            }
+            
+            message.toolCalls[toolCallIndex] = toolCall;
+          }
+        }
+        
+        updated[messageIndex] = { ...message };
+        return updated;
+      }
+      
+      return prev;
+    });
+  }, []);
+
+  const handleToolCallCompleted = useCallback((promptId: number, toolCallId: number, exitCode: number) => {
+    console.log("Tool call completed:", toolCallId, "exit code:", exitCode);
+    
+    setMessages((prev) => {
+      const messageIndex = prev.findIndex(
+        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+      );
+
+      if (messageIndex >= 0) {
+        const updated = [...prev];
+        const message = updated[messageIndex];
+        
+        if (message.toolCalls) {
+          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
+          if (toolCallIndex >= 0) {
+            const toolCall = { ...message.toolCalls[toolCallIndex] };
+            toolCall.status = "completed";
+            toolCall.endTime = new Date().toISOString();
+            
+            message.toolCalls[toolCallIndex] = toolCall;
+          }
+        }
+        
+        updated[messageIndex] = { ...message };
+        return updated;
+      }
+      
+      return prev;
+    });
+  }, []);
+
+  const handleToolCallError = useCallback((promptId: number, toolCallId: number, error: string) => {
+    console.log("Tool call error:", toolCallId, error);
+    
+    setMessages((prev) => {
+      const messageIndex = prev.findIndex(
+        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+      );
+
+      if (messageIndex >= 0) {
+        const updated = [...prev];
+        const message = updated[messageIndex];
+        
+        if (message.toolCalls) {
+          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
+          if (toolCallIndex >= 0) {
+            const toolCall = { ...message.toolCalls[toolCallIndex] };
+            toolCall.status = "error";
+            toolCall.error = error;
+            toolCall.endTime = new Date().toISOString();
+            
+            message.toolCalls[toolCallIndex] = toolCall;
+          }
+        }
+        
+        updated[messageIndex] = { ...message };
+        return updated;
+      }
+      
+      return prev;
+    });
+  }, []);
+
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
     handleTextDelta,
     handleStreamComplete,
     handleStreamError,
     handleSnapshot,
     handleTitleGenerated,
+    handleToolCallStarted,
+    handleToolCallOutputDelta,
+    handleToolCallCompleted,
+    handleToolCallError,
   );
 
   // Sync internal state with conversation ID prop

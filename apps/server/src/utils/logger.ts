@@ -1,3 +1,6 @@
+import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+
 interface LogContext {
   conversationId?: number;
   promptId?: number;
@@ -20,6 +23,8 @@ enum LogLevel {
 class Logger {
   private context: LogContext = {};
   private level: LogLevel = LogLevel.INFO;
+  private logDir: string;
+  private enableFileLogging: boolean;
 
   constructor(initialContext: LogContext = {}) {
     this.context = initialContext;
@@ -29,12 +34,23 @@ class Logger {
     if (envLevel && envLevel in LogLevel) {
       this.level = LogLevel[envLevel as keyof typeof LogLevel];
     }
+
+    // Configure file logging
+    this.enableFileLogging = process.env.LOG_TO_FILE === "true";
+    this.logDir = process.env.LOG_DIR || join(process.cwd(), "logs");
+
+    // Create logs directory if file logging is enabled
+    if (this.enableFileLogging && !existsSync(this.logDir)) {
+      mkdirSync(this.logDir, { recursive: true });
+    }
   }
 
   // Create a new logger with additional context
   child(additionalContext: LogContext): Logger {
     const childLogger = new Logger({ ...this.context, ...additionalContext });
     childLogger.level = this.level;
+    childLogger.enableFileLogging = this.enableFileLogging;
+    childLogger.logDir = this.logDir;
     return childLogger;
   }
 
@@ -52,7 +68,21 @@ class Logger {
       ...(data && { data }),
     };
 
-    // Pretty print for development
+    // Write to file if enabled
+    if (this.enableFileLogging) {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const logFile = join(this.logDir, `app-${today}.log`);
+      const logLine = JSON.stringify(logEntry) + '\n';
+      
+      try {
+        appendFileSync(logFile, logLine);
+      } catch (error) {
+        // If file logging fails, at least log to console
+        console.error('Failed to write to log file:', error);
+      }
+    }
+
+    // Console output
     if (process.env.NODE_ENV === "development") {
       const contextStr =
         Object.keys(this.context).length > 0

@@ -436,6 +436,31 @@ export class StreamingStateMachine {
   }
 
   /**
+   * Get the content of a specific block
+   */
+  async getBlockContent(blockIndex: number): Promise<string | null> {
+    try {
+      const [block] = await this.db
+        .select()
+        .from(blocks)
+        .where(
+          and(
+            eq(blocks.promptId, this.promptId),
+            eq(blocks.indexNum, blockIndex),
+          ),
+        );
+
+      return block?.content || null;
+    } catch (error) {
+      this.logger.error("Failed to get block content", {
+        blockIndex,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Handle stream error
    */
   async handleError(error: string): Promise<void> {
