@@ -6,11 +6,21 @@ To install dependencies:
 bun install
 ```
 
-To run:
+To run in development:
 
 ```bash
-bun run index.ts
+# First, start the development database and seed it with default data
+./scripts/dev-db.sh setup
+
+# Then run the server
+bun run dev
 ```
+
+The setup command will:
+
+- Start a PostgreSQL container on port 55432
+- Run database migrations
+- Seed the database with a default user (required by the app)
 
 ## Testing
 
@@ -58,9 +68,21 @@ Stop the test database when done:
 ./scripts/test-db.sh stop
 ```
 
-### Test Database Management
+### Database Management
 
-The `scripts/test-db.sh` script provides several commands:
+#### Development Database
+
+The `scripts/dev-db.sh` script manages the development database:
+
+- `setup` - Start database and run migrations (recommended)
+- `start` - Start the development database container
+- `stop` - Stop the development database container
+- `migrate` - Run database migrations
+- `status` - Show container status
+
+#### Test Database
+
+The `scripts/test-db.sh` script manages the test database:
 
 - `start` - Start the test database container
 - `stop` - Stop the test database container

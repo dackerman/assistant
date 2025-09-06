@@ -469,7 +469,7 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
   const stateMachine = new StreamingStateMachine(
     promptId,
     undefined, // Use default db
-    toolExecutorService
+    toolExecutorService,
   );
 
   try {
@@ -684,6 +684,26 @@ Query: ${userQuery}
           index: event.index,
           contentBlock: event.content_block,
         });
+
+        // Handle tool use blocks
+        if (event.content_block.type === "tool_use") {
+          anthropicLogger.info("Processing tool_use block start", {
+            toolName: event.content_block.name,
+            toolId: event.content_block.id,
+            blockIndex: event.index,
+          });
+
+          await stateMachine.processStreamEvent({
+            type: "block_start",
+            blockType: "tool_call",
+            blockIndex: event.index,
+          });
+        } else if (event.content_block.type === "text") {
+          // Text blocks are handled elsewhere
+          anthropicLogger.debug(
+            "Text block start - will be handled by text delta events",
+          );
+        }
       } else if (event.type === "content_block_delta") {
         anthropicLogger.info("Content block delta received", {
           index: event.index,
@@ -730,6 +750,17 @@ Query: ${userQuery}
             promptId,
             delta: event.delta.text,
           });
+        } else if (event.delta.type === "input_json_delta") {
+          anthropicLogger.info("Processing input JSON delta for tool call", {
+            index: event.index,
+            partialJson: event.delta.partial_json,
+          });
+
+          await stateMachine.processStreamEvent({
+            type: "block_delta",
+            blockIndex: event.index,
+            delta: event.delta.partial_json,
+          });
         } else {
           anthropicLogger.info("Non-text delta received", {
             deltaType: (event.delta as any).type,
@@ -739,6 +770,12 @@ Query: ${userQuery}
       } else if (event.type === "content_block_stop") {
         anthropicLogger.info("Content block stop received", {
           index: event.index,
+        });
+
+        // Process block end event for state machine
+        await stateMachine.processStreamEvent({
+          type: "block_end",
+          blockIndex: event.index,
         });
       } else if (event.type === "message_delta") {
         anthropicLogger.info("Message delta received", {

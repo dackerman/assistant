@@ -190,7 +190,21 @@ export class ConversationService {
           messageId: assistantMessage!.id,
           state: "CREATED",
           model,
-          systemMessage: "You are a helpful assistant.",
+          systemMessage: `You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.`,
         } as NewPrompt)
         .returning();
 
