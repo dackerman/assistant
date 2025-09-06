@@ -1,19 +1,19 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { SessionManager, TOOL_CONFIGS } from "./sessionManager";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { SessionManager } from "./sessionManager";
 
-// Mock child_process using bun's mock
-const mockSpawn = mock(() => ({
+// Mock child_process using vitest mock
+const mockSpawn = vi.fn(() => ({
   pid: 12345,
-  stdout: { on: mock() },
-  stderr: { on: mock() },
-  stdin: { write: mock() },
-  on: mock(),
-  kill: mock(),
+  stdout: { on: vi.fn() },
+  stderr: { on: vi.fn() },
+  stdin: { write: vi.fn() },
+  on: vi.fn(),
+  kill: vi.fn(),
   killed: false,
 }));
 
 // Mock the child_process module
-mock.module("child_process", () => ({
+vi.mock("child_process", () => ({
   spawn: mockSpawn,
 }));
 
@@ -22,7 +22,7 @@ describe("SessionManager Simple Tests", () => {
 
   beforeEach(() => {
     sessionManager = new SessionManager();
-    mockSpawn.mockClear();
+    vi.clearAllMocks();
   });
 
   afterEach(async () => {

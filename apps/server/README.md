@@ -3,7 +3,7 @@
 To install dependencies:
 
 ```bash
-bun install
+pnpm install
 ```
 
 To run in development:
@@ -13,7 +13,7 @@ To run in development:
 ./scripts/dev-db.sh setup
 
 # Then run the server
-bun run dev
+pnpm run dev
 ```
 
 The setup command will:
@@ -29,7 +29,7 @@ The setup command will:
 Run unit tests (no database required):
 
 ```bash
-bun run test sessionManager.simple.test.ts toolExecutorService.simple.test.ts
+pnpm run test sessionManager.simple.test.ts toolExecutorService.simple.test.ts
 ```
 
 ### Database Tests
@@ -43,24 +43,10 @@ For tests that require a database, first start the test database:
 Then run database tests (migrations will be applied automatically):
 
 ```bash
-RUN_DB_TESTS=1 bun run test conversationService.test.ts
+RUN_DB_TESTS=1 pnpm run test conversationService.test.ts
 ```
 
-Stop the test database when done:
-
-```bash
-./scripts/test-db.sh stop
-```
-
-**Note:** Use `bun run test` (not `bun test`) to enable proper Vitest functionality including mocking.
-
-Then run database tests (note: use `bun run test` not `bun test`):
-
-```bash
-RUN_DB_TESTS=1 bun run test conversationService.test.ts
-```
-
-**Important**: Use `bun run test` (which runs vitest) instead of `bun test` for proper mocking support.
+**Note:** Use `pnpm run test` (Vitest) for proper functionality including mocking.
 
 Stop the test database when done:
 
@@ -90,4 +76,4 @@ The `scripts/test-db.sh` script manages the test database:
 - `status` - Show container status
 - `restart` - Restart the test database container
 
-This project was created using `bun init` in bun v1.2.13. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+This project uses Node.js with TypeScript and Hono framework for the backend runtime.

@@ -4,10 +4,10 @@
 
 ### Backend Runtime & Framework
 
-- **Runtime**: Bun
-  - Native TypeScript support without compilation
-  - Fastest JavaScript runtime with excellent WebSocket performance
-  - Built-in package manager, test runner, and bundler
+- **Runtime**: Node.js
+  - Mature and stable runtime environment
+  - Excellent ecosystem and community support
+  - Reliable performance for server applications
 - **Framework**: Hono
   - Lightweight and performant
   - Edge-compatible
@@ -33,7 +33,6 @@
 ### Database & ORM
 
 - **Database**: PostgreSQL
-
   - Mature, reliable, feature-rich
   - Excellent for complex queries and relationships
   - MCP server already available
@@ -47,7 +46,6 @@
 ### AI/LLM Integration
 
 - **Primary**: Vercel AI SDK
-
   - Unified interface for multiple providers
   - Built-in streaming support
   - Tool calling capabilities
@@ -73,7 +71,7 @@
 - **Unit/Integration**: Vitest
   - Fast execution
   - Native TypeScript support
-  - Compatible with Bun and Vite
+  - Works seamlessly with Vite
   - Same config as Vite
 - **E2E Testing**: Playwright
   - Cross-browser testing
@@ -83,13 +81,11 @@
 ### Build Tools & Development
 
 - **Monorepo**: Turbo
-
   - Incremental builds
   - Intelligent caching
   - Task orchestration
 
 - **Code Quality**: Biome
-
   - Fast linting and formatting
   - Replaces ESLint + Prettier
   - Single configuration

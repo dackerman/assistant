@@ -60,7 +60,7 @@ status_db() {
 migrate_db() {
     echo "🔄 Running database migrations..."
     cd "$(dirname "$0")/.."
-    DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:${DB_PORT}/${DB_NAME}" bun run db:migrate
+    DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:${DB_PORT}/${DB_NAME}" pnpm run db:migrate
     echo "✅ Migrations complete"
 }
 

@@ -1,17 +1,19 @@
 # Core
 
-Full-stack TypeScript application with Vite + React frontend and Bun + Hono backend.
+Full-stack TypeScript application with Vite + React frontend and Node.js + Hono backend.
 
 ## Quick Start
 
 Install dependencies:
+
 ```bash
-bun install
+pnpm install
 ```
 
 Start both frontend and backend:
+
 ```bash
-bun run dev
+pnpm run dev
 ```
 
 ## Services
@@ -21,16 +23,16 @@ bun run dev
 
 ## Available Commands
 
-- `bun run dev` - Start all services in development mode
-- `bun run build` - Build all applications
-- `bun run test` - Run all tests
-- `bun run lint` - Lint all code
-- `bun run format` - Format all code with Prettier
+- `pnpm run dev` - Start all services in development mode
+- `pnpm run build` - Build all applications
+- `pnpm run test` - Run all tests
+- `pnpm run lint` - Lint all code
+- `pnpm run format` - Format all code with Prettier
 
 ## Tech Stack
 
 - **Frontend**: Vite + React + TypeScript + Tailwind CSS + ShadCN/ui
-- **Backend**: Bun + Hono + TypeScript
+- **Backend**: Node.js + Hono + TypeScript
 - **Testing**: Vitest + Playwright
 - **Build**: Turbo (monorepo)
 - **Formatting**: Prettier + Biome

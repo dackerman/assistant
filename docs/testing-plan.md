@@ -165,15 +165,16 @@ Implementation note: Prefer dependency injection (DI) for Anthropic client or Vi
 ## How to Run
 
 - Server tests with DB (Docker required):
-  - `RUN_DB_TESTS=1 bun run test --filter=apps/server`
+  - `RUN_DB_TESTS=1 pnpm run test --filter=apps/server`
 - Web tests:
-  - `bun run test --filter=apps/web`
+  - `pnpm run test --filter=apps/web`
 - Monorepo:
-  - `bun run test` (will skip server DB tests unless `RUN_DB_TESTS=1`)
+  - `pnpm run test` (will skip server DB tests unless `RUN_DB_TESTS=1`)
 
 ## TODO Checklist
 
 Prep & Infra
+
 - [ ] Server bootstrap factory: export `createAppServer()` returning `{ server, wss, close }` for tests.
 - [ ] Inject Anthropic client into `startAnthropicStream` (constructor/factory param) or provide Vitest mock boundary.
 - [ ] Add Anthropic stream stub that yields realistic async iterator events.
@@ -182,6 +183,7 @@ Prep & Infra
 - [ ] Ensure deterministic timers (Vitest fake timers) around reconnect backoff tests.
 
 Server: State Machine Tests
+
 - [ ] Assert `block_start` sets prompt `state=IN_PROGRESS` and `currentBlock`.
 - [ ] Finalization path (no tools): blocks linked to message, `isFinalized=true`, assistant message `isComplete=true`.
 - [ ] WAITING_FOR_TOOLS keeps assistant message incomplete.
@@ -189,12 +191,14 @@ Server: State Machine Tests
 - [ ] `resume()` WAITING_FOR_TOOLS with running tool → `waiting_for_tools`.
 
 Server: Streaming E2E (WS)
+
 - [ ] Happy path: deltas broadcast in order, stream_complete at end, DB finalized.
 - [ ] Mid‑stream subscriber receives snapshot and subsequent deltas.
 - [ ] Error path: prompt state `ERROR`, `stream_error` broadcast.
 - [ ] Unsupported model emits WS error; no prompt created.
 
 Web: `useWebSocket` Tests
+
 - [ ] Connect/subscribed lifecycle and `isConnected`.
 - [ ] `text_delta` toggles `isStreaming` true and invokes callback.
 - [ ] `stream_complete`/`stream_error` toggle `isStreaming` false and invoke callbacks.
@@ -203,6 +207,7 @@ Web: `useWebSocket` Tests
 - [ ] Guard against parallel connects.
 
 Web: `ConversationView` Tests
+
 - [ ] Loads conversation and merges text blocks into content.
 - [ ] Restores active stream into assistant message content.
 - [ ] Snapshot merge behavior preserves timestamps when updating content.
@@ -210,6 +215,7 @@ Web: `ConversationView` Tests
 - [ ] Title updates fire `onTitleUpdate`.
 
 Optional Enhancements (spec alignment)
+
 - [ ] Add REST: `POST /api/prompts/:id/resume` and `POST /api/prompts/:id/cancel`; add tests.
 - [ ] Clear `conversations.activePromptId` on prompt completion; add test.
 - [ ] WS protocol compatibility with spec event names; add tests for both names.
