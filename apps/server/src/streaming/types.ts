@@ -3,11 +3,11 @@ export interface StreamEvent {
   blockType?: "text" | "thinking" | "tool_call" | "attachment";
   blockIndex?: number;
   delta?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   toolCallData?: {
     apiToolCallId: string;
     toolName: string;
-    request: any;
+    request: Record<string, unknown>;
   };
 }
 
@@ -21,13 +21,15 @@ export interface ConversationContext {
 export interface ToolExecutionResult {
   toolCallId: number;
   state: "complete" | "error";
-  response?: any;
+  response?: Record<string, unknown>;
   error?: string;
 }
 
 export interface StreamingOptions {
   onEvent?: (event: StreamEvent) => void;
-  onToolCall?: (toolCall: any) => Promise<any>;
+  onToolCall?: (
+    toolCall: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>;
   onError?: (error: Error) => void;
   onComplete?: () => void;
 }

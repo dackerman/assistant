@@ -1,4 +1,4 @@
-import { createServer } from "http";
+import { createServer } from "node:http";
 import Anthropic from "@anthropic-ai/sdk";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -14,9 +14,14 @@ import { logger } from "./src/utils/logger";
 
 const app = new Hono();
 
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+if (!anthropicApiKey) {
+  throw new Error("ANTHROPIC_API_KEY is not set");
+}
+
 // Initialize services
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: anthropicApiKey,
 });
 
 const conversationService = new ConversationService();
@@ -324,7 +329,11 @@ wss.on("connection", (ws: WebSocket) => {
         const requestedModel = message.model || DEFAULT_MODEL;
         const supportedModelsList = Object.values(SUPPORTED_MODELS);
 
-        if (!supportedModelsList.includes(requestedModel as any)) {
+        if (
+          !supportedModelsList.includes(
+            requestedModel as (typeof SUPPORTED_MODELS)[keyof typeof SUPPORTED_MODELS],
+          )
+        ) {
           messageLogger.warn("Unsupported model requested", {
             requestedModel,
             supportedModels: supportedModelsList,
@@ -389,8 +398,8 @@ wss.on("connection", (ws: WebSocket) => {
         const active = await conversationService.getActiveStream(convId);
         if (active) {
           const content = active.blocks
-            .filter((b: any) => b.type === "text")
-            .map((b: any) => b.content || "")
+            .filter((b) => b.type === "text")
+            .map((b) => b.content || "")
             .join("");
 
           subscribeLogger.wsEvent("snapshot_sent", {
@@ -488,8 +497,6 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
     // Get conversation history
     streamLogger.info("Building conversation history from database");
 
-    // TODO: Build proper conversation history from database
-    // For now using placeholder - this should call conversationService.buildConversationHistory()
     const messages = (await conversationService.buildConversationHistory(
       conversationId,
       1,
@@ -566,8 +573,11 @@ Query: ${userQuery}
           ],
         })
         .then((response) => {
+          const firstContentBlock = response.content[0];
           const title =
-            response.content[0]?.text || "New Conversation (failed)";
+            (firstContentBlock && firstContentBlock.type === "text"
+              ? firstContentBlock.text
+              : null) || "New Conversation (failed)";
           broadcast(conversationId, {
             type: "title_generated",
             title,
@@ -581,14 +591,23 @@ Query: ${userQuery}
 
     streamLogger.info("Conversation history built", {
       messageCount: messages.length,
-      messages: messages.map((msg, index) => ({
-        index,
-        role: msg.role,
-        contentLength: msg.content.length,
-        contentPreview:
-          msg.content.substring(0, 100) +
-          (msg.content.length > 100 ? "..." : ""),
-      })),
+      messages: messages.map((msg, index) => {
+        const contentStr = Array.isArray(msg.content)
+          ? msg.content
+              .map((block) =>
+                block.type === "text" ? block.text : `[${block.type}]`,
+              )
+              .join("")
+          : msg.content;
+        return {
+          index,
+          role: msg.role,
+          contentLength: contentStr.length,
+          contentPreview:
+            contentStr.substring(0, 100) +
+            (contentStr.length > 100 ? "..." : ""),
+        };
+      }),
     });
 
     const apiRequest: Anthropic.MessageCreateParamsStreaming = {
@@ -618,12 +637,21 @@ Query: ${userQuery}
       body: {
         model: apiRequest.model,
         max_tokens: apiRequest.max_tokens,
-        messages: apiRequest.messages.map((msg) => ({
-          role: msg.role,
-          content:
-            msg.content.substring(0, 100) +
-            (msg.content.length > 100 ? "..." : ""),
-        })),
+        messages: apiRequest.messages.map((msg) => {
+          const contentStr = Array.isArray(msg.content)
+            ? msg.content
+                .map((block) =>
+                  block.type === "text" ? block.text : `[${block.type}]`,
+                )
+                .join("")
+            : msg.content;
+          return {
+            role: msg.role,
+            content:
+              contentStr.substring(0, 100) +
+              (contentStr.length > 100 ? "..." : ""),
+          };
+        }),
         stream: apiRequest.stream,
         system:
           promptDetails.systemMessage?.substring(0, 200) +
@@ -763,7 +791,7 @@ Query: ${userQuery}
           });
         } else {
           anthropicLogger.info("Non-text delta received", {
-            deltaType: (event.delta as any).type,
+            deltaType: (event.delta as { type?: string }).type,
             delta: event.delta,
           });
         }
@@ -797,9 +825,12 @@ Query: ${userQuery}
 
         anthropicLogger.info("Stream completed successfully");
       } else {
-        anthropicLogger.debug(`Unhandled event type: ${(event as any).type}`, {
-          event,
-        });
+        anthropicLogger.debug(
+          `Unhandled event type: ${(event as { type?: string }).type}`,
+          {
+            event,
+          },
+        );
       }
     }
   } catch (error) {

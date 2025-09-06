@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { type ToolCall, toolCalls } from "../db/schema.js";
@@ -6,11 +6,11 @@ import { SessionManager } from "./sessionManager.js";
 import type { ToolResult } from "./toolSession.js";
 
 export interface ToolExecutorConfig {
-  maxRetries?: number;
-  timeoutSeconds?: number;
-  heartbeatInterval?: number;
-  staleCheckInterval?: number;
-  shutdownGracePeriod?: number;
+  maxRetries: number;
+  timeoutSeconds: number;
+  heartbeatInterval: number;
+  staleCheckInterval: number;
+  shutdownGracePeriod: number;
 }
 
 export class ToolExecutorService {
@@ -19,8 +19,9 @@ export class ToolExecutorService {
   private staleCheckTimer?: NodeJS.Timeout;
   private isShuttingDown = false;
   private sessionManager = new SessionManager();
+  private config: ToolExecutorConfig;
 
-  constructor(private config: ToolExecutorConfig = {}) {
+  constructor(config: Partial<ToolExecutorConfig> = {}) {
     this.config = {
       maxRetries: 3,
       timeoutSeconds: 300,
@@ -166,7 +167,7 @@ export class ToolExecutorService {
         }
 
         // Exponential backoff
-        const backoffMs = Math.min(1000 * Math.pow(2, attempt), 30000);
+        const backoffMs = Math.min(1000 * 2 ** attempt, 30000);
         await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
     }
@@ -214,7 +215,7 @@ export class ToolExecutorService {
         }
       };
 
-      const resolveOnce = (result?: any) => {
+      const resolveOnce = (result?: undefined) => {
         if (hasResolved) return;
         hasResolved = true;
         cleanup();
@@ -288,7 +289,7 @@ export class ToolExecutorService {
   }
 
   private createToolProcess(toolCall: ToolCall): ChildProcess {
-    const request = toolCall.request as any;
+    const request = toolCall.request as { command: string };
     const toolName = toolCall.toolName;
 
     // For now, handle bash tool calls - extend for other tools later
@@ -306,7 +307,9 @@ export class ToolExecutorService {
     toolCallId: number,
     outputStream?: string,
   ): Promise<void> {
-    const updates: any = { lastHeartbeat: new Date() };
+    const updates: { lastHeartbeat: Date; outputStream?: string } = {
+      lastHeartbeat: new Date(),
+    };
     if (outputStream !== undefined) {
       updates.outputStream = outputStream;
     }
@@ -402,7 +405,7 @@ export class ToolExecutorService {
   private startStaleCheck(): void {
     this.staleCheckTimer = setInterval(async () => {
       const staleThreshold = new Date(
-        Date.now() - this.config.heartbeatInterval! * 3,
+        Date.now() - this.config.heartbeatInterval * 3,
       );
 
       // Find stale processes (no heartbeat for 3x heartbeat interval)
@@ -534,11 +537,11 @@ export class ToolExecutorService {
 
   async getExecutionStatus(toolCallId: number): Promise<{
     state: string;
-    startedAt?: Date;
-    lastHeartbeat?: Date;
-    outputStream?: string;
+    startedAt: Date | null;
+    lastHeartbeat: Date | null;
+    outputStream: string | null;
     retryCount: number;
-    error?: string;
+    error: string | null;
   } | null> {
     const toolCall = await db.query.toolCalls.findFirst({
       where: eq(toolCalls.id, toolCallId),
