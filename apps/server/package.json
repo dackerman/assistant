@@ -15,11 +15,11 @@
     "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^11.5.1",
+    "@testcontainers/postgresql": "^10.28.0",
     "@types/bun": "latest",
     "@types/node": "^24.3.0",
     "@vitest/ui": "^3.2.4",
-    "testcontainers": "^11.5.1",
+    "testcontainers": "^10.28.0",
     "vitest": "^3.2.4"
   },
   "peerDependencies": {

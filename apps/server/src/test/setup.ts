@@ -1,4 +1,5 @@
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { Wait } from "testcontainers";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -9,29 +10,81 @@ let sql: any;
 export let testDb: any;
 
 export async function setupTestDatabase() {
-  // Start PostgreSQL container
-  container = await new PostgreSqlContainer("postgres:16-alpine")
-    .withDatabase("test_db")
-    .withUsername("test_user")
-    .withPassword("test_pass")
-    .start();
+  console.log("🔧 Starting TestContainers setup...");
+  
+  try {
+    console.log("🐳 Creating PostgreSQL container...");
+    
+    // Start PostgreSQL container with correct wait strategy
+    container = await new PostgreSqlContainer("postgres:16-alpine")
+      .withDatabase("test_db")
+      .withUsername("test_user")
+      .withPassword("test_pass")
+      .withStartupTimeout(120000) // 2 minutes timeout
+      .withWaitStrategy(
+        Wait.forLogMessage("database system is ready to accept connections", 1)
+      )
+      .start();
 
-  const connectionString = container.getConnectionUri();
+    console.log("✅ Container started successfully");
+    console.log(`📋 Container ID: ${container.getId()}`);
+    
+    const connectionString = container.getConnectionUri();
+    console.log(`🔗 Connection string: ${connectionString}`);
 
-  // Create connection
-  sql = postgres(connectionString);
-  testDb = drizzle(sql, { schema });
+    // Create connection
+    console.log("🔌 Creating database connection...");
+    sql = postgres(connectionString);
+    testDb = drizzle(sql, { schema });
 
-  // Run migrations
-  await createTables();
+    // Test connection
+    console.log("🧪 Testing database connection...");
+    await sql`SELECT 1`;
+    console.log("✅ Database connection successful");
+
+    // Run migrations
+    console.log("📋 Creating database tables...");
+    await createTables();
+    console.log("✅ Database setup complete");
+    
+  } catch (error) {
+    console.error("❌ TestContainers setup failed:", error);
+    
+    // Try to get container logs if possible
+    if (container) {
+      try {
+        const logs = await container.logs();
+        console.log("📋 Container logs:");
+        console.log(logs);
+      } catch (logError) {
+        console.error("❌ Could not retrieve container logs:", logError);
+      }
+    }
+    
+    throw error;
+  }
 }
 
 export async function teardownTestDatabase() {
-  if (sql) {
-    await sql.end();
-  }
-  if (container) {
-    await container.stop();
+  console.log("🧹 Starting database teardown...");
+  
+  try {
+    if (sql) {
+      console.log("🔌 Closing database connection...");
+      await sql.end();
+      console.log("✅ Database connection closed");
+    }
+    
+    if (container) {
+      console.log("🛑 Stopping container...");
+      await container.stop();
+      console.log("✅ Container stopped successfully");
+    }
+    
+    console.log("✅ Database teardown complete");
+  } catch (error) {
+    console.error("❌ Error during teardown:", error);
+    throw error;
   }
 }
 
