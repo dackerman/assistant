@@ -496,6 +496,198 @@ wss.on("connection", (ws: WebSocket) => {
 });
 
 /**
+ * Wait for tools to complete and continue streaming
+ */
+async function waitForToolsAndContinue(
+  stateMachine: StreamingStateMachine,
+  promptId: number,
+  conversationId: number,
+  logger: any,
+) {
+  const maxWaitTime = 5 * 60 * 1000; // 5 minutes max
+  const pollInterval = 1000; // Check every 1 second
+  const startTime = Date.now();
+
+  const pollForCompletion = async (): Promise<void> => {
+    try {
+      const resumeResult = await stateMachine.resume();
+      logger.info("Tool completion check", { 
+        status: resumeResult.status,
+        elapsedTime: Date.now() - startTime 
+      });
+
+      if (resumeResult.status === "continue_with_tools") {
+        // Tools are complete, continue streaming
+        logger.info("Tools completed, continuing stream with results");
+        
+        // Build updated conversation history including tool results
+        const messages = (await conversationService.buildConversationHistory(
+          conversationId,
+          1,
+        )) as Anthropic.Message[];
+
+        // Continue streaming with tool results
+        await continueStreamingWithToolResults(
+          messages,
+          promptId,
+          conversationId,
+          logger
+        );
+        
+      } else if (resumeResult.status === "waiting_for_tools") {
+        // Still waiting, check if we should timeout
+        if (Date.now() - startTime > maxWaitTime) {
+          logger.error("Tool execution timeout - marking stream as complete with error");
+          broadcast(conversationId, {
+            type: "stream_error",
+            promptId,
+            error: "Tool execution timeout",
+          });
+          return;
+        }
+        
+        // Continue polling
+        setTimeout(pollForCompletion, pollInterval);
+        
+      } else {
+        // Already complete or other final state
+        logger.info("Stream already complete", { status: resumeResult.status });
+        broadcast(conversationId, {
+          type: "stream_complete",
+          promptId,
+        });
+      }
+      
+    } catch (error) {
+      logger.error("Error during tool completion polling", error);
+      broadcast(conversationId, {
+        type: "stream_error",
+        promptId,
+        error: error instanceof Error ? error.message : "Unknown error during tool completion",
+      });
+    }
+  };
+
+  // Start polling
+  setTimeout(pollForCompletion, pollInterval);
+}
+
+/**
+ * Continue streaming with tool results
+ */
+async function continueStreamingWithToolResults(
+  messages: Anthropic.Message[],
+  promptId: number,
+  conversationId: number,
+  logger: any,
+) {
+  try {
+    // Get prompt details for model
+    const promptDetails = await conversationService.getPromptById(promptId);
+    if (!promptDetails) {
+      throw new Error(`Prompt ${promptId} not found`);
+    }
+
+    logger.info("Continuing stream with tool results", {
+      messageCount: messages.length,
+      model: promptDetails.model
+    });
+
+    const apiRequest: Anthropic.MessageCreateParamsStreaming = {
+      model: promptDetails.model,
+      max_tokens: 4000,
+      messages,
+      tools: [
+        {
+          type: "bash_20250124",
+          name: "bash",
+        },
+      ],
+      stream: true as const,
+      ...(promptDetails.systemMessage && {
+        system: promptDetails.systemMessage,
+      }),
+    };
+
+    // Create new stream
+    const stream = await anthropic.messages.create(apiRequest);
+    
+    // Create a new state machine for the continuation
+    const stateMachine = new StreamingStateMachine(
+      promptId,
+      undefined,
+      toolExecutorService,
+    );
+
+    // Process the continuation stream
+    for await (const event of stream) {
+      logger.info("Continuation stream event", { type: event.type });
+
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        await stateMachine.processStreamEvent({
+          type: "block_delta",
+          blockIndex: event.index,
+          delta: event.delta.text,
+        });
+
+        broadcast(conversationId, {
+          type: "text_delta",
+          promptId,
+          delta: event.delta.text,
+        });
+        
+      } else if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+        // Handle new tool calls in continuation
+        await stateMachine.processStreamEvent({
+          type: "block_start",
+          blockType: "tool_call",
+          blockIndex: event.index,
+        });
+        
+      } else if (event.type === "content_block_end" && event.index !== undefined) {
+        const toolCall = event.content_block;
+        if (toolCall && typeof toolCall === "object" && "type" in toolCall && toolCall.type === "tool_use") {
+          await stateMachine.processStreamEvent({
+            type: "block_end",
+            blockType: "tool_call",
+            blockIndex: event.index,
+            toolCallData: {
+              apiToolCallId: toolCall.id,
+              toolName: toolCall.name,
+              request: toolCall.input || {},
+            },
+          });
+        }
+        
+      } else if (event.type === "message_stop") {
+        const messageStopResult = await stateMachine.handleMessageStop();
+        
+        if (messageStopResult.waitingForTools) {
+          // More tools to execute, wait again
+          logger.info("More tools to execute in continuation, waiting again");
+          waitForToolsAndContinue(stateMachine, promptId, conversationId, logger);
+        } else {
+          // Finally complete
+          broadcast(conversationId, {
+            type: "stream_complete",
+            promptId,
+          });
+          logger.info("Stream with tool results completed");
+        }
+      }
+    }
+    
+  } catch (error) {
+    logger.error("Error continuing stream with tool results", error);
+    broadcast(conversationId, {
+      type: "stream_error",
+      promptId,
+      error: error instanceof Error ? error.message : "Error continuing stream",
+    });
+  }
+}
+
+/**
  * Start streaming with Anthropic SDK
  */
 async function startAnthropicStream(promptId: number, conversationId: number) {
@@ -898,14 +1090,23 @@ Query: ${userQuery}
           totalTextReceived,
         });
 
-        await stateMachine.handleMessageStop();
+        const messageStopResult = await stateMachine.handleMessageStop();
 
-        broadcast(conversationId, {
-          type: "stream_complete",
-          promptId,
-        });
+        if (messageStopResult.waitingForTools) {
+          anthropicLogger.info("Message stopped, waiting for tool completion before continuing stream");
+          // Don't broadcast stream_complete yet - we need to wait for tools and continue
+          
+          // Start polling for tool completion
+          waitForToolsAndContinue(stateMachine, promptId, conversationId, anthropicLogger);
+        } else {
+          // No tools to wait for, stream is complete
+          broadcast(conversationId, {
+            type: "stream_complete",
+            promptId,
+          });
 
-        anthropicLogger.info("Stream completed successfully");
+          anthropicLogger.info("Stream completed successfully");
+        }
       } else {
         anthropicLogger.debug(
           `Unhandled event type: ${(event as { type?: string }).type}`,

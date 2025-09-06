@@ -289,7 +289,7 @@ export class StreamingStateMachine {
   /**
    * Handle message stop event
    */
-  async handleMessageStop(): Promise<void> {
+  async handleMessageStop(): Promise<{ waitingForTools: boolean }> {
     this.logger.info("Handling message stop event");
 
     // Check if there are pending tool calls
@@ -359,10 +359,14 @@ export class StreamingStateMachine {
           "No tool executor available - tools will remain pending",
         );
       }
+      
+      return { waitingForTools: true };
     } else {
       // Complete the prompt
       this.logger.info("Message stopped, no pending tools - completing prompt");
       await this.completePrompt();
+      
+      return { waitingForTools: false };
     }
   }
 
