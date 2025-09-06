@@ -1,19 +1,30 @@
-import { beforeAll, afterAll, describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { ToolExecutorService } from "./toolExecutorService";
-import { 
-  toolCalls, 
-  prompts, 
-  blocks, 
-  users, 
-  conversations, 
-  messages 
-} from "../db/schema";
+import { vi } from "vitest";
 
-// Mock child_process
+// Mock child_process - must be at the top
 vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
+
+import {
+  beforeAll,
+  afterAll,
+  describe,
+  test,
+  expect,
+  beforeEach,
+  afterEach,
+} from "vitest";
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { ToolExecutorService } from "./toolExecutorService";
+import {
+  toolCalls,
+  prompts,
+  blocks,
+  users,
+  conversations,
+  messages,
+} from "../db/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 // Mock process.kill for process checking
 const originalKill = process.kill;
@@ -27,7 +38,7 @@ let originalDate: DateConstructor;
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
   originalDate = globalThis.Date;
-  
+
   globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
@@ -36,7 +47,7 @@ function stubClock() {
         super(...args);
       }
     }
-    
+
     static now() {
       return clockStub();
     }
@@ -81,13 +92,14 @@ describe("ToolExecutorService Database Integration Tests", () => {
 
   beforeEach(async () => {
     stubClock();
-    
+
     // Get the mock spawn function
-    const childProcessMock = await vi.importMock<typeof import("child_process")>("child_process");
+    const childProcessMock =
+      await vi.importMock<typeof import("child_process")>("child_process");
     mockSpawn = childProcessMock.spawn;
-    
+
     // Replace process.kill for process checking
-    Object.defineProperty(process, 'kill', {
+    Object.defineProperty(process, "kill", {
       value: mockKill,
       writable: true,
       configurable: true,
@@ -104,82 +116,118 @@ describe("ToolExecutorService Database Integration Tests", () => {
     await service.initialize();
 
     // Create comprehensive test data
-    const [user] = await testDb.insert(users).values({
-      email: "test@example.com",
-    }).returning();
+    const [user] = await testDb
+      .insert(users)
+      .values({
+        email: "test@example.com",
+      })
+      .returning();
 
-    const [conversation1] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation 1",
-    }).returning();
+    const [conversation1] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation 1",
+      })
+      .returning();
 
-    const [conversation2] = await testDb.insert(conversations).values({
-      userId: user.id,
-      title: "Test Conversation 2",
-    }).returning();
+    const [conversation2] = await testDb
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: "Test Conversation 2",
+      })
+      .returning();
 
-    const [message1] = await testDb.insert(messages).values({
-      conversationId: conversation1.id,
-      role: "assistant",
-    }).returning();
+    const [message1] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation1.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [message2] = await testDb.insert(messages).values({
-      conversationId: conversation2.id,
-      role: "assistant", 
-    }).returning();
+    const [message2] = await testDb
+      .insert(messages)
+      .values({
+        conversationId: conversation2.id,
+        role: "assistant",
+      })
+      .returning();
 
-    const [prompt1] = await testDb.insert(prompts).values({
-      conversationId: conversation1.id,
-      messageId: message1.id,
-      state: "IN_PROGRESS",
-      model: "claude-3",
-    }).returning();
+    const [prompt1] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation1.id,
+        messageId: message1.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
-    const [prompt2] = await testDb.insert(prompts).values({
-      conversationId: conversation2.id,
-      messageId: message2.id,
-      state: "IN_PROGRESS",
-      model: "claude-3",
-    }).returning();
+    const [prompt2] = await testDb
+      .insert(prompts)
+      .values({
+        conversationId: conversation2.id,
+        messageId: message2.id,
+        state: "IN_PROGRESS",
+        model: "claude-3",
+      })
+      .returning();
 
-    const [block1] = await testDb.insert(blocks).values({
-      promptId: prompt1.id,
-      type: "tool_call",
-      indexNum: 0,
-      content: "test content",
-    }).returning();
+    const [block1] = await testDb
+      .insert(blocks)
+      .values({
+        promptId: prompt1.id,
+        type: "tool_call",
+        indexNum: 0,
+        content: "test content",
+      })
+      .returning();
 
-    const [block2] = await testDb.insert(blocks).values({
-      promptId: prompt2.id,
-      type: "tool_call",
-      indexNum: 0,
-      content: "test content",
-    }).returning();
+    const [block2] = await testDb
+      .insert(blocks)
+      .values({
+        promptId: prompt2.id,
+        type: "tool_call",
+        indexNum: 0,
+        content: "test content",
+      })
+      .returning();
 
     // Create tool calls for testing
-    const [toolCall1] = await testDb.insert(toolCalls).values({
-      promptId: prompt1.id,
-      blockId: block1.id,
-      toolName: "bash",
-      state: "created",
-      request: { command: "echo 'test1'" },
-    }).returning();
+    const [toolCall1] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt1.id,
+        blockId: block1.id,
+        toolName: "bash",
+        state: "created",
+        request: { command: "echo 'test1'" },
+      })
+      .returning();
 
-    const [toolCall2] = await testDb.insert(toolCalls).values({
-      promptId: prompt1.id,
-      blockId: block1.id,
-      toolName: "bash",
-      state: "created",
-      request: { command: "echo 'test2'" },
-    }).returning();
+    const [toolCall2] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt1.id,
+        blockId: block1.id,
+        toolName: "bash",
+        state: "created",
+        request: { command: "echo 'test2'" },
+      })
+      .returning();
 
-    const [toolCall3] = await testDb.insert(toolCalls).values({
-      promptId: prompt2.id,
-      blockId: block2.id,
-      toolName: "bash",
-      state: "created",
-      request: { command: "echo 'test3'" },
-    }).returning();
+    const [toolCall3] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId: prompt2.id,
+        blockId: block2.id,
+        toolName: "bash",
+        state: "created",
+        request: { command: "echo 'test3'" },
+      })
+      .returning();
 
     testData = {
       userId: user.id,
@@ -207,9 +255,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
 
   afterEach(async () => {
     restoreClock();
-    
+
     // Restore original process.kill
-    Object.defineProperty(process, 'kill', {
+    Object.defineProperty(process, "kill", {
       value: originalKill,
       writable: true,
       configurable: true,
@@ -231,7 +279,8 @@ describe("ToolExecutorService Database Integration Tests", () => {
   describe("Session-Based Execution", () => {
     test("should execute tool calls in same session for same conversation", async () => {
       const mockProcess = createMockProcess();
-      const { spawn } = await vi.importMock<typeof import("child_process")>("child_process");
+      const { spawn } =
+        await vi.importMock<typeof import("child_process")>("child_process");
       (spawn as any).mockReturnValue(mockProcess);
 
       // Execute two tool calls from same conversation
@@ -239,21 +288,21 @@ describe("ToolExecutorService Database Integration Tests", () => {
       const executePromise2 = service.executeToolCall(testData.toolCallId2);
 
       // Let them start
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Simulate successful completion for both
       simulateCommandCompletion(mockProcess, "output1");
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       simulateCommandCompletion(mockProcess, "output2");
 
       await Promise.all([executePromise1, executePromise2]);
 
       // Verify both tool calls completed
       const toolCall1 = await testDb.query.toolCalls.findFirst({
-        where: (tc, { eq }) => eq(tc.id, testData.toolCallId1),
+        where: eq(toolCalls.id, testData.toolCallId1),
       });
       const toolCall2 = await testDb.query.toolCalls.findFirst({
-        where: (tc, { eq }) => eq(tc.id, testData.toolCallId2),
+        where: eq(toolCalls.id, testData.toolCallId2),
       });
 
       expect(toolCall1?.state).toBe("complete");
@@ -268,8 +317,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
     test("should use separate sessions for different conversations", async () => {
       const mockProcess1 = createMockProcess(12345);
       const mockProcess2 = createMockProcess(12346);
-      
-      const { spawn } = await vi.importMock<typeof import("child_process")>("child_process");
+
+      const { spawn } =
+        await vi.importMock<typeof import("child_process")>("child_process");
       (spawn as any)
         .mockReturnValueOnce(mockProcess1)
         .mockReturnValueOnce(mockProcess2);
@@ -279,7 +329,7 @@ describe("ToolExecutorService Database Integration Tests", () => {
       const executePromise3 = service.executeToolCall(testData.toolCallId3);
 
       // Let them start
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Simulate completion
       simulateCommandCompletion(mockProcess1, "output1");
@@ -319,14 +369,14 @@ describe("ToolExecutorService Database Integration Tests", () => {
       const executePromise2 = service.executeToolCall(testData.toolCallId2);
 
       // Let first command start
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       // Complete first command
       simulateCommandCompletion(mockProcess, "output1");
-      
+
       // Let second command start
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       // Complete second command
       simulateCommandCompletion(mockProcess, "output2");
 
@@ -350,17 +400,15 @@ describe("ToolExecutorService Database Integration Tests", () => {
       });
 
       const restartToolCall = await testDb.query.toolCalls.findFirst({
-        where: (tc, { and, eq }) => and(
-          eq(tc.promptId, testData.promptId1),
-          eq(tc.state, "created")
-        ),
-        orderBy: (tc, { desc }) => [desc(tc.id)]
+        where: (tc, { and, eq }) =>
+          and(eq(tc.promptId, testData.promptId1), eq(tc.state, "created")),
+        orderBy: (tc, { desc }) => [desc(tc.id)],
       });
 
       const executePromise = service.executeToolCall(restartToolCall!.id);
-      
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       await executePromise;
 
       const updatedToolCall = await testDb.query.toolCalls.findFirst({
@@ -368,7 +416,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
       });
 
       expect(updatedToolCall?.state).toBe("complete");
-      expect((updatedToolCall?.response as any)?.output).toBe("Session restarted successfully");
+      expect((updatedToolCall?.response as any)?.output).toBe(
+        "Session restarted successfully",
+      );
     });
   });
 
@@ -380,8 +430,8 @@ describe("ToolExecutorService Database Integration Tests", () => {
       const executePromise = service.executeToolCall(testData.toolCallId1);
 
       // Check initial state change to running
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       let toolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId1),
       });
@@ -410,13 +460,13 @@ describe("ToolExecutorService Database Integration Tests", () => {
 
       const executePromise = service.executeToolCall(testData.toolCallId1);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Simulate process error
       const errorHandler = mockProcess.on.mock.calls.find(
-        (call: any) => call[0] === "error"
+        (call: any) => call[0] === "error",
       )?.[1];
-      
+
       if (errorHandler) {
         errorHandler(new Error("Process crashed"));
       }
@@ -434,8 +484,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
     test("should track conversation isolation in database", async () => {
       const mockProcess1 = createMockProcess(11111);
       const mockProcess2 = createMockProcess(22222);
-      
-      const { spawn } = await vi.importMock<typeof import("child_process")>("child_process");
+
+      const { spawn } =
+        await vi.importMock<typeof import("child_process")>("child_process");
       (spawn as any)
         .mockReturnValueOnce(mockProcess1)
         .mockReturnValueOnce(mockProcess2);
@@ -443,7 +494,7 @@ describe("ToolExecutorService Database Integration Tests", () => {
       const executePromise1 = service.executeToolCall(testData.toolCallId1);
       const executePromise3 = service.executeToolCall(testData.toolCallId3);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       simulateCommandCompletion(mockProcess1, "conv1 output");
       simulateCommandCompletion(mockProcess2, "conv2 output");
@@ -465,26 +516,31 @@ describe("ToolExecutorService Database Integration Tests", () => {
 
   describe("Error Recovery and Edge Cases", () => {
     test("should handle invalid tool call IDs", async () => {
-      await expect(service.executeToolCall(99999))
-        .rejects.toThrow("Tool call 99999 not found");
+      await expect(service.executeToolCall(99999)).rejects.toThrow(
+        "Tool call 99999 not found",
+      );
     });
 
     test("should handle tool calls not in created state", async () => {
-      await testDb.update(toolCalls)
+      await testDb
+        .update(toolCalls)
         .set({ state: "complete" })
         .where((tc, { eq }) => eq(tc.id, testData.toolCallId1));
 
-      await expect(service.executeToolCall(testData.toolCallId1))
-        .rejects.toThrow("is not in created state");
+      await expect(
+        service.executeToolCall(testData.toolCallId1),
+      ).rejects.toThrow("is not in created state");
     });
 
     test("should handle missing prompt/conversation data", async () => {
       // Delete the prompt
-      await testDb.delete(prompts)
+      await testDb
+        .delete(prompts)
         .where((p, { eq }) => eq(p.id, testData.promptId1));
 
-      await expect(service.executeToolCall(testData.toolCallId1))
-        .rejects.toThrow("not found");
+      await expect(
+        service.executeToolCall(testData.toolCallId1),
+      ).rejects.toThrow("not found");
     });
 
     test("should handle session creation failures", async () => {
@@ -492,8 +548,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
         throw new Error("Failed to create process");
       });
 
-      await expect(service.executeToolCall(testData.toolCallId1))
-        .rejects.toThrow();
+      await expect(
+        service.executeToolCall(testData.toolCallId1),
+      ).rejects.toThrow();
 
       const toolCall = await testDb.query.toolCalls.findFirst({
         where: (tc, { eq }) => eq(tc.id, testData.toolCallId1),
@@ -510,47 +567,56 @@ describe("ToolExecutorService Database Integration Tests", () => {
 
       // Create additional tool calls for testing concurrency
       const additionalCalls = await Promise.all([
-        testDb.insert(toolCalls).values({
-          promptId: testData.promptId1,
-          blockId: testData.blockId1,
-          toolName: "bash",
-          state: "created",
-          request: { command: "echo 'concurrent1'" },
-        }).returning(),
-        testDb.insert(toolCalls).values({
-          promptId: testData.promptId1,
-          blockId: testData.blockId1,
-          toolName: "bash",
-          state: "created",
-          request: { command: "echo 'concurrent2'" },
-        }).returning(),
-        testDb.insert(toolCalls).values({
-          promptId: testData.promptId1,
-          blockId: testData.blockId1,
-          toolName: "bash",
-          state: "created",
-          request: { command: "echo 'concurrent3'" },
-        }).returning(),
+        testDb
+          .insert(toolCalls)
+          .values({
+            promptId: testData.promptId1,
+            blockId: testData.blockId1,
+            toolName: "bash",
+            state: "created",
+            request: { command: "echo 'concurrent1'" },
+          })
+          .returning(),
+        testDb
+          .insert(toolCalls)
+          .values({
+            promptId: testData.promptId1,
+            blockId: testData.blockId1,
+            toolName: "bash",
+            state: "created",
+            request: { command: "echo 'concurrent2'" },
+          })
+          .returning(),
+        testDb
+          .insert(toolCalls)
+          .values({
+            promptId: testData.promptId1,
+            blockId: testData.blockId1,
+            toolName: "bash",
+            state: "created",
+            request: { command: "echo 'concurrent3'" },
+          })
+          .returning(),
       ]);
 
       const toolCallIds = [
         testData.toolCallId1,
         testData.toolCallId2,
-        ...additionalCalls.map(([call]) => call.id)
+        ...additionalCalls.map(([call]) => call.id),
       ];
 
       // Execute all concurrently
-      const executePromises = toolCallIds.map(id => 
-        service.executeToolCall(id)
+      const executePromises = toolCallIds.map((id) =>
+        service.executeToolCall(id),
       );
 
       // Let them start
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Complete them all
       for (let i = 0; i < toolCallIds.length; i++) {
         simulateCommandCompletion(mockProcess, `output${i + 1}`);
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
 
       await Promise.allSettled(executePromises);
@@ -562,10 +628,10 @@ describe("ToolExecutorService Database Integration Tests", () => {
             where: (tc, { eq }) => eq(tc.id, id),
           });
           return toolCall?.state;
-        })
+        }),
       );
 
-      expect(finalStates.every(state => state === "complete")).toBe(true);
+      expect(finalStates.every((state) => state === "complete")).toBe(true);
     });
   });
 
@@ -573,13 +639,13 @@ describe("ToolExecutorService Database Integration Tests", () => {
   function createMockProcess(pid: number = 12345) {
     return {
       pid,
-      stdout: { 
+      stdout: {
         on: vi.fn(),
-        removeListener: vi.fn()
+        removeListener: vi.fn(),
       },
-      stderr: { 
+      stderr: {
         on: vi.fn(),
-        removeListener: vi.fn()
+        removeListener: vi.fn(),
       },
       stdin: { write: vi.fn() },
       on: vi.fn(),
@@ -591,9 +657,9 @@ describe("ToolExecutorService Database Integration Tests", () => {
   // Helper function to simulate command completion
   function simulateCommandCompletion(mockProcess: any, output: string) {
     const stdoutHandler = mockProcess.stdout.on.mock.calls.find(
-      (call: any) => call[0] === "data"
+      (call: any) => call[0] === "data",
     )?.[1];
-    
+
     if (stdoutHandler) {
       stdoutHandler(`${output}\nCOMMAND_COMPLETE_123\n`);
     }

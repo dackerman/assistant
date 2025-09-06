@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     setupFiles: runDbTests ? ["./src/test/setup.ts"] : [],
-    include: runDbTests ? ["src/**/*.test.ts"] : [],
+    include: ["src/**/*.test.ts"],
     passWithNoTests: true,
     testTimeout: 30000,
     hookTimeout: 30000,
