@@ -2,20 +2,17 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SessionManager } from "./sessionManager";
 import { ToolExecutorService } from "./toolExecutorService";
 
-// Mock child_process using vitest mock
-const mockSpawn = vi.fn(() => ({
-  pid: 12345,
-  stdout: { on: vi.fn() },
-  stderr: { on: vi.fn() },
-  stdin: { write: vi.fn() },
-  on: vi.fn(),
-  kill: vi.fn(),
-  killed: false,
-}));
-
-// Mock the child_process module
+// Mock the child_process module - must be defined inline to avoid hoisting issues
 vi.mock("child_process", () => ({
-  spawn: mockSpawn,
+  spawn: vi.fn(() => ({
+    pid: 12345,
+    stdout: { on: vi.fn() },
+    stderr: { on: vi.fn() },
+    stdin: { write: vi.fn() },
+    on: vi.fn(),
+    kill: vi.fn(),
+    killed: false,
+  })),
 }));
 
 // Mock database operations
