@@ -2,6 +2,8 @@ import { type ChildProcess, spawn } from "child_process";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { type ToolCall, toolCalls } from "../db/schema.js";
+import { SessionManager } from "./sessionManager.js";
+import type { ToolResult } from "./toolSession.js";
 
 export interface ToolExecutorConfig {
   maxRetries?: number;
@@ -16,6 +18,7 @@ export class ToolExecutorService {
   private heartbeatTimer?: NodeJS.Timeout;
   private staleCheckTimer?: NodeJS.Timeout;
   private isShuttingDown = false;
+  private sessionManager = new SessionManager();
 
   constructor(private config: ToolExecutorConfig = {}) {
     this.config = {
@@ -61,11 +64,80 @@ export class ToolExecutorService {
     }
 
     try {
-      await this.executeWithRetry(toolCall);
+      await this.executeWithSessionSupport(toolCall);
     } catch (error) {
       await this.markToolCallFailed(toolCallId, error as Error);
       throw error;
     }
+  }
+
+  private async executeWithSessionSupport(toolCall: ToolCall): Promise<void> {
+    // Mark as running first
+    await db
+      .update(toolCalls)
+      .set({
+        state: "running",
+        startedAt: new Date(),
+        lastHeartbeat: new Date(),
+      })
+      .where(eq(toolCalls.id, toolCall.id));
+
+    try {
+      // Get the conversation ID from the tool call
+      const conversationId = await this.getConversationIdForToolCall(toolCall);
+      
+      // Get or create session for this tool
+      const session = await this.sessionManager.getOrCreateSession(
+        conversationId,
+        toolCall.toolName
+      );
+
+      // Execute the tool call in the session
+      const result = await session.execute(toolCall);
+
+      // Update database with results
+      if (result.success) {
+        await db
+          .update(toolCalls)
+          .set({
+            state: "complete",
+            response: {
+              output: result.output,
+              metadata: result.metadata
+            },
+            outputStream: result.output,
+          })
+          .where(eq(toolCalls.id, toolCall.id));
+      } else {
+        throw new Error(result.error || "Tool execution failed");
+      }
+
+    } catch (error) {
+      // Mark as failed
+      await db
+        .update(toolCalls)
+        .set({
+          state: "error",
+          error: error instanceof Error ? error.message : String(error),
+        })
+        .where(eq(toolCalls.id, toolCall.id));
+      
+      throw error;
+    }
+  }
+
+  private async getConversationIdForToolCall(toolCall: ToolCall): Promise<number> {
+    // Get the prompt to find the conversation ID
+    const prompt = await db.query.prompts.findFirst({
+      where: (prompts, { eq }) => eq(prompts.id, toolCall.promptId),
+      columns: { conversationId: true }
+    });
+
+    if (!prompt) {
+      throw new Error(`Prompt ${toolCall.promptId} not found`);
+    }
+
+    return prompt.conversationId;
   }
 
   private async executeWithRetry(toolCall: ToolCall): Promise<void> {
@@ -409,6 +481,9 @@ export class ToolExecutorService {
     if (this.staleCheckTimer) {
       clearInterval(this.staleCheckTimer);
     }
+
+    // Cleanup all sessions
+    await this.sessionManager.cleanupAllSessions();
 
     // Give running processes time to complete
     const runningPids = Array.from(this.runningProcesses.keys());

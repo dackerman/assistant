@@ -9,6 +9,7 @@ import "dotenv/config";
 // import { db } from "./src/db";
 import { ConversationService } from "./src/services/conversationService";
 import { StreamingStateMachine } from "./src/streaming/stateMachine";
+import { ToolExecutorService } from "./src/services/toolExecutorService";
 import { logger } from "./src/utils/logger";
 
 const app = new Hono();
@@ -19,6 +20,10 @@ const anthropic = new Anthropic({
 });
 
 const conversationService = new ConversationService();
+const toolExecutorService = new ToolExecutorService();
+
+// Initialize the tool executor
+toolExecutorService.initialize();
 
 // Enable CORS for frontend
 app.use(
@@ -461,7 +466,11 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
   const streamLogger = logger.child({ promptId, conversationId });
   streamLogger.info("Starting Anthropic stream");
 
-  const stateMachine = new StreamingStateMachine(promptId);
+  const stateMachine = new StreamingStateMachine(
+    promptId,
+    undefined, // Use default db
+    toolExecutorService
+  );
 
   try {
     // Get prompt details to retrieve the model

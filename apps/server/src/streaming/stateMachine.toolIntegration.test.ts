@@ -29,10 +29,13 @@ class MockToolExecutor extends ToolExecutorService {
 // Clock utilities
 let clockStub: any;
 let currentTime = new Date("2024-01-15T10:00:00Z");
+let originalDate: DateConstructor;
 
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
-  vi.stubGlobal("Date", class extends Date {
+  originalDate = globalThis.Date;
+  
+  globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
         super(currentTime);
@@ -44,7 +47,7 @@ function stubClock() {
     static now() {
       return clockStub();
     }
-  });
+  } as any;
 }
 
 function advanceTime(ms: number) {
@@ -52,7 +55,9 @@ function advanceTime(ms: number) {
 }
 
 function restoreClock() {
-  vi.unstubAllGlobals();
+  if (originalDate) {
+    globalThis.Date = originalDate;
+  }
 }
 
 describe("StateMachine Tool Integration", () => {

@@ -5,9 +5,8 @@ import { ToolExecutorService } from "./toolExecutorService";
 import { toolCalls, prompts, blocks, users, conversations, messages } from "../db/schema";
 
 // Mock child_process
-const mockSpawn = vi.fn();
 vi.mock("child_process", () => ({
-  spawn: mockSpawn,
+  spawn: vi.fn(),
 }));
 
 // Mock process.kill for process checking
@@ -17,10 +16,13 @@ const mockKill = vi.fn();
 // Clock utilities
 let clockStub: any;
 let currentTime = new Date("2024-01-15T10:00:00Z");
+let originalDate: DateConstructor;
 
 function stubClock() {
   clockStub = vi.fn(() => currentTime.getTime());
-  vi.stubGlobal("Date", class extends Date {
+  originalDate = globalThis.Date;
+  
+  globalThis.Date = class extends Date {
     constructor(...args: any[]) {
       if (args.length === 0) {
         super(currentTime);
@@ -32,7 +34,7 @@ function stubClock() {
     static now() {
       return clockStub();
     }
-  });
+  } as any;
 }
 
 function advanceTime(ms: number) {
@@ -40,11 +42,14 @@ function advanceTime(ms: number) {
 }
 
 function restoreClock() {
-  vi.unstubAllGlobals();
+  if (originalDate) {
+    globalThis.Date = originalDate;
+  }
 }
 
 describe("ToolExecutorService", () => {
   let service: ToolExecutorService;
+  let mockSpawn: any;
   let testData: {
     userId: number;
     conversationId: number;
@@ -64,6 +69,10 @@ describe("ToolExecutorService", () => {
 
   beforeEach(async () => {
     stubClock();
+    
+    // Get the mock spawn function
+    const childProcessMock = await vi.importMock<typeof import("child_process")>("child_process");
+    mockSpawn = childProcessMock.spawn;
     
     // Replace process.kill for process checking
     Object.defineProperty(process, 'kill', {
