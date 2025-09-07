@@ -40,6 +40,7 @@ export const eventTypeEnum = pgEnum("event_type", [
   "block_start",
   "block_delta",
   "block_end",
+  "message_stop",
 ]);
 
 export const toolStateEnum = pgEnum("tool_state", [
