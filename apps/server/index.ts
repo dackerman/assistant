@@ -526,8 +526,9 @@ async function waitForToolsAndContinue(
           1,
         )) as Anthropic.Message[];
 
-        // Continue streaming with tool results
+        // Continue streaming with tool results using existing state machine
         await continueStreamingWithToolResults(
+          stateMachine,
           messages,
           promptId,
           conversationId,
@@ -573,9 +574,10 @@ async function waitForToolsAndContinue(
 }
 
 /**
- * Continue streaming with tool results
+ * Continue streaming with tool results using existing state machine
  */
 async function continueStreamingWithToolResults(
+  stateMachine: StreamingStateMachine,
   messages: Anthropic.Message[],
   promptId: number,
   conversationId: number,
@@ -590,8 +592,15 @@ async function continueStreamingWithToolResults(
 
     logger.info("Continuing stream with tool results", {
       messageCount: messages.length,
-      model: promptDetails.model
+      model: promptDetails.model,
+      promptId,
+      conversationId
     });
+
+    // Get current block count to continue indexing properly
+    const existingBlocks = await conversationService.getActiveStream(conversationId);
+    const blockOffset = existingBlocks?.blocks?.length || 0;
+    logger.info("Continuation block offset", { blockOffset, existingBlockCount: existingBlocks?.blocks?.length });
 
     const apiRequest: Anthropic.MessageCreateParamsStreaming = {
       model: promptDetails.model,
@@ -609,24 +618,89 @@ async function continueStreamingWithToolResults(
       }),
     };
 
-    // Create new stream
+    logger.info("Making continuation API request to Anthropic", {
+      model: apiRequest.model,
+      messageCount: messages.length,
+      hasSystemMessage: !!promptDetails.systemMessage
+    });
+
+    // Create continuation stream
     const stream = await anthropic.messages.create(apiRequest);
     
-    // Create a new state machine for the continuation
-    const stateMachine = new StreamingStateMachine(
-      promptId,
-      undefined,
-      toolExecutorService,
-    );
+    // Track tool call information by adjusted block index
+    const toolCallsByBlockIndex = new Map<number, {
+      apiToolCallId: string;
+      toolName: string;
+      input: any;
+    }>();
+
+    let eventCount = 0;
 
     // Process the continuation stream
     for await (const event of stream) {
-      logger.info("Continuation stream event", { type: event.type });
+      eventCount++;
+      logger.info("Continuation stream event", { 
+        eventNumber: eventCount,
+        type: event.type, 
+        index: 'index' in event ? event.index : undefined,
+        promptId,
+        blockOffset
+      });
 
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      if (event.type === "message_start") {
+        logger.info("Continuation message start", {
+          message: event.message,
+          usage: event.message.usage,
+        });
+        
+      } else if (event.type === "content_block_start") {
+        const adjustedIndex = event.index + blockOffset;
+        logger.info("Continuation content block start", {
+          originalIndex: event.index,
+          adjustedIndex,
+          contentBlock: event.content_block,
+        });
+
+        if (event.content_block.type === "tool_use") {
+          logger.info("Processing continuation tool_use block start", {
+            toolName: event.content_block.name,
+            toolId: event.content_block.id,
+            originalIndex: event.index,
+            adjustedIndex,
+          });
+
+          // Store tool call info for later use in block_end
+          toolCallsByBlockIndex.set(event.index, {
+            apiToolCallId: event.content_block.id,
+            toolName: event.content_block.name,
+            input: event.content_block.input || {},
+          });
+
+          await stateMachine.processStreamEvent({
+            type: "block_start",
+            blockType: "tool_call",
+            blockIndex: adjustedIndex,
+          });
+        } else if (event.content_block.type === "text") {
+          await stateMachine.processStreamEvent({
+            type: "block_start",
+            blockType: "text",
+            blockIndex: adjustedIndex,
+          });
+        }
+        
+      } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        const adjustedIndex = event.index + blockOffset;
+        logger.info("Continuation text delta", {
+          originalIndex: event.index,
+          adjustedIndex,
+          deltaLength: event.delta.text.length,
+          deltaPreview: event.delta.text.substring(0, 50)
+        });
+
         await stateMachine.processStreamEvent({
           type: "block_delta",
-          blockIndex: event.index,
+          blockIndex: adjustedIndex,
           delta: event.delta.text,
         });
 
@@ -636,31 +710,68 @@ async function continueStreamingWithToolResults(
           delta: event.delta.text,
         });
         
-      } else if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
-        // Handle new tool calls in continuation
-        await stateMachine.processStreamEvent({
-          type: "block_start",
-          blockType: "tool_call",
-          blockIndex: event.index,
+      } else if (event.type === "content_block_stop") {
+        const adjustedIndex = event.index + blockOffset;
+        logger.info("Continuation content block stop", {
+          originalIndex: event.index,
+          adjustedIndex
         });
-        
-      } else if (event.type === "content_block_end" && event.index !== undefined) {
-        const toolCall = event.content_block;
-        if (toolCall && typeof toolCall === "object" && "type" in toolCall && toolCall.type === "tool_use") {
-          await stateMachine.processStreamEvent({
-            type: "block_end",
-            blockType: "tool_call",
-            blockIndex: event.index,
-            toolCallData: {
-              apiToolCallId: toolCall.id,
-              toolName: toolCall.name,
-              request: toolCall.input || {},
-            },
+
+        // Check if this is a tool call block
+        const toolCallData = toolCallsByBlockIndex.get(event.index);
+        if (toolCallData) {
+          logger.info("Processing continuation tool call block stop", {
+            originalIndex: event.index,
+            adjustedIndex,
+            toolName: toolCallData.toolName,
+            toolId: toolCallData.apiToolCallId
           });
+
+          // Get the complete input from the block content (like in the original code)
+          try {
+            const blockContent = await stateMachine.getBlockContent(adjustedIndex);
+            let finalInput = toolCallData.input;
+            if (blockContent) {
+              try {
+                finalInput = JSON.parse(blockContent);
+              } catch (e) {
+                logger.warn("Failed to parse tool call block content as JSON, using original input", {
+                  blockContent: blockContent.substring(0, 100),
+                  originalInput: toolCallData.input
+                });
+              }
+            }
+
+            await stateMachine.processStreamEvent({
+              type: "block_end",
+              blockType: "tool_call",
+              blockIndex: adjustedIndex,
+              toolCallData: {
+                apiToolCallId: toolCallData.apiToolCallId,
+                toolName: toolCallData.toolName,
+                request: finalInput,
+              },
+            });
+          } catch (error) {
+            logger.error("Error processing continuation tool call block stop", {
+              error: error instanceof Error ? error.message : String(error),
+              originalIndex: event.index,
+              adjustedIndex
+            });
+          }
         }
         
       } else if (event.type === "message_stop") {
+        logger.info("Continuation message stop", {
+          totalEvents: eventCount,
+          promptId
+        });
+
         const messageStopResult = await stateMachine.handleMessageStop();
+        logger.info("Continuation message stop result", { 
+          waitingForTools: messageStopResult.waitingForTools,
+          promptId
+        });
         
         if (messageStopResult.waitingForTools) {
           // More tools to execute, wait again
@@ -668,17 +779,26 @@ async function continueStreamingWithToolResults(
           waitForToolsAndContinue(stateMachine, promptId, conversationId, logger);
         } else {
           // Finally complete
+          logger.info("Stream continuation fully completed", { promptId });
           broadcast(conversationId, {
             type: "stream_complete",
             promptId,
           });
-          logger.info("Stream with tool results completed");
         }
+      } else {
+        logger.info("Unhandled continuation event type", { 
+          type: event.type, 
+          event 
+        });
       }
     }
     
   } catch (error) {
-    logger.error("Error continuing stream with tool results", error);
+    logger.error("Error continuing stream with tool results", { 
+      error: error instanceof Error ? error.message : String(error),
+      promptId,
+      conversationId
+    });
     broadcast(conversationId, {
       type: "stream_error",
       promptId,
