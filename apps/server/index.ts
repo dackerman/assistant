@@ -1264,6 +1264,16 @@ logger.info("Server starting up", {
   defaultModel: DEFAULT_MODEL,
 });
 
+// Log the file being used for this server run (if file logging is enabled)
+if (process.env.LOG_TO_FILE === "true") {
+  const logDir = process.env.LOG_DIR || "logs";
+  logger.info("File logging enabled", {
+    logDirectory: logDir,
+    logFile: `Logs will be written to ${logDir}/app-{timestamp}.log`,
+    note: "Each server run creates a unique log file with timestamp"
+  });
+}
+
 server.listen(Number(port), "0.0.0.0", () => {
   logger.info("Server ready", {
     httpUrl: `http://0.0.0.0:${port}`,

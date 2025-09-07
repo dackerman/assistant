@@ -25,9 +25,17 @@ class Logger {
   private level: LogLevel = LogLevel.INFO;
   private logDir: string;
   private enableFileLogging: boolean;
+  private logFileTimestamp: string;
 
   constructor(initialContext: LogContext = {}) {
     this.context = initialContext;
+
+    // Generate unique timestamp for this server run
+    const isoString = new Date().toISOString();
+    const dateTimePart = isoString.split('.')[0] || isoString; // Remove milliseconds first: YYYY-MM-DDTHH:MM:SS
+    this.logFileTimestamp = dateTimePart
+      .replace(/[:.]/g, '-')  // Replace : and . with - for safe filename
+      .replace('T', '_');     // Replace T with _ for readability: YYYY-MM-DD_HH-MM-SS
 
     // Set log level from environment
     const envLevel = process.env.LOG_LEVEL?.toUpperCase();
@@ -51,6 +59,7 @@ class Logger {
     childLogger.level = this.level;
     childLogger.enableFileLogging = this.enableFileLogging;
     childLogger.logDir = this.logDir;
+    childLogger.logFileTimestamp = this.logFileTimestamp; // Preserve the original timestamp
     return childLogger;
   }
 
@@ -70,8 +79,7 @@ class Logger {
 
     // Write to file if enabled
     if (this.enableFileLogging) {
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      const logFile = join(this.logDir, `app-${today}.log`);
+      const logFile = join(this.logDir, `app-${this.logFileTimestamp}.log`);
       const logLine = JSON.stringify(logEntry) + '\n';
       
       try {
