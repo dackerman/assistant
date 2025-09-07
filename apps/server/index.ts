@@ -177,6 +177,16 @@ app.put("/api/conversations/:id", async (c) => {
   }
 });
 
+app.post("/api/conversations/:id/messages", async (c) => {
+  const conversationId = Number.parseInt(c.req.param("id"));
+  const body = await c.req.json();
+
+  const result = await conversationService.createUserMessage(
+    conversationId,
+    body.content,
+  );
+});
+
 // Serve static files for production (when frontend is built)
 app.get("*", (c) => {
   return c.text(
@@ -511,15 +521,15 @@ async function waitForToolsAndContinue(
   const pollForCompletion = async (): Promise<void> => {
     try {
       const resumeResult = await stateMachine.resume();
-      logger.info("Tool completion check", { 
+      logger.info("Tool completion check", {
         status: resumeResult.status,
-        elapsedTime: Date.now() - startTime 
+        elapsedTime: Date.now() - startTime,
       });
 
       if (resumeResult.status === "continue_with_tools") {
         // Tools are complete, continue streaming
         logger.info("Tools completed, continuing stream with results");
-        
+
         // Build updated conversation history including tool results
         const messages = (await conversationService.buildConversationHistory(
           conversationId,
@@ -532,13 +542,14 @@ async function waitForToolsAndContinue(
           messages,
           promptId,
           conversationId,
-          logger
+          logger,
         );
-        
       } else if (resumeResult.status === "waiting_for_tools") {
         // Still waiting, check if we should timeout
         if (Date.now() - startTime > maxWaitTime) {
-          logger.error("Tool execution timeout - marking stream as complete with error");
+          logger.error(
+            "Tool execution timeout - marking stream as complete with error",
+          );
           broadcast(conversationId, {
             type: "stream_error",
             promptId,
@@ -546,10 +557,9 @@ async function waitForToolsAndContinue(
           });
           return;
         }
-        
+
         // Continue polling
         setTimeout(pollForCompletion, pollInterval);
-        
       } else {
         // Already complete or other final state
         logger.info("Stream already complete", { status: resumeResult.status });
@@ -558,13 +568,15 @@ async function waitForToolsAndContinue(
           promptId,
         });
       }
-      
     } catch (error) {
       logger.error("Error during tool completion polling", error);
       broadcast(conversationId, {
         type: "stream_error",
         promptId,
-        error: error instanceof Error ? error.message : "Unknown error during tool completion",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error during tool completion",
       });
     }
   };
@@ -594,13 +606,17 @@ async function continueStreamingWithToolResults(
       messageCount: messages.length,
       model: promptDetails.model,
       promptId,
-      conversationId
+      conversationId,
     });
 
     // Get current block count to continue indexing properly
-    const existingBlocks = await conversationService.getActiveStream(conversationId);
+    const existingBlocks =
+      await conversationService.getActiveStream(conversationId);
     const blockOffset = existingBlocks?.blocks?.length || 0;
-    logger.info("Continuation block offset", { blockOffset, existingBlockCount: existingBlocks?.blocks?.length });
+    logger.info("Continuation block offset", {
+      blockOffset,
+      existingBlockCount: existingBlocks?.blocks?.length,
+    });
 
     const apiRequest: Anthropic.MessageCreateParamsStreaming = {
       model: promptDetails.model,
@@ -621,30 +637,33 @@ async function continueStreamingWithToolResults(
     logger.info("Making continuation API request to Anthropic", {
       model: apiRequest.model,
       messageCount: messages.length,
-      hasSystemMessage: !!promptDetails.systemMessage
+      hasSystemMessage: !!promptDetails.systemMessage,
     });
 
     // Create continuation stream
     const stream = await anthropic.messages.create(apiRequest);
-    
+
     // Track tool call information by adjusted block index
-    const toolCallsByBlockIndex = new Map<number, {
-      apiToolCallId: string;
-      toolName: string;
-      input: any;
-    }>();
+    const toolCallsByBlockIndex = new Map<
+      number,
+      {
+        apiToolCallId: string;
+        toolName: string;
+        input: any;
+      }
+    >();
 
     let eventCount = 0;
 
     // Process the continuation stream
     for await (const event of stream) {
       eventCount++;
-      logger.info("Continuation stream event", { 
+      logger.info("Continuation stream event", {
         eventNumber: eventCount,
-        type: event.type, 
-        index: 'index' in event ? event.index : undefined,
+        type: event.type,
+        index: "index" in event ? event.index : undefined,
         promptId,
-        blockOffset
+        blockOffset,
       });
 
       if (event.type === "message_start") {
@@ -652,7 +671,6 @@ async function continueStreamingWithToolResults(
           message: event.message,
           usage: event.message.usage,
         });
-        
       } else if (event.type === "content_block_start") {
         const adjustedIndex = event.index + blockOffset;
         logger.info("Continuation content block start", {
@@ -688,14 +706,16 @@ async function continueStreamingWithToolResults(
             blockIndex: adjustedIndex,
           });
         }
-        
-      } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      } else if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
         const adjustedIndex = event.index + blockOffset;
         logger.info("Continuation text delta", {
           originalIndex: event.index,
           adjustedIndex,
           deltaLength: event.delta.text.length,
-          deltaPreview: event.delta.text.substring(0, 50)
+          deltaPreview: event.delta.text.substring(0, 50),
         });
 
         await stateMachine.processStreamEvent({
@@ -709,12 +729,11 @@ async function continueStreamingWithToolResults(
           promptId,
           delta: event.delta.text,
         });
-        
       } else if (event.type === "content_block_stop") {
         const adjustedIndex = event.index + blockOffset;
         logger.info("Continuation content block stop", {
           originalIndex: event.index,
-          adjustedIndex
+          adjustedIndex,
         });
 
         // Check if this is a tool call block
@@ -724,21 +743,25 @@ async function continueStreamingWithToolResults(
             originalIndex: event.index,
             adjustedIndex,
             toolName: toolCallData.toolName,
-            toolId: toolCallData.apiToolCallId
+            toolId: toolCallData.apiToolCallId,
           });
 
           // Get the complete input from the block content (like in the original code)
           try {
-            const blockContent = await stateMachine.getBlockContent(adjustedIndex);
+            const blockContent =
+              await stateMachine.getBlockContent(adjustedIndex);
             let finalInput = toolCallData.input;
             if (blockContent) {
               try {
                 finalInput = JSON.parse(blockContent);
               } catch (e) {
-                logger.warn("Failed to parse tool call block content as JSON, using original input", {
-                  blockContent: blockContent.substring(0, 100),
-                  originalInput: toolCallData.input
-                });
+                logger.warn(
+                  "Failed to parse tool call block content as JSON, using original input",
+                  {
+                    blockContent: blockContent.substring(0, 100),
+                    originalInput: toolCallData.input,
+                  },
+                );
               }
             }
 
@@ -756,27 +779,31 @@ async function continueStreamingWithToolResults(
             logger.error("Error processing continuation tool call block stop", {
               error: error instanceof Error ? error.message : String(error),
               originalIndex: event.index,
-              adjustedIndex
+              adjustedIndex,
             });
           }
         }
-        
       } else if (event.type === "message_stop") {
         logger.info("Continuation message stop", {
           totalEvents: eventCount,
-          promptId
+          promptId,
         });
 
         const messageStopResult = await stateMachine.handleMessageStop();
-        logger.info("Continuation message stop result", { 
+        logger.info("Continuation message stop result", {
           waitingForTools: messageStopResult.waitingForTools,
-          promptId
+          promptId,
         });
-        
+
         if (messageStopResult.waitingForTools) {
           // More tools to execute, wait again
           logger.info("More tools to execute in continuation, waiting again");
-          waitForToolsAndContinue(stateMachine, promptId, conversationId, logger);
+          waitForToolsAndContinue(
+            stateMachine,
+            promptId,
+            conversationId,
+            logger,
+          );
         } else {
           // Finally complete
           logger.info("Stream continuation fully completed", { promptId });
@@ -786,18 +813,17 @@ async function continueStreamingWithToolResults(
           });
         }
       } else {
-        logger.info("Unhandled continuation event type", { 
-          type: event.type, 
-          event 
+        logger.info("Unhandled continuation event type", {
+          type: event.type,
+          event,
         });
       }
     }
-    
   } catch (error) {
-    logger.error("Error continuing stream with tool results", { 
+    logger.error("Error continuing stream with tool results", {
       error: error instanceof Error ? error.message : String(error),
       promptId,
-      conversationId
+      conversationId,
     });
     broadcast(conversationId, {
       type: "stream_error",
@@ -821,11 +847,14 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
   );
 
   // Track tool call information by block index
-  const toolCallsByBlockIndex = new Map<number, {
-    apiToolCallId: string;
-    toolName: string;
-    input: any;
-  }>();
+  const toolCallsByBlockIndex = new Map<
+    number,
+    {
+      apiToolCallId: string;
+      toolName: string;
+      input: any;
+    }
+  >();
 
   try {
     // Get prompt details to retrieve the model
@@ -1158,11 +1187,13 @@ Query: ${userQuery}
         // Check if this is a tool call block and get the complete data
         const toolCallInfo = toolCallsByBlockIndex.get(event.index);
         let toolCallData = undefined;
-        
+
         if (toolCallInfo) {
           // Get the complete JSON content from the block to parse the final input
           try {
-            const blockContent = await stateMachine.getBlockContent(event.index);
+            const blockContent = await stateMachine.getBlockContent(
+              event.index,
+            );
             if (blockContent) {
               try {
                 const parsedInput = JSON.parse(blockContent);
@@ -1171,7 +1202,7 @@ Query: ${userQuery}
                   toolName: toolCallInfo.toolName,
                   request: parsedInput,
                 };
-                
+
                 anthropicLogger.info("Tool call data prepared for block end", {
                   toolName: toolCallInfo.toolName,
                   apiToolCallId: toolCallInfo.apiToolCallId,
@@ -1180,7 +1211,10 @@ Query: ${userQuery}
               } catch (parseError) {
                 anthropicLogger.warn("Failed to parse tool call JSON", {
                   blockContent,
-                  error: parseError instanceof Error ? parseError.message : String(parseError),
+                  error:
+                    parseError instanceof Error
+                      ? parseError.message
+                      : String(parseError),
                 });
               }
             }
@@ -1213,11 +1247,18 @@ Query: ${userQuery}
         const messageStopResult = await stateMachine.handleMessageStop();
 
         if (messageStopResult.waitingForTools) {
-          anthropicLogger.info("Message stopped, waiting for tool completion before continuing stream");
+          anthropicLogger.info(
+            "Message stopped, waiting for tool completion before continuing stream",
+          );
           // Don't broadcast stream_complete yet - we need to wait for tools and continue
-          
+
           // Start polling for tool completion
-          waitForToolsAndContinue(stateMachine, promptId, conversationId, anthropicLogger);
+          waitForToolsAndContinue(
+            stateMachine,
+            promptId,
+            conversationId,
+            anthropicLogger,
+          );
         } else {
           // No tools to wait for, stream is complete
           broadcast(conversationId, {
@@ -1270,7 +1311,7 @@ if (process.env.LOG_TO_FILE === "true") {
   logger.info("File logging enabled", {
     logDirectory: logDir,
     logFile: `Logs will be written to ${logDir}/app-{timestamp}.log`,
-    note: "Each server run creates a unique log file with timestamp"
+    note: "Each server run creates a unique log file with timestamp",
   });
 }
 
