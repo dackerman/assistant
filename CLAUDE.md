@@ -27,6 +27,9 @@ pnpm run dev  # Runs on http://localhost:4000
 
 # Backend only (from apps/server)
 pnpm run dev  # Runs on http://localhost:4001
+
+# Clean up rogue processes on ports 4000/4001 (if servers won't start)
+./scripts/cleanup-ports.sh
 ```
 
 ### Database Management
