@@ -38,6 +38,9 @@ pnpm run dev  # Runs on http://localhost:4001
 # Development database setup (PostgreSQL container on port 55432)
 ./scripts/dev-db.sh setup  # Start DB + run migrations + seed data
 
+# Clear all conversations and start fresh (development only)
+./scripts/clear-conversations.sh
+
 # Test database (separate container)
 ./scripts/test-db.sh start
 RUN_DB_TESTS=1 pnpm run test conversationService.test.ts
