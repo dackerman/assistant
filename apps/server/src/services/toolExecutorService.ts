@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { and, eq, isNull, lt, or, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { type ToolCall, toolCalls, prompts } from "../db/schema.js";
+import { type ToolCall, prompts, toolCalls } from "../db/schema.js";
+import { StreamingStateMachine } from "../streaming/stateMachine.js";
 import { SessionManager } from "./sessionManager.js";
 import type { ToolResult } from "./toolSession.js";
-import { StreamingStateMachine } from "../streaming/stateMachine.js";
 
 export interface ToolExecutorConfig {
   maxRetries: number;
@@ -190,7 +190,8 @@ export class ToolExecutorService {
 
       // Broadcast error
       if (this.broadcast) {
-        const conversationId = await this.getConversationIdForToolCall(toolCall);
+        const conversationId =
+          await this.getConversationIdForToolCall(toolCall);
         this.broadcast(conversationId, {
           type: "tool_call_error",
           promptId: toolCall.promptId,
@@ -282,8 +283,9 @@ export class ToolExecutorService {
       bashProcess.on("close", async (code, signal) => {
         try {
           // Combine stdout and stderr for database storage
-          const combinedOutput = stdoutBuffer + (stderrBuffer ? `\nSTDERR:\n${stderrBuffer}` : "");
-          
+          const combinedOutput =
+            stdoutBuffer + (stderrBuffer ? `\nSTDERR:\n${stderrBuffer}` : "");
+
           // Update database with results
           await db
             .update(toolCalls)
@@ -813,7 +815,9 @@ export class ToolExecutorService {
   /**
    * Check if all tools for a prompt are complete and handle completion
    */
-  private async checkAndHandlePromptCompletion(promptId: number): Promise<void> {
+  private async checkAndHandlePromptCompletion(
+    promptId: number,
+  ): Promise<void> {
     try {
       // Get all tool calls for this prompt
       const allTools = await db.query.toolCalls.findMany({
@@ -832,14 +836,14 @@ export class ToolExecutorService {
       if (pendingTools.length === 0) {
         // All tools are complete - handle completion
         const stateMachine = new StreamingStateMachine(promptId);
-        
+
         // Check tool completion status
         const { allComplete } = await stateMachine.checkToolCompletion();
-        
+
         if (allComplete) {
           // Continue after tools and complete the prompt
           const continueResult = await stateMachine.continueAfterTools();
-          
+
           if (continueResult.status === "ready") {
             // Complete the prompt to mark message as complete
             await stateMachine.completePrompt();
@@ -847,7 +851,10 @@ export class ToolExecutorService {
         }
       }
     } catch (error) {
-      console.error(`Failed to check tool completion for prompt ${promptId}:`, error);
+      console.error(
+        `Failed to check tool completion for prompt ${promptId}:`,
+        error,
+      );
     }
   }
 }

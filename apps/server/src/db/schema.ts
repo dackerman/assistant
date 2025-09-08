@@ -126,12 +126,21 @@ export const messages = pgTable(
 export const llmRequestState = pgEnum("llm_request_state", [
   "started",
   "waiting_for_tools",
+  "ready_for_continuation",
   "completed",
   "errored",
 ]);
 
+export const llmProviders = pgEnum("llm_providers", [
+  "anthropic",
+  "openai",
+  "xai",
+  "google",
+]);
+
 export const prompts = pgTable("prompts", {
   id: serial("id").primaryKey(),
+  provider: llmProviders("provider").notNull(),
   model: text("model").notNull(),
   request: json("request").notNull(),
   state: llmRequestState("state").notNull().default("started"),
@@ -216,7 +225,7 @@ export const toolCalls = pgTable(
     promptId: integer("prompt_id")
       .notNull()
       .references(() => prompts.id, { onDelete: "cascade" }),
-    apiToolCallId: text("api_tool_call_id"),
+    apiToolCallId: text("api_tool_call_id").notNull(),
     toolName: text("tool_name").notNull(),
     state: toolStateEnum("state").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
