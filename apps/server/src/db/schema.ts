@@ -52,6 +52,8 @@ export const toolStateEnum = pgEnum("tool_state", [
   "canceled",
 ]);
 
+export type ToolState = (typeof toolStateEnum.enumValues)[number];
+
 // Tables
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -357,11 +359,5 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type Prompt = typeof prompts.$inferSelect;
 export type NewPrompt = typeof prompts.$inferInsert;
-export type Event = typeof events.$inferSelect;
-export type NewEvent = typeof events.$inferInsert;
-export type Block = typeof blocks.$inferSelect;
-export type NewBlock = typeof blocks.$inferInsert;
 export type ToolCall = typeof toolCalls.$inferSelect;
 export type NewToolCall = typeof toolCalls.$inferInsert;
-export type Attachment = typeof attachments.$inferSelect;
-export type NewAttachment = typeof attachments.$inferInsert;

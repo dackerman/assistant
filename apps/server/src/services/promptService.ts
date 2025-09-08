@@ -146,7 +146,8 @@ export class PromptService {
         case "content_block_stop": {
           const toolInput = toolInputs.get(event.index);
           if (toolInput) {
-            const activeToolCall = await this.startToolCall(toolInput);
+            const activeToolCall =
+              await this.toolExecutor.startToolCall(toolInput);
             activeToolCalls.set(event.index, activeToolCall);
           }
           break;
@@ -194,32 +195,6 @@ export class PromptService {
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-  }
-
-  private async startToolCall({
-    promptId,
-    index,
-    input,
-    toolName,
-    toolUseId,
-  }: ToolCallRequest): Promise<ToolCall> {
-    const toolCallResult = await this.db
-      .insert(toolCalls)
-      .values({
-        promptId: promptId,
-        request: JSON.parse(input),
-        state: "created",
-        toolName: toolName,
-        apiToolCallId: toolUseId,
-      })
-      .returning();
-
-    const toolCall = toolCallResult[0];
-    if (!toolCall) {
-      throw new Error(`Tool call not found for index ${index}`);
-    }
-    await this.toolExecutor.executeToolCall(toolCall.id);
-    return toolCall;
   }
 }
 

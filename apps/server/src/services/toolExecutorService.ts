@@ -1,9 +1,17 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
-import { db } from "../db/index.js";
-import { type ToolCall, prompts, toolCalls } from "../db/schema.js";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import type postgres from "postgres";
+import { type DB, db } from "../db/index.js";
+import {
+  type ToolCall,
+  type ToolState,
+  prompts,
+  toolCalls,
+} from "../db/schema.js";
 import { StreamingStateMachine } from "../streaming/stateMachine.js";
-import { SessionManager } from "./sessionManager.js";
+import { firstOrThrow } from "../utils/array.js";
+import type { Logger } from "../utils/logger.js";
+import type { SessionManager } from "./sessionManager.js";
 import type { ToolResult } from "./toolSession.js";
 
 export interface ToolExecutorConfig {
@@ -45,18 +53,36 @@ export type BroadcastFunction = (
       },
 ) => void;
 
+export type ToolCallRequest = {
+  promptId: number;
+  index: number;
+  input: string;
+  toolName: string;
+  toolUseId: string;
+};
+
+type Notification = {
+  toolCallId: number;
+  tool_name: string;
+  prompt_id: number;
+  state: ToolState;
+};
+
 export class ToolExecutorService {
   private runningProcesses = new Map<number, ChildProcess>();
   private heartbeatTimer?: NodeJS.Timeout;
   private staleCheckTimer?: NodeJS.Timeout;
   private isShuttingDown = false;
-  private sessionManager = new SessionManager();
   private config: ToolExecutorConfig;
-  private broadcast?: BroadcastFunction;
+  private isListening = false;
 
   constructor(
+    private db: DB,
+    private sessionManager: SessionManager,
+    private broadcast: BroadcastFunction,
+    private notifyConnection: postgres.Sql,
+    private logger: Logger,
     config: Partial<ToolExecutorConfig> = {},
-    broadcast?: BroadcastFunction,
   ) {
     this.config = {
       maxRetries: 3,
@@ -66,7 +92,6 @@ export class ToolExecutorService {
       shutdownGracePeriod: 5000,
       ...config,
     };
-    this.broadcast = broadcast;
   }
 
   async initialize(): Promise<void> {
@@ -80,6 +105,118 @@ export class ToolExecutorService {
     // Setup graceful shutdown handlers
     process.on("SIGTERM", () => this.gracefulShutdown());
     process.on("SIGINT", () => this.gracefulShutdown());
+  }
+
+  /**
+   * Start listening for tool call notifications using PostgreSQL LISTEN/NOTIFY
+   */
+  async startListening(): Promise<void> {
+    if (this.isListening) {
+      this.logger.warn("Already listening for tool call notifications");
+      return;
+    }
+
+    this.logger.info("Starting tool call notification listener...");
+
+    try {
+      // Set up listener using the provided postgres connection
+      await this.notifyConnection`LISTEN tool_call_created`;
+
+      // execute new tool calls as they are created
+      this.listeners.set("tool_call_created", (notification) => {
+        if (notification.state === "created") {
+          this.executeToolCall(notification.toolCallId);
+        }
+      });
+
+      // Handle notifications
+      this.notifyConnection.listen("tool_call_created", async (payload) => {
+        for (const listener of this.listeners.values()) {
+          listener(JSON.parse(payload));
+        }
+      });
+
+      this.isListening = true;
+      this.logger.info("Tool call notification listener started successfully");
+    } catch (error) {
+      this.logger.error("Failed to start notification listener", { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Stop listening for notifications
+   */
+  async stopListening(): Promise<void> {
+    if (!this.isListening) {
+      return;
+    }
+
+    this.logger.info("Stopping tool call notification listener...");
+
+    try {
+      await this.notifyConnection`UNLISTEN tool_call_created`;
+      this.isListening = false;
+      this.logger.info("Tool call notification listener stopped");
+    } catch (error) {
+      this.logger.error("Error stopping notification listener", { error });
+    }
+  }
+
+  private listeners: Map<string, (notification: Notification) => void> =
+    new Map();
+
+  private registerListener(
+    callback: (notification: Notification) => boolean,
+  ): void {
+    const randomId = crypto.randomUUID();
+    this.listeners.set(randomId, (notification) => {
+      if (!callback(notification)) {
+        this.listeners.delete(randomId);
+      }
+    });
+  }
+
+  private async toolCallSettled(toolCallId: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.registerListener((notification) => {
+        if (notification.toolCallId === toolCallId) {
+          if (notification.state === "complete") {
+            resolve();
+            return false;
+          }
+          if (notification.state === "error") {
+            reject(new Error("Tool call error"));
+            return false;
+          }
+          if (notification.state === "canceled") {
+            reject(new Error("Tool call canceled"));
+            return false;
+          }
+        }
+        return true;
+      });
+    });
+  }
+
+  async startToolCall(toolCallRequest: ToolCallRequest): Promise<number> {
+    const toolCallId = firstOrThrow(
+      await this.db
+        .insert(toolCalls)
+        .values({
+          promptId: toolCallRequest.promptId,
+          request: JSON.parse(toolCallRequest.input),
+          state: "created",
+          toolName: toolCallRequest.toolName,
+          apiToolCallId: toolCallRequest.toolUseId,
+        })
+        .returning({ id: toolCalls.id }),
+    ).id;
+
+    // use LISTEN/NOTIFY to wait for the tool call to be completed
+    await this.toolCallSettled(toolCallId);
+
+    return toolCallId;
   }
 
   async executeToolCall(toolCallId: number): Promise<void> {
@@ -98,7 +235,10 @@ export class ToolExecutorService {
     }
 
     if (toolCall.state !== "created") {
-      throw new Error(`Tool call ${toolCallId} is not in created state`);
+      this.logger.info(
+        `Tool call ${toolCallId} is not in created state, skipping execution`,
+      );
+      return;
     }
 
     try {
@@ -697,6 +837,9 @@ export class ToolExecutorService {
   private async gracefulShutdown(): Promise<void> {
     console.log("Starting graceful shutdown of ToolExecutorService...");
     this.isShuttingDown = true;
+
+    // Stop notification listener
+    await this.stopListening();
 
     // Clear timers
     if (this.heartbeatTimer) {
