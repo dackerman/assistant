@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { prompts, promptEvents } from "../db/index.js";
+import { prompts, promptEvents, toolCalls } from "../db/index.js";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import { PromptService } from "./promptService";
 import type { ToolExecutorService } from "./toolExecutorService";
@@ -72,6 +72,93 @@ function createMockStreamingResponse(): AsyncIterable<Anthropic.Messages.RawMess
   };
 }
 
+// Mock Anthropic streaming events with a tool call (add numbers)
+function createMockStreamingResponseWithToolCall(): AsyncIterable<Anthropic.Messages.RawMessageStreamEvent> {
+  const events: Anthropic.Messages.RawMessageStreamEvent[] = [
+    {
+      type: "message_start",
+      message: {
+        id: "msg_test_tool123",
+        role: "assistant",
+        content: [],
+        model: "claude-4-sonnet-20250514",
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 15, output_tokens: 0 }
+      }
+    },
+    {
+      type: "content_block_start",
+      index: 0,
+      content_block: {
+        type: "text",
+        text: ""
+      }
+    },
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: {
+        type: "text_delta",
+        text: "I'll add those numbers for you."
+      }
+    },
+    {
+      type: "content_block_stop",
+      index: 0
+    },
+    {
+      type: "content_block_start",
+      index: 1,
+      content_block: {
+        type: "tool_use",
+        id: "toolu_add123",
+        name: "add_numbers",
+        input: {}
+      }
+    },
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: {
+        type: "input_json_delta",
+        partial_json: '{"a": 5, "b":'
+      }
+    },
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: {
+        type: "input_json_delta",
+        partial_json: ' 3}'
+      }
+    },
+    {
+      type: "content_block_stop",
+      index: 1
+    },
+    {
+      type: "message_delta",
+      delta: {
+        stop_reason: "tool_use",
+        stop_sequence: null
+      },
+      usage: { output_tokens: 25 }
+    },
+    {
+      type: "message_stop"
+    }
+  ];
+
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const event of events) {
+        yield event;
+      }
+    }
+  };
+}
+
 describe("PromptService", () => {
   let service: PromptService;
   let mockAnthropicClient: any;
@@ -88,6 +175,7 @@ describe("PromptService", () => {
 
   beforeEach(async () => {
     // Clean tables
+    await testDb.delete(toolCalls);
     await testDb.delete(promptEvents);
     await testDb.delete(prompts);
 
@@ -98,7 +186,17 @@ describe("PromptService", () => {
       }
     };
 
-    mockToolExecutor = {} as ToolExecutorService;
+    mockToolExecutor = {
+      executeToolCall: vi.fn().mockImplementation(async (toolCallId: number) => {
+        // Simulate tool execution by updating the tool call state
+        await testDb.update(toolCalls)
+          .set({ 
+            state: "complete",
+            outputStream: "8" // Result of 5 + 3
+          })
+          .where(eq(toolCalls.id, toolCallId));
+      })
+    } as any;
 
     mockLogger = {
       child: vi.fn().mockReturnValue({
@@ -168,6 +266,63 @@ describe("PromptService", () => {
       max_tokens: 50000,
       stream: true,
       messages
+    });
+  });
+
+  it("processes streaming response with tool call and handles continuation", async () => {
+    // Setup mock streaming responses
+    const mockStreamWithTool = createMockStreamingResponseWithToolCall();
+    const mockContinuationStream = createMockStreamingResponse(); // Simple response after tool
+    
+    mockAnthropicClient.messages.create
+      .mockResolvedValueOnce(mockStreamWithTool)
+      .mockResolvedValueOnce(mockContinuationStream);
+
+    // Test messages to send
+    const messages: Anthropic.Messages.MessageParam[] = [
+      { role: "user", content: "Add 5 and 3" }
+    ];
+
+    // Call the prompt method
+    await service.prompt(messages);
+
+    // Verify prompt went through tool execution states
+    const allPrompts = await testDb.select().from(prompts);
+    expect(allPrompts).toHaveLength(1);
+    
+    const prompt = allPrompts[0];
+    expect(prompt.provider).toBe("anthropic");
+    expect(prompt.model).toBe("claude-4-sonnet-20250514");
+    expect(prompt.state).toBe("completed"); // Should be completed after continuation
+    
+    // Verify tool call was created and executed
+    const allToolCalls = await testDb.select().from(toolCalls);
+    expect(allToolCalls).toHaveLength(1);
+    
+    const toolCall = allToolCalls[0];
+    expect(toolCall.promptId).toBe(prompt.id);
+    expect(toolCall.apiToolCallId).toBe("toolu_add123");
+    expect(toolCall.toolName).toBe("add_numbers");
+    expect(toolCall.state).toBe("complete");
+    expect(toolCall.request).toEqual({ a: 5, b: 3 });
+    expect(toolCall.outputStream).toBe("8");
+
+    // Verify tool executor was called
+    expect(mockToolExecutor.executeToolCall).toHaveBeenCalledWith(toolCall.id);
+
+    // Verify both streaming calls were made (initial + continuation)
+    expect(mockAnthropicClient.messages.create).toHaveBeenCalledTimes(2);
+    
+    // Check continuation call included tool result
+    const continuationCall = mockAnthropicClient.messages.create.mock.calls[1][0];
+    expect(continuationCall.messages).toHaveLength(2);
+    expect(continuationCall.messages[1]).toEqual({
+      role: "user",
+      content: [{
+        type: "tool_result",
+        tool_use_id: "toolu_add123",
+        content: "8"
+      }]
     });
   });
 });
