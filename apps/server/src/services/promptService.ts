@@ -33,7 +33,7 @@ export class PromptService {
   private readonly logger: Logger;
   private readonly toolExecutor: ToolExecutorService;
 
-  private constructor(
+  constructor(
     client: Anthropic,
     db: DB,
     toolExecutor: ToolExecutorService,
@@ -115,7 +115,7 @@ export class PromptService {
 
     for await (const event of stream) {
       this.logger.info("Stream event", { event });
-      this.db.insert(promptEvents).values({
+      await this.db.insert(promptEvents).values({
         prompt: promptId,
         event: event,
       });

@@ -244,7 +244,6 @@ export const toolCalls = pgTable(
   },
   (table) => ({
     promptIdIdx: index("idx_tool_calls_prompt_id").on(table.promptId),
-    blockIdIdx: index("idx_tool_calls_block_id").on(table.blockId),
     stateIdx: index("idx_tool_calls_state").on(table.state),
     updatedAtIdx: index("idx_tool_calls_updated_at").on(table.updatedAt),
     promptStateIdx: index("idx_tool_calls_prompt_state").on(
