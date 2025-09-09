@@ -111,7 +111,7 @@ export class PromptService {
     stream: AsyncIterable<Anthropic.Messages.RawMessageStreamEvent>,
   ): Promise<number[]> {
     const toolInputs = new Map<number, ToolCallRequest>();
-    const activeToolCalls = new Map<number, ToolCall>();
+    const activeToolCalls = new Map<number, number>();
 
     for await (const event of stream) {
       this.logger.info("Stream event", { event });
@@ -176,7 +176,7 @@ export class PromptService {
       state: "ready_for_continuation",
     });
 
-    return Array.from(activeToolCalls.values()).map((call) => call.id);
+    return Array.from(activeToolCalls.values());
   }
 
   private async waitForToolCallsToComplete(promptId: number) {

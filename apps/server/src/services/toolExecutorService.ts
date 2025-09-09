@@ -265,15 +265,13 @@ export class ToolExecutorService {
       const conversationId = await this.getConversationIdForToolCall(toolCall);
 
       // Broadcast tool call started
-      if (this.broadcast) {
-        this.broadcast(conversationId, {
-          type: "tool_call_started",
-          promptId: toolCall.promptId,
-          toolCallId: toolCall.id,
-          toolName: toolCall.toolName,
-          parameters: toolCall.request as Record<string, unknown>,
-        });
-      }
+      this.broadcast(conversationId, {
+        type: "tool_call_started",
+        promptId: toolCall.promptId,
+        toolCallId: toolCall.id,
+        toolName: toolCall.toolName,
+        parameters: toolCall.request as Record<string, unknown>,
+      });
 
       // Use streaming execution for bash, fallback to regular for others
       if (toolCall.toolName === "bash") {
@@ -294,23 +292,17 @@ export class ToolExecutorService {
             .update(toolCalls)
             .set({
               state: "complete",
-              response: {
-                output: result.output,
-                metadata: result.metadata,
-              },
               outputStream: result.output,
             })
             .where(eq(toolCalls.id, toolCall.id));
 
           // Broadcast completion for non-streaming tools
-          if (this.broadcast) {
-            this.broadcast(conversationId, {
-              type: "tool_call_completed",
-              promptId: toolCall.promptId,
-              toolCallId: toolCall.id,
-              exitCode: 0,
-            });
-          }
+          this.broadcast(conversationId, {
+            type: "tool_call_completed",
+            promptId: toolCall.promptId,
+            toolCallId: toolCall.id,
+            exitCode: 0,
+          });
 
           // Check if all tools for this prompt are complete
           await this.checkAndHandlePromptCompletion(toolCall.promptId);
@@ -329,16 +321,13 @@ export class ToolExecutorService {
         .where(eq(toolCalls.id, toolCall.id));
 
       // Broadcast error
-      if (this.broadcast) {
-        const conversationId =
-          await this.getConversationIdForToolCall(toolCall);
-        this.broadcast(conversationId, {
-          type: "tool_call_error",
-          promptId: toolCall.promptId,
-          toolCallId: toolCall.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      const conversationId = await this.getConversationIdForToolCall(toolCall);
+      this.broadcast(conversationId, {
+        type: "tool_call_error",
+        promptId: toolCall.promptId,
+        toolCallId: toolCall.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       throw error;
     }
@@ -350,14 +339,24 @@ export class ToolExecutorService {
     // Get the prompt to find the conversation ID
     const prompt = await db.query.prompts.findFirst({
       where: (prompts, { eq }) => eq(prompts.id, toolCall.promptId),
-      columns: { conversationId: true },
     });
 
     if (!prompt) {
       throw new Error(`Prompt ${toolCall.promptId} not found`);
     }
 
-    return prompt.conversationId;
+    // Since the current schema doesn't have conversationId, we need to get it through messages
+    // This is a workaround until the schema is properly updated
+    const message = await db.query.messages.findFirst({
+      where: (messages, { eq }) => eq(messages.promptId, toolCall.promptId),
+      columns: { conversationId: true },
+    });
+
+    if (!message) {
+      throw new Error(`Message for prompt ${toolCall.promptId} not found`);
+    }
+
+    return message.conversationId;
   }
 
   private async executeStreamingBash(
@@ -391,15 +390,13 @@ export class ToolExecutorService {
         stdoutBuffer += chunk;
 
         // Broadcast the output delta
-        if (this.broadcast) {
-          this.broadcast(conversationId, {
-            type: "tool_call_output_delta",
-            promptId: toolCall.promptId,
-            toolCallId: toolCall.id,
-            stream: "stdout",
-            delta: chunk,
-          });
-        }
+        this.broadcast(conversationId, {
+          type: "tool_call_output_delta",
+          promptId: toolCall.promptId,
+          toolCallId: toolCall.id,
+          stream: "stdout",
+          delta: chunk,
+        });
       });
 
       // Handle stderr streaming
@@ -408,15 +405,13 @@ export class ToolExecutorService {
         stderrBuffer += chunk;
 
         // Broadcast the error output delta
-        if (this.broadcast) {
-          this.broadcast(conversationId, {
-            type: "tool_call_output_delta",
-            promptId: toolCall.promptId,
-            toolCallId: toolCall.id,
-            stream: "stderr",
-            delta: chunk,
-          });
-        }
+        this.broadcast(conversationId, {
+          type: "tool_call_output_delta",
+          promptId: toolCall.promptId,
+          toolCallId: toolCall.id,
+          stream: "stderr",
+          delta: chunk,
+        });
       });
 
       // Handle process completion
@@ -431,26 +426,17 @@ export class ToolExecutorService {
             .update(toolCalls)
             .set({
               state: "complete",
-              response: {
-                output: combinedOutput,
-                exitCode: code,
-                signal: signal,
-                stdout: stdoutBuffer,
-                stderr: stderrBuffer,
-              },
               outputStream: combinedOutput,
             })
             .where(eq(toolCalls.id, toolCall.id));
 
           // Broadcast completion
-          if (this.broadcast) {
-            this.broadcast(conversationId, {
-              type: "tool_call_completed",
-              promptId: toolCall.promptId,
-              toolCallId: toolCall.id,
-              exitCode: code || 0,
-            });
-          }
+          this.broadcast(conversationId, {
+            type: "tool_call_completed",
+            promptId: toolCall.promptId,
+            toolCallId: toolCall.id,
+            exitCode: code || 0,
+          });
 
           // Check if all tools for this prompt are complete
           await this.checkAndHandlePromptCompletion(toolCall.promptId);
@@ -474,14 +460,12 @@ export class ToolExecutorService {
             .where(eq(toolCalls.id, toolCall.id));
 
           // Broadcast error
-          if (this.broadcast) {
-            this.broadcast(conversationId, {
-              type: "tool_call_error",
-              promptId: toolCall.promptId,
-              toolCallId: toolCall.id,
-              error: error.message,
-            });
-          }
+          this.broadcast(conversationId, {
+            type: "tool_call_error",
+            promptId: toolCall.promptId,
+            toolCallId: toolCall.id,
+            error: error.message,
+          });
 
           // Check if all tools for this prompt are complete (even on error)
           await this.checkAndHandlePromptCompletion(toolCall.promptId);
@@ -500,167 +484,6 @@ export class ToolExecutorService {
         this.runningProcesses.delete(toolCall.id);
       });
     });
-  }
-
-  private async executeWithRetry(toolCall: ToolCall): Promise<void> {
-    const maxRetries = toolCall.maxRetries;
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          // Update retry count
-          await db
-            .update(toolCalls)
-            .set({ retryCount: attempt })
-            .where(eq(toolCalls.id, toolCall.id));
-        }
-
-        await this.executeSingle(toolCall);
-        return; // Success!
-      } catch (error) {
-        lastError = error as Error;
-
-        // If it's the last attempt or a non-retryable error, give up
-        if (attempt >= maxRetries || !this.isRetryableError(error as Error)) {
-          break;
-        }
-
-        // Exponential backoff
-        const backoffMs = Math.min(1000 * 2 ** attempt, 30000);
-        await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      }
-    }
-
-    throw lastError;
-  }
-
-  private async executeSingle(toolCall: ToolCall): Promise<void> {
-    const startTime = new Date();
-    const timeoutTime = new Date(
-      startTime.getTime() + toolCall.timeoutSeconds * 1000,
-    );
-
-    // Mark as running and set initial state
-    await db
-      .update(toolCalls)
-      .set({
-        state: "running",
-        startedAt: startTime,
-        timeoutAt: timeoutTime,
-        lastHeartbeat: startTime,
-      })
-      .where(eq(toolCalls.id, toolCall.id));
-
-    // Create the child process
-    const process = this.createToolProcess(toolCall);
-
-    // Update with PID once process starts
-    if (process.pid) {
-      this.runningProcesses.set(process.pid, process);
-      await db
-        .update(toolCalls)
-        .set({ pid: process.pid })
-        .where(eq(toolCalls.id, toolCall.id));
-    }
-
-    // Setup process handlers
-    return new Promise((resolve, reject) => {
-      let output = "";
-      let hasResolved = false;
-
-      const cleanup = () => {
-        if (process.pid) {
-          this.runningProcesses.delete(process.pid);
-        }
-      };
-
-      const resolveOnce = (result?: undefined) => {
-        if (hasResolved) return;
-        hasResolved = true;
-        cleanup();
-        resolve(result);
-      };
-
-      const rejectOnce = (error: Error) => {
-        if (hasResolved) return;
-        hasResolved = true;
-        cleanup();
-        reject(error);
-      };
-
-      // Handle process output
-      process.stdout?.on("data", async (data) => {
-        output += data.toString();
-        // Update output stream periodically
-        await this.updateHeartbeat(toolCall.id, output);
-      });
-
-      process.stderr?.on("data", async (data) => {
-        output += data.toString();
-        await this.updateHeartbeat(toolCall.id, output);
-      });
-
-      // Handle process completion
-      process.on("close", async (code) => {
-        try {
-          if (code === 0) {
-            await db
-              .update(toolCalls)
-              .set({
-                state: "complete",
-                response: { output, exitCode: code },
-                outputStream: output,
-              })
-              .where(eq(toolCalls.id, toolCall.id));
-            resolveOnce();
-          } else {
-            throw new Error(`Process exited with code ${code}: ${output}`);
-          }
-        } catch (error) {
-          rejectOnce(error as Error);
-        }
-      });
-
-      process.on("error", (error) => {
-        rejectOnce(new Error(`Process error: ${error.message}`));
-      });
-
-      // Setup timeout
-      const timeoutHandle = setTimeout(() => {
-        if (!hasResolved) {
-          process.kill("SIGTERM");
-          setTimeout(() => {
-            if (!process.killed) {
-              process.kill("SIGKILL");
-            }
-          }, 5000);
-          rejectOnce(
-            new Error(
-              `Tool execution timed out after ${toolCall.timeoutSeconds} seconds`,
-            ),
-          );
-        }
-      }, toolCall.timeoutSeconds * 1000);
-
-      // Cleanup timeout on resolution
-      process.on("close", () => clearTimeout(timeoutHandle));
-    });
-  }
-
-  private createToolProcess(toolCall: ToolCall): ChildProcess {
-    const request = toolCall.request as { command: string };
-    const toolName = toolCall.toolName;
-
-    // For now, handle bash tool calls - extend for other tools later
-    if (toolName === "bash") {
-      return spawn("bash", ["-c", request.command], {
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false,
-      });
-    }
-
-    throw new Error(`Unsupported tool: ${toolName}`);
   }
 
   private async updateHeartbeat(
