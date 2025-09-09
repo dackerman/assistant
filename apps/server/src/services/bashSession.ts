@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import * as pty from "node-pty";
 import type { Logger } from "../utils/logger.js";
 
 export interface BashSessionConfig {
@@ -27,10 +27,21 @@ export interface StreamingCallbacks {
  * It provides both streaming and buffered execution modes without any database interactions.
  */
 export class BashSession {
-  private process?: ChildProcess;
+  private ptyProcess?: pty.IPty;
   private readonly config: Required<BashSessionConfig>;
   private readonly logger: Logger;
-  private commandCounter = 0;
+  private commandBuffer = "";
+  private commandQueue: Array<{
+    id: string;
+    command: string;
+    resolver: (result: CommandResult) => void;
+    rejecter: (error: Error) => void;
+    stdout: string;
+    stderr: string;
+    callbacks: StreamingCallbacks;
+    timeoutHandle?: NodeJS.Timeout;
+  }> = [];
+  private isProcessingCommand = false;
 
   constructor(logger: Logger, config: BashSessionConfig = {}) {
     this.config = {
@@ -48,7 +59,7 @@ export class BashSession {
    * Start the persistent bash session
    */
   async start(): Promise<void> {
-    if (this.process) {
+    if (this.ptyProcess) {
       return;
     }
 
@@ -57,38 +68,159 @@ export class BashSession {
     });
 
     try {
-      this.process = spawn("bash", ["-i"], {
-        stdio: ["pipe", "pipe", "pipe"],
+      this.ptyProcess = pty.spawn("bash", [], {
+        name: "xterm-256color",
+        cols: 80,
+        rows: 30,
         cwd: this.config.workingDirectory,
         env: this.config.environment,
-        detached: false,
       });
-
-      if (!this.process.stdin || !this.process.stdout || !this.process.stderr) {
-        throw new Error("Failed to create stdio pipes for bash process");
-      }
 
       // Handle process exit
-      this.process.on("exit", (code, signal) => {
-        this.logger.info("Bash session exited", { code, signal });
-        this.process = undefined;
+      this.ptyProcess.onExit(({ exitCode, signal }) => {
+        this.logger.info("Bash session exited", { exitCode, signal });
+
+        // Reject all pending commands
+        const error = new Error("Bash session exited unexpectedly");
+        for (const cmd of this.commandQueue) {
+          if (cmd.timeoutHandle) {
+            clearTimeout(cmd.timeoutHandle);
+          }
+          cmd.callbacks.onError?.(error);
+          cmd.rejecter(error);
+        }
+        this.commandQueue = [];
+        this.isProcessingCommand = false;
+        this.ptyProcess = undefined;
       });
 
-      // Handle process errors
-      this.process.on("error", (error) => {
-        this.logger.error("Bash session error", { error });
-        this.process = undefined;
+      // Set up a custom prompt to make command completion detection reliable
+      // Use a unique prompt that won't appear in normal output
+      const promptMarker = "__PTY_PROMPT__";
+      this.ptyProcess.write(`export PS1="${promptMarker}$ "\n`);
+
+      // Wait for the prompt to appear
+      await new Promise<void>((resolve) => {
+        const listener = (data: string) => {
+          if (data.includes(promptMarker)) {
+            this.ptyProcess?.onData(() => {}); // Remove temporary listener
+            resolve();
+          }
+        };
+        this.ptyProcess?.onData(listener);
       });
 
-      // Wait a moment for the process to initialize
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Set up permanent data handler
+      this.ptyProcess.onData((data: string) => {
+        this.handlePtyData(data);
+      });
 
       this.logger.info("Bash session started successfully");
     } catch (error) {
       this.logger.error("Failed to start bash session", { error });
-      this.process = undefined;
+      this.ptyProcess = undefined;
       throw error;
     }
+  }
+
+  /**
+   * Handle data from the PTY process
+   */
+  private handlePtyData(data: string): void {
+    // Stream data to the current command if one is being processed
+    const currentCmd = this.commandQueue[0];
+    if (currentCmd && this.isProcessingCommand) {
+      // Filter out prompt markers and exit codes for streaming
+      const cleanData = data
+        .replace(/__PTY_PROMPT__\$/g, "")
+        .replace(/EXIT_CODE:\d+\n?/g, "");
+
+      if (cleanData && !data.includes("__PTY_PROMPT__")) {
+        currentCmd.callbacks.onStdout?.(cleanData);
+        currentCmd.stdout += data;
+      }
+    }
+
+    this.commandBuffer += data;
+
+    // Check if we have a complete command response (prompt appeared)
+    if (this.commandBuffer.includes("__PTY_PROMPT__")) {
+      if (currentCmd && this.isProcessingCommand) {
+        // Extract exit code from the last command
+        const exitCodeMatch = currentCmd.stdout.match(/EXIT_CODE:(\d+)/);
+        const exitCode = exitCodeMatch
+          ? Number.parseInt(exitCodeMatch[1], 10)
+          : 0;
+
+        // Clean up the output
+        const cleanOutput = currentCmd.stdout
+          .replace(/__PTY_PROMPT__\$/g, "")
+          .replace(/EXIT_CODE:\d+\n?/g, "")
+          .trim();
+
+        // Clear timeout
+        if (currentCmd.timeoutHandle) {
+          clearTimeout(currentCmd.timeoutHandle);
+        }
+
+        // Call exit callback
+        currentCmd.callbacks.onExit?.(exitCode, null);
+
+        // Resolve the command
+        currentCmd.resolver({
+          success: exitCode === 0,
+          exitCode,
+          stdout: cleanOutput,
+          stderr: "", // PTY combines stdout/stderr
+          error:
+            exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined,
+        });
+
+        // Remove from queue and process next
+        this.commandQueue.shift();
+        this.isProcessingCommand = false;
+        this.commandBuffer = "";
+
+        // Process next command if any
+        this.processNextCommand();
+      }
+    }
+  }
+
+  /**
+   * Process the next command in the queue
+   */
+  private processNextCommand(): void {
+    const cmd = this.commandQueue[0];
+    if (this.isProcessingCommand || !cmd || !this.ptyProcess) {
+      return;
+    }
+
+    this.isProcessingCommand = true;
+
+    this.logger.info("Processing command from queue", {
+      id: cmd.id,
+      command: cmd.command,
+      queueLength: this.commandQueue.length,
+    });
+
+    // Set up timeout
+    cmd.timeoutHandle = setTimeout(() => {
+      const error = new Error(
+        `Command timed out after ${this.config.timeout}ms`,
+      );
+      cmd.callbacks.onError?.(error);
+      cmd.rejecter(error);
+
+      // Remove from queue and process next
+      this.commandQueue.shift();
+      this.isProcessingCommand = false;
+      this.commandBuffer = "";
+      this.processNextCommand();
+    }, this.config.timeout);
+
+    // Execute command with exit code capture
+    this.ptyProcess.write(`${cmd.command}; echo "EXIT_CODE:$?"\n`);
   }
 
   /**
@@ -98,124 +230,31 @@ export class BashSession {
     command: string,
     callbacks: StreamingCallbacks = {},
   ): Promise<CommandResult> {
-    const process = this.process;
-    if (!process) {
+    if (!this.ptyProcess) {
       throw new Error("Bash session not started");
     }
 
-    const commandId = ++this.commandCounter;
-    this.logger.info("Executing streaming command", { commandId, command });
+    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.info("Queuing command", {
+      commandId,
+      command,
+      queueLength: this.commandQueue.length,
+    });
 
     return new Promise((resolve, reject) => {
-      let stdout = "";
-      let stderr = "";
-      let completed = false;
+      // Add to queue
+      this.commandQueue.push({
+        id: commandId,
+        command,
+        resolver: resolve,
+        rejecter: reject,
+        stdout: "",
+        stderr: "",
+        callbacks,
+      });
 
-      const cleanup = () => {
-        if (process) {
-          process.stdout?.removeAllListeners("data");
-          process.stderr?.removeAllListeners("data");
-        }
-      };
-
-      const complete = (result: CommandResult) => {
-        if (completed) return;
-        completed = true;
-        cleanup();
-        callbacks.onExit?.(result.exitCode, null);
-        resolve(result);
-      };
-
-      const fail = (error: Error) => {
-        if (completed) return;
-        completed = true;
-        cleanup();
-        callbacks.onError?.(error);
-        reject(error);
-      };
-
-      // Set up timeout
-      const timeoutHandle = setTimeout(() => {
-        fail(
-          new Error(
-            `Streaming command timed out after ${this.config.timeout}ms`,
-          ),
-        );
-      }, this.config.timeout);
-
-      try {
-        // Generate unique markers to detect command completion
-        const startMarker = `__BASH_SESSION_START_${commandId}__`;
-        const endMarker = `__BASH_SESSION_END_${commandId}__`;
-        const errorMarker = `__BASH_SESSION_ERROR_${commandId}__`;
-
-        // Listen for stdout with streaming callbacks
-        const onStdout = (data: Buffer) => {
-          const chunk = data.toString();
-
-          // Filter out our markers before calling callback
-          if (
-            !chunk.includes(startMarker) &&
-            !chunk.includes(endMarker) &&
-            !chunk.includes(errorMarker)
-          ) {
-            callbacks.onStdout?.(chunk);
-          }
-
-          stdout += chunk;
-
-          // Check for completion markers
-          if (chunk.includes(endMarker)) {
-            clearTimeout(timeoutHandle);
-            complete({
-              success: true,
-              exitCode: 0,
-              stdout: stdout.trim(),
-              stderr: stderr.trim(),
-            });
-          }
-        };
-
-        // Listen for stderr with streaming callbacks
-        const onStderr = (data: Buffer) => {
-          const chunk = data.toString();
-
-          // Filter out our markers before calling callback
-          if (!chunk.includes(errorMarker)) {
-            callbacks.onStderr?.(chunk);
-          }
-
-          stderr += chunk;
-
-          // Check for error marker
-          if (chunk.includes(errorMarker)) {
-            clearTimeout(timeoutHandle);
-            complete({
-              success: false,
-              exitCode: 1,
-              stdout: stdout.trim(),
-              stderr: stderr.trim(),
-              error: "Streaming command execution failed",
-            });
-          }
-        };
-
-        process.stdout?.on("data", onStdout);
-        process.stderr?.on("data", onStderr);
-
-        // Execute the command with markers
-        const wrappedCommand = [
-          `echo "${startMarker}"`,
-          command,
-          `echo "${endMarker}"`,
-          `|| echo "${errorMarker}"`,
-        ].join("; ");
-
-        process.stdin?.write(`${wrappedCommand}\n`);
-      } catch (error) {
-        clearTimeout(timeoutHandle);
-        fail(error instanceof Error ? error : new Error(String(error)));
-      }
+      // Start processing if not already
+      this.processNextCommand();
     });
   }
 
@@ -223,70 +262,89 @@ export class BashSession {
    * Check if the session is alive
    */
   get alive(): boolean {
-    return this.process !== undefined;
+    return this.ptyProcess !== undefined;
   }
 
   /**
    * Get process PID
    */
   get pid(): number | undefined {
-    return this.process?.pid;
+    return this.ptyProcess?.pid;
   }
 
   /**
    * Stop the bash session
    */
   async stop(): Promise<void> {
-    if (!this.process) {
+    if (!this.ptyProcess) {
       return;
     }
 
     this.logger.info("Stopping bash session");
 
     return new Promise((resolve) => {
-      if (!this.process) {
+      if (!this.ptyProcess) {
         resolve();
         return;
       }
 
       const cleanup = () => {
-        this.process = undefined;
+        // Reject all pending commands
+        const error = new Error("Bash session stopped");
+        for (const cmd of this.commandQueue) {
+          if (cmd.timeoutHandle) {
+            clearTimeout(cmd.timeoutHandle);
+          }
+          cmd.callbacks.onError?.(error);
+          cmd.rejecter(error);
+        }
+
+        // Clean up all state
+        this.commandQueue = [];
+        this.isProcessingCommand = false;
+        this.commandBuffer = "";
+
+        // Destroy the PTY process
+        try {
+          this.ptyProcess?.kill();
+        } catch (e) {
+          // Ignore errors during kill
+        }
+
+        this.ptyProcess = undefined;
         resolve();
       };
 
       // Set timeout for forceful termination
       const forceKillTimeout = setTimeout(() => {
         this.logger.warn("Force killing bash session");
-        this.process?.kill("SIGKILL");
         cleanup();
-      }, 5000);
+      }, 1000);
 
-      this.process.on("exit", () => {
+      // Set up exit handler
+      this.ptyProcess.onExit(() => {
         clearTimeout(forceKillTimeout);
         cleanup();
       });
 
       // Try graceful termination first
-      this.process.stdin?.write("exit\n");
-
-      // If that doesn't work, send SIGTERM
-      setTimeout(() => {
-        if (this.process) {
-          this.logger.info("Sending SIGTERM to bash session");
-          this.process.kill("SIGTERM");
-        }
-      }, 1000);
+      try {
+        this.ptyProcess.write("exit\n");
+      } catch (e) {
+        // If write fails, just kill it
+        cleanup();
+      }
     });
   }
 
   /**
    * Send raw input to the bash process
-   * Use with caution - prefer executeCommand or executeCommandStreaming
+   * Use with caution - prefer exec for command execution
    */
   writeInput(input: string): void {
-    if (!this.process || !this.process.stdin) {
-      throw new Error("Bash session not started or stdin not available");
+    if (!this.ptyProcess) {
+      throw new Error("Bash session not started");
     }
-    this.process.stdin.write(input);
+    this.ptyProcess.write(input);
   }
 }
