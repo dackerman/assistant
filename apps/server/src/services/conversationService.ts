@@ -268,11 +268,11 @@ export class ConversationService {
       queueOrder: nextMessage.queueOrder,
     });
 
-    await this.db.transaction(async (tx) => {
+    const { assistantMessageId } = await this.db.transaction(async (tx) => {
       // Update message status to processing
       await tx
         .update(messages)
-        .set({ status: "processing" })
+        .set({ status: "processing", updatedAt: new Date() })
         .where(eq(messages.id, nextMessage.id));
 
       // Create assistant message for the response
@@ -285,6 +285,10 @@ export class ConversationService {
         } as NewMessage)
         .returning();
 
+      if (!assistantMessage) {
+        throw new Error("Failed to create assistant message");
+      }
+
       // Create a text block for the user message
       await tx.insert(blocks).values({
         messageId: nextMessage.id,
@@ -293,20 +297,67 @@ export class ConversationService {
         order: 0,
       } as NewBlock);
 
-      // Create and start the prompt
-      await this.promptService.createAndStreamPrompt({
-        conversationId,
-        messageId: assistantMessage?.id || 0, // Should never be 0 due to transaction
-        model: "claude-sonnet-4-20250514",
-        systemMessage: this.getSystemMessage(),
-      });
+      // Mark user message as completed so it appears in history
+      await tx
+        .update(messages)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(eq(messages.id, nextMessage.id));
 
       // Update conversation's updated timestamp
       await tx
         .update(conversations)
         .set({ updatedAt: new Date() })
         .where(eq(conversations.id, conversationId));
+
+      return { assistantMessageId: assistantMessage.id };
     });
+
+    if (!assistantMessageId) {
+      this.logger.error("Assistant message missing after queue processing", {
+        conversationId,
+        messageId: nextMessage.id,
+      });
+      return;
+    }
+
+    try {
+      await this.promptService.createAndStreamPrompt(
+        {
+          conversationId,
+          messageId: assistantMessageId,
+          model: "claude-sonnet-4-20250514",
+          systemMessage: this.getSystemMessage(),
+        },
+        {
+          onPromptCreated: async (promptId) => {
+            await this.handlePromptCreated(conversationId, promptId);
+          },
+          onComplete: async (promptId) => {
+            await this.handlePromptComplete(
+              conversationId,
+              assistantMessageId,
+              promptId,
+            );
+          },
+          onError: async (promptId, error) => {
+            await this.handlePromptError(
+              conversationId,
+              nextMessage.id,
+              assistantMessageId,
+              promptId,
+              error,
+            );
+          },
+        },
+      );
+    } catch (error) {
+      this.logger.error("Prompt streaming failed", {
+        conversationId,
+        userMessageId: nextMessage.id,
+        assistantMessageId,
+        error,
+      });
+    }
   }
 
   /**
@@ -580,5 +631,84 @@ For example:
 - "check disk space" → use bash tool with "df -h" command
 
 Execute the commands and then explain the results in a helpful way.`;
+  }
+
+  private async handlePromptCreated(
+    conversationId: number,
+    promptId: number,
+  ): Promise<void> {
+    await this.db
+      .update(conversations)
+      .set({ activePromptId: promptId, updatedAt: new Date() })
+      .where(eq(conversations.id, conversationId));
+
+    this.logger.info("Prompt created", {
+      conversationId,
+      promptId,
+    });
+  }
+
+  private async handlePromptComplete(
+    conversationId: number,
+    assistantMessageId: number,
+    promptId: number,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(messages)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(eq(messages.id, assistantMessageId));
+
+      await tx
+        .update(conversations)
+        .set({ activePromptId: null, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    });
+
+    this.logger.info("Prompt completed", {
+      conversationId,
+      promptId,
+      assistantMessageId,
+    });
+
+    this.processQueue(conversationId).catch((err) => {
+      this.logger.error("Failed to process next queued message", {
+        conversationId,
+        error: err,
+      });
+    });
+  }
+
+  private async handlePromptError(
+    conversationId: number,
+    userMessageId: number,
+    assistantMessageId: number,
+    promptId: number | null,
+    error: Error,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(messages)
+        .set({ status: "queued", updatedAt: new Date() })
+        .where(eq(messages.id, userMessageId));
+
+      await tx
+        .update(messages)
+        .set({ status: "error", updatedAt: new Date() })
+        .where(eq(messages.id, assistantMessageId));
+
+      await tx
+        .update(conversations)
+        .set({ activePromptId: null, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    });
+
+    this.logger.error("Prompt failed", {
+      conversationId,
+      userMessageId,
+      assistantMessageId,
+      promptId,
+      error,
+    });
   }
 }

@@ -42,14 +42,15 @@ export interface CreatePromptParams {
 }
 
 export interface StreamingCallbacks {
+  onPromptCreated?: (promptId: number) => Promise<void> | void;
   onBlockStart?: (blockId: number, type: string) => void;
   onBlockDelta?: (blockId: number, content: string) => void;
   onBlockEnd?: (blockId: number) => void;
   onToolStart?: (toolCallId: number, name: string, input: ToolInput) => void;
   onToolProgress?: (toolCallId: number, output: string) => void;
   onToolEnd?: (toolCallId: number, output: string, success: boolean) => void;
-  onComplete?: (promptId: number) => void;
-  onError?: (error: Error) => void;
+  onComplete?: (promptId: number) => Promise<void> | void;
+  onError?: (promptId: number | null, error: Error) => Promise<void> | void;
 }
 
 /**
@@ -147,6 +148,8 @@ export class PromptService {
     }
     const promptId = prompt.id;
 
+    await callbacks?.onPromptCreated?.(promptId);
+
     try {
       await this.streamPromptResponse(promptId, request, callbacks);
       return promptId;
@@ -160,9 +163,10 @@ export class PromptService {
         })
         .where(eq(prompts.id, promptId));
 
-      callbacks?.onError?.(
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
+
+      await callbacks?.onError?.(promptId, normalizedError);
       throw error;
     }
   }
@@ -455,7 +459,7 @@ export class PromptService {
       })
       .where(eq(prompts.id, promptId));
 
-    callbacks?.onComplete?.(promptId);
+    await callbacks?.onComplete?.(promptId);
 
     this.logger.info("Prompt completed", { promptId });
   }
