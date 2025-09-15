@@ -3,6 +3,7 @@ import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
   type Block,
+  type BlockType,
   type Conversation,
   type Message,
   type MessageStatus,
@@ -217,7 +218,7 @@ export class ConversationService {
       contentLength: content.length,
     });
 
-    return (result as any).rowCount > 0;
+    return result.count > 0;
   }
 
   /**
@@ -229,7 +230,7 @@ export class ConversationService {
       .where(and(eq(messages.id, messageId), eq(messages.status, "queued")));
 
     this.logger.info("Deleted queued message", { messageId });
-    return (result as any).rowCount > 0;
+    return result.count > 0;
   }
 
   /**
@@ -360,7 +361,7 @@ export class ConversationService {
     messageId: number,
     type: string,
     content: string,
-    metadata?: any,
+    metadata?: unknown,
   ): Promise<number> {
     // Get the current highest order for this message
     const [lastBlock] = await this.db
@@ -376,7 +377,7 @@ export class ConversationService {
       .insert(blocks)
       .values({
         messageId,
-        type: type as any,
+        type: type as BlockType,
         content,
         order: nextOrder,
         metadata,
@@ -395,7 +396,7 @@ export class ConversationService {
   async updateBlock(
     blockId: number,
     content: string,
-    metadata?: any,
+    metadata?: unknown,
   ): Promise<void> {
     await this.db
       .update(blocks)
@@ -473,7 +474,7 @@ export class ConversationService {
 
     // Only include completed messages in the history
     const completedMessages = result.messages.filter(
-      (msg: any) => msg.status === "completed",
+      (msg: Message) => msg.status === "completed",
     );
 
     for (const message of completedMessages) {
