@@ -4,6 +4,7 @@ import { and, eq, or } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
+  type Block,
   type NewBlock,
   type NewPrompt,
   type NewPromptEvent,
@@ -17,6 +18,21 @@ import {
 import { Logger } from "../utils/logger";
 import { ToolExecutorService } from "./toolExecutorService";
 
+// Types for tool handling
+type ToolInput = Record<string, unknown>;
+type ToolResult = {
+  tool_use_id: string;
+  content: string;
+};
+
+// Type for tool data during streaming
+interface ToolData {
+  blockId: number;
+  toolName: string;
+  toolUseId: string;
+  input: string;
+}
+
 export interface CreatePromptParams {
   conversationId: number;
   messageId: number;
@@ -29,7 +45,7 @@ export interface StreamingCallbacks {
   onBlockStart?: (blockId: number, type: string) => void;
   onBlockDelta?: (blockId: number, content: string) => void;
   onBlockEnd?: (blockId: number) => void;
-  onToolStart?: (toolCallId: number, name: string, input: any) => void;
+  onToolStart?: (toolCallId: number, name: string, input: ToolInput) => void;
   onToolProgress?: (toolCallId: number, output: string) => void;
   onToolEnd?: (toolCallId: number, output: string, success: boolean) => void;
   onComplete?: (promptId: number) => void;
@@ -122,7 +138,7 @@ export class PromptService {
         status: "streaming",
         model,
         systemMessage,
-        request: request as any,
+        request: request as unknown,
       } as NewPrompt)
       .returning();
 
@@ -161,7 +177,7 @@ export class PromptService {
   ): Promise<void> {
     const client = await this.getAnthropicClient();
     let currentRequest = request;
-    const toolCallResults: any[] = [];
+    const toolCallResults: ToolResult[] = [];
 
     // Keep looping until no more tool calls are needed
     while (true) {
@@ -209,10 +225,10 @@ export class PromptService {
     promptId: number,
     stream: AsyncIterable<Anthropic.Messages.RawMessageStreamEvent>,
     callbacks?: StreamingCallbacks,
-  ): Promise<{ hasToolCalls: boolean; newToolResults: any[] }> {
+  ): Promise<{ hasToolCalls: boolean; newToolResults: ToolResult[] }> {
     const blockMap = new Map<number, number>(); // stream index -> block id
-    const toolInputs = new Map<number, any>(); // stream index -> tool data
-    const toolResults: any[] = [];
+    const toolInputs = new Map<number, ToolData>(); // stream index -> tool data
+    const toolResults: ToolResult[] = [];
     let hasToolCalls = false;
 
     try {
@@ -221,7 +237,7 @@ export class PromptService {
         await this.db.insert(promptEvents).values({
           promptId,
           type: event.type,
-          data: event as any,
+          data: event as unknown,
         } as NewPromptEvent);
 
         switch (event.type) {
@@ -501,8 +517,8 @@ export class PromptService {
     for (const message of messageMap.values()) {
       if (message.role === "user") {
         const content = message.blocks
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.content)
+          .filter((b: Block) => b.type === "text")
+          .map((b: Block) => b.content)
           .join("");
 
         if (content) {
@@ -513,8 +529,8 @@ export class PromptService {
         }
       } else if (message.role === "assistant") {
         const content = message.blocks
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.content)
+          .filter((b: Block) => b.type === "text")
+          .map((b: Block) => b.content)
           .join("");
 
         if (content) {
