@@ -10,7 +10,7 @@ interface LogContext {
   eventIndex?: number;
   model?: string;
   wsClientId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 enum LogLevel {
@@ -63,7 +63,7 @@ class Logger {
     return childLogger;
   }
 
-  private log(level: LogLevel, message: string, data?: any) {
+  private log(level: LogLevel, message: string, data?: Record<string, unknown>) {
     if (level < this.level) return;
 
     const timestamp = new Date().toISOString();
@@ -109,19 +109,19 @@ class Logger {
     }
   }
 
-  debug(message: string, data?: any) {
+  debug(message: string, data?: Record<string, unknown>) {
     this.log(LogLevel.DEBUG, message, data);
   }
 
-  info(message: string, data?: any) {
+  info(message: string, data?: Record<string, unknown>) {
     this.log(LogLevel.INFO, message, data);
   }
 
-  warn(message: string, data?: any) {
+  warn(message: string, data?: Record<string, unknown>) {
     this.log(LogLevel.WARN, message, data);
   }
 
-  error(message: string, error?: Error | any) {
+  error(message: string, error?: Error | unknown) {
     const data =
       error instanceof Error
         ? {
@@ -129,30 +129,32 @@ class Logger {
             message: error.message,
             stack: error.stack,
           }
-        : error;
+        : error && typeof error === "object"
+          ? error as Record<string, unknown>
+          : { error };
 
     this.log(LogLevel.ERROR, message, data);
   }
 
   // Specialized logging methods for common operations
 
-  wsEvent(event: string, data?: any) {
+  wsEvent(event: string, data?: Record<string, unknown>) {
     this.debug(`WebSocket: ${event}`, data);
   }
 
-  stateTransition(from: string, to: string, data?: any) {
+  stateTransition(from: string, to: string, data?: Record<string, unknown>) {
     this.info(`State transition: ${from} → ${to}`, data);
   }
 
-  apiCall(method: string, endpoint: string, data?: any) {
+  apiCall(method: string, endpoint: string, data?: Record<string, unknown>) {
     this.debug(`API call: ${method} ${endpoint}`, data);
   }
 
-  anthropicEvent(eventType: string, data?: any) {
+  anthropicEvent(eventType: string, data?: Record<string, unknown>) {
     this.debug(`Anthropic: ${eventType}`, data);
   }
 
-  dbOperation(operation: string, table: string, data?: any) {
+  dbOperation(operation: string, table: string, data?: Record<string, unknown>) {
     this.debug(`DB: ${operation} ${table}`, data);
   }
 }

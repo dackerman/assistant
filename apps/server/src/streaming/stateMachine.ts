@@ -4,6 +4,15 @@ import type { DB } from "../db";
 import { blocks, prompts, toolCalls } from "../db/schema";
 import type { ToolExecutorService } from "../services/toolExecutorService";
 import type { Logger } from "../utils/logger";
+import type { BlockType } from "../db/schema";
+
+// Minimal logger interface for stubbing
+interface MinimalLogger {
+  info: (message: string, data?: Record<string, unknown>) => void;
+  error: (message: string, error?: Error | unknown) => void;
+  warn: (message: string, data?: Record<string, unknown>) => void;
+  debug: (message: string, data?: Record<string, unknown>) => void;
+}
 
 /**
  * Simplified StreamingStateMachine stub for compatibility.
@@ -32,7 +41,7 @@ export class StreamingStateMachine {
         error: () => {},
         warn: () => {},
         debug: () => {},
-      } as any);
+      } as unknown as Logger);
   }
 
   /**
@@ -103,7 +112,7 @@ export class StreamingStateMachine {
   /**
    * Create block (stubbed)
    */
-  async createBlock(type: string, content: string, metadata?: any) {
+  async createBlock(type: BlockType, content: string, metadata?: Record<string, unknown>) {
     // Get the message ID for this prompt
     const [prompt] = await this.db
       .select({ messageId: prompts.messageId })
@@ -130,7 +139,7 @@ export class StreamingStateMachine {
       .insert(blocks)
       .values({
         messageId: prompt.messageId,
-        type: type as any,
+        type,
         content,
         order: nextOrder,
         metadata,
@@ -143,7 +152,7 @@ export class StreamingStateMachine {
   /**
    * Update block (stubbed)
    */
-  async updateBlock(blockId: number, content: string, metadata?: any) {
+  async updateBlock(blockId: number, content: string, metadata?: Record<string, unknown>) {
     await this.db
       .update(blocks)
       .set({
@@ -188,7 +197,7 @@ export class StreamingStateMachine {
   /**
    * Process stream event (stubbed)
    */
-  async processStreamEvent(event: any) {
+  async processStreamEvent(event: { type: string; [key: string]: unknown }) {
     // Stub implementation - just log the event
     this.logger.debug("Processing stream event", { eventType: event.type });
     return;

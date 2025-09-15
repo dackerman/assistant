@@ -1,10 +1,10 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as schema from "../db/schema";
 
-let sql: any;
-export let testDb: any;
+let sql: ReturnType<typeof postgres>;
+export let testDb: PostgresJsDatabase<typeof schema>;
 
 export async function setupTestDatabase() {
   console.log("🔧 Starting database setup...");
