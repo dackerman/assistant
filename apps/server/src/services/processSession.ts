@@ -119,7 +119,7 @@ export class ProcessSession extends BaseSession {
       throw new Error("Process is not available");
     }
 
-    const request = toolCall.request as any;
+    const request = toolCall.input as any;
 
     // Handle restart command
     if (request.restart === true) {

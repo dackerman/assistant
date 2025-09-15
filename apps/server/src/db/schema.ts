@@ -14,44 +14,48 @@ import {
 } from "drizzle-orm/pg-core";
 
 // Enums
-export const promptStateEnum = pgEnum("prompt_state", [
-  "CREATED",
-  "IN_PROGRESS",
-  "WAITING_FOR_TOOLS",
-  "FAILED",
-  "ERROR",
-  "COMPLETED",
-  "CANCELED",
-]);
-
 export const messageRoleEnum = pgEnum("message_role", [
   "user",
   "assistant",
   "system",
 ]);
 
+export const messageStatusEnum = pgEnum("message_status", [
+  "pending",
+  "queued",
+  "processing",
+  "completed",
+  "error",
+]);
+
 export const blockTypeEnum = pgEnum("block_type", [
   "text",
   "thinking",
-  "tool_call",
-  "attachment",
+  "tool_use",
+  "tool_result",
+  "code",
+  "error",
 ]);
 
-export const eventTypeEnum = pgEnum("event_type", [
-  "block_start",
-  "block_delta",
-  "block_end",
-  "message_stop",
+export const promptStatusEnum = pgEnum("prompt_status", [
+  "pending",
+  "streaming",
+  "completed",
+  "error",
 ]);
 
 export const toolStateEnum = pgEnum("tool_state", [
-  "created",
-  "running",
-  "complete",
+  "pending",
+  "executing",
+  "completed",
   "error",
-  "canceled",
+  "timeout",
 ]);
 
+export type MessageRole = (typeof messageRoleEnum.enumValues)[number];
+export type MessageStatus = (typeof messageStatusEnum.enumValues)[number];
+export type BlockType = (typeof blockTypeEnum.enumValues)[number];
+export type PromptStatus = (typeof promptStatusEnum.enumValues)[number];
 export type ToolState = (typeof toolStateEnum.enumValues)[number];
 
 // Tables
@@ -88,9 +92,10 @@ export const messages = pgTable(
     conversationId: integer("conversation_id")
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
-    promptId: integer("prompt_id"),
     role: messageRoleEnum("role").notNull(),
-    isComplete: boolean("is_complete").default(false),
+    content: text("content"), // For user messages mainly
+    status: messageStatusEnum("status").notNull().default("pending"),
+    queueOrder: integer("queue_order"), // For managing message queue
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -99,126 +104,81 @@ export const messages = pgTable(
       table.conversationId,
       table.createdAt,
     ),
+    queueIdx: index("idx_message_queue").on(
+      table.conversationId,
+      table.status,
+      table.queueOrder,
+    ),
   }),
 );
 
-// export const prompts = pgTable(
-//   "prompts",
-//   {
-//     id: serial("id").primaryKey(),
-//     conversationId: integer("conversation_id")
-//       .notNull()
-//       .references(() => conversations.id, { onDelete: "cascade" }),
-//     messageId: integer("message_id").references(() => messages.id),
-//     state: promptStateEnum("state").notNull(),
-//     model: text("model").notNull(),
-//     systemMessage: text("system_message"),
-//     createdAt: timestamp("created_at").notNull().defaultNow(),
-//     lastUpdated: timestamp("last_updated").notNull().defaultNow(),
-//     error: text("error"),
-//     currentBlock: integer("current_block"),
-//   },
-//   (table) => ({
-//     stateIdx: index("idx_prompts_state").on(table.state),
-//     conversationIdx: index("idx_prompts_conversation").on(table.conversationId),
-//     lastUpdatedIdx: index("idx_prompts_last_updated").on(table.lastUpdated),
-//   }),
-// );
+export const blocks = pgTable(
+  "blocks",
+  {
+    id: serial("id").primaryKey(),
+    messageId: integer("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    type: blockTypeEnum("type").notNull(),
+    content: text("content"),
+    order: integer("order").notNull(),
+    metadata: jsonb("metadata"), // Tool details, language for code blocks, etc.
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    messageIdx: index("idx_blocks_message").on(
+      table.messageId,
+      table.order,
+    ),
+    typeIdx: index("idx_blocks_type").on(table.type),
+  }),
+);
 
-export const llmRequestState = pgEnum("llm_request_state", [
-  "started",
-  "waiting_for_tools",
-  "ready_for_continuation",
-  "completed",
-  "errored",
-]);
+export const prompts = pgTable(
+  "prompts",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    messageId: integer("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    status: promptStatusEnum("status").notNull().default("pending"),
+    model: text("model").notNull(),
+    systemMessage: text("system_message"),
+    request: jsonb("request"), // Store the full request sent to LLM
+    response: jsonb("response"), // Store the final response
+    error: text("error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    conversationIdx: index("idx_prompts_conversation").on(
+      table.conversationId,
+    ),
+    statusIdx: index("idx_prompts_status").on(table.status),
+    messageIdx: index("idx_prompts_message").on(table.messageId),
+  }),
+);
 
-export const llmProviders = pgEnum("llm_providers", [
-  "anthropic",
-  "openai",
-  "xai",
-  "google",
-]);
-
-export const prompts = pgTable("prompts", {
-  id: serial("id").primaryKey(),
-  provider: llmProviders("provider").notNull(),
-  model: text("model").notNull(),
-  request: json("request").notNull(),
-  state: llmRequestState("state").notNull().default("started"),
-  error: text("error"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  completedAt: timestamp("completed_at"),
-});
-
-export const promptEvents = pgTable("prompt_events", {
-  id: serial("id").primaryKey(),
-  prompt: integer("prompt_id")
-    .notNull()
-    .references(() => prompts.id),
-  event: json("event").notNull(),
-});
-
-// export const events = pgTable(
-//   "events",
-//   {
-//     id: serial("id").primaryKey(),
-//     promptId: integer("prompt_id")
-//       .notNull()
-//       .references(() => prompts.id, { onDelete: "cascade" }),
-//     indexNum: integer("index_num").notNull(),
-//     type: eventTypeEnum("type").notNull(),
-//     blockType: blockTypeEnum("block_type"),
-//     blockIndex: integer("block_index"),
-//     delta: text("delta"),
-//     createdAt: timestamp("created_at").notNull().defaultNow(),
-//   },
-//   (table) => ({
-//     promptIdIdx: index("idx_events_prompt_id").on(table.promptId),
-//     uniquePromptIndex: uniqueIndex("unique_prompt_index").on(
-//       table.promptId,
-//       table.indexNum,
-//     ),
-//     promptIndexIdx: index("idx_events_prompt_index").on(
-//       table.promptId,
-//       table.indexNum,
-//     ),
-//   }),
-// );
-
-// export const blocks = pgTable(
-//   "blocks",
-//   {
-//     id: serial("id").primaryKey(),
-//     promptId: integer("prompt_id")
-//       .notNull()
-//       .references(() => prompts.id, { onDelete: "cascade" }),
-//     messageId: integer("message_id").references(() => messages.id, {
-//       onDelete: "cascade",
-//     }),
-//     type: blockTypeEnum("type").notNull(),
-//     indexNum: integer("index_num").notNull(),
-//     content: text("content"),
-//     metadata: jsonb("metadata"),
-//     isFinalized: boolean("is_finalized").default(false),
-//     createdAt: timestamp("created_at").notNull().defaultNow(),
-//     updatedAt: timestamp("updated_at").notNull().defaultNow(),
-//   },
-//   (table) => ({
-//     uniquePromptBlockIndex: uniqueIndex("unique_prompt_block_index").on(
-//       table.promptId,
-//       table.indexNum,
-//     ),
-//     streamingIdx: index("idx_blocks_streaming").on(
-//       table.promptId,
-//       table.indexNum,
-//     ),
-//     completedIdx: index("idx_blocks_completed").on(
-//       table.messageId,
-//       table.indexNum,
-//     ),
-//   }),
-// );
+export const promptEvents = pgTable(
+  "prompt_events",
+  {
+    id: serial("id").primaryKey(),
+    promptId: integer("prompt_id")
+      .notNull()
+      .references(() => prompts.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // Raw event type from Anthropic
+    data: jsonb("data").notNull(), // Raw event data
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    promptIdx: index("idx_prompt_events_prompt").on(table.promptId),
+    createdAtIdx: index("idx_prompt_events_created").on(table.createdAt),
+  }),
+);
 
 export const toolCalls = pgTable(
   "tool_calls",
@@ -227,41 +187,32 @@ export const toolCalls = pgTable(
     promptId: integer("prompt_id")
       .notNull()
       .references(() => prompts.id, { onDelete: "cascade" }),
+    blockId: integer("block_id")
+      .references(() => blocks.id, { onDelete: "cascade" }),
     apiToolCallId: text("api_tool_call_id").notNull(),
-    toolName: text("tool_name").notNull(),
-    state: toolStateEnum("state").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-    request: jsonb("request").notNull(),
+    name: text("name").notNull(),
+    input: jsonb("input").notNull(),
+    output: text("output"),
+    state: toolStateEnum("state").notNull().default("pending"),
     error: text("error"),
-    // Tool execution tracking columns
+    // Process tracking
     pid: integer("pid"),
     startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
     timeoutAt: timestamp("timeout_at"),
-    retryCount: integer("retry_count").default(0).notNull(),
     lastHeartbeat: timestamp("last_heartbeat"),
-    outputStream: text("output_stream"),
+    // Retry logic
+    retryCount: integer("retry_count").default(0).notNull(),
     maxRetries: integer("max_retries").default(3).notNull(),
     timeoutSeconds: integer("timeout_seconds").default(300).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => ({
-    promptIdIdx: index("idx_tool_calls_prompt_id").on(table.promptId),
+    promptIdx: index("idx_tool_calls_prompt").on(table.promptId),
+    blockIdx: index("idx_tool_calls_block").on(table.blockId),
     stateIdx: index("idx_tool_calls_state").on(table.state),
-    updatedAtIdx: index("idx_tool_calls_updated_at").on(table.updatedAt),
-    promptStateIdx: index("idx_tool_calls_prompt_state").on(
-      table.promptId,
-      table.state,
-    ),
-    // New indexes for tool execution
     pidIdx: index("idx_tool_calls_pid").on(table.pid),
-    staleToolsIdx: index("idx_tool_calls_stale").on(
-      table.state,
-      table.lastHeartbeat,
-    ),
-    retryIdx: index("idx_tool_calls_retry").on(
-      table.retryCount,
-      table.maxRetries,
-    ),
     timeoutIdx: index("idx_tool_calls_timeout").on(
       table.state,
       table.timeoutAt,
@@ -269,86 +220,74 @@ export const toolCalls = pgTable(
   }),
 );
 
-// export const attachments = pgTable(
-//   "attachments",
-//   {
-//     id: serial("id").primaryKey(),
-//     blockId: integer("block_id")
-//       .notNull()
-//       .references(() => blocks.id, { onDelete: "cascade" }),
-//     fileName: text("file_name").notNull(),
-//     mimeType: text("mime_type").notNull(),
-//     fileSize: integer("file_size").notNull(),
-//     storageUrl: text("storage_url").notNull(),
-//     extractedText: text("extracted_text"),
-//   },
-//   (table) => ({
-//     blockIdIdx: index("idx_attachments_block_id").on(table.blockId),
-//   }),
-// );
+// Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  conversations: many(conversations),
+}));
 
-// // Relations
-// export const conversationsRelations = relations(
-//   conversations,
-//   ({ one, many }) => ({
-//     user: one(users, {
-//       fields: [conversations.userId],
-//       references: [users.id],
-//     }),
-//     messages: many(messages),
-//     prompts: many(prompts),
-//   }),
-// );
+export const conversationsRelations = relations(
+  conversations,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [conversations.userId],
+      references: [users.id],
+    }),
+    messages: many(messages),
+    prompts: many(prompts),
+    activePrompt: one(prompts, {
+      fields: [conversations.activePromptId],
+      references: [prompts.id],
+    }),
+  }),
+);
 
-// export const messagesRelations = relations(messages, ({ one, many }) => ({
-//   conversation: one(conversations, {
-//     fields: [messages.conversationId],
-//     references: [conversations.id],
-//   }),
-//   prompt: one(prompts, {
-//     fields: [messages.promptId],
-//     references: [prompts.id],
-//   }),
-//   blocks: many(blocks),
-// }));
+export const messagesRelations = relations(messages, ({ one, many }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  blocks: many(blocks),
+  prompts: many(prompts),
+}));
 
-// export const promptsRelations = relations(prompts, ({ one, many }) => ({
-//   conversation: one(conversations, {
-//     fields: [prompts.conversationId],
-//     references: [conversations.id],
-//   }),
-//   message: one(messages, {
-//     fields: [prompts.messageId],
-//     references: [messages.id],
-//   }),
-//   events: many(events),
-//   blocks: many(blocks),
-//   toolCalls: many(toolCalls),
-// }));
+export const blocksRelations = relations(blocks, ({ one, many }) => ({
+  message: one(messages, {
+    fields: [blocks.messageId],
+    references: [messages.id],
+  }),
+  toolCalls: many(toolCalls),
+}));
 
-// export const blocksRelations = relations(blocks, ({ one, many }) => ({
-//   prompt: one(prompts, {
-//     fields: [blocks.promptId],
-//     references: [prompts.id],
-//   }),
-//   message: one(messages, {
-//     fields: [blocks.messageId],
-//     references: [messages.id],
-//   }),
-//   toolCalls: many(toolCalls),
-//   attachments: many(attachments),
-// }));
+export const promptsRelations = relations(prompts, ({ one, many }) => ({
+  conversation: one(conversations, {
+    fields: [prompts.conversationId],
+    references: [conversations.id],
+  }),
+  message: one(messages, {
+    fields: [prompts.messageId],
+    references: [messages.id],
+  }),
+  events: many(promptEvents),
+  toolCalls: many(toolCalls),
+}));
 
-// export const toolCallsRelations = relations(toolCalls, ({ one }) => ({
-//   prompt: one(prompts, {
-//     fields: [toolCalls.promptId],
-//     references: [prompts.id],
-//   }),
-//   block: one(blocks, {
-//     fields: [toolCalls.blockId],
-//     references: [blocks.id],
-//   }),
-// }));
+export const promptEventsRelations = relations(promptEvents, ({ one }) => ({
+  prompt: one(prompts, {
+    fields: [promptEvents.promptId],
+    references: [prompts.id],
+  }),
+}));
+
+export const toolCallsRelations = relations(toolCalls, ({ one }) => ({
+  prompt: one(prompts, {
+    fields: [toolCalls.promptId],
+    references: [prompts.id],
+  }),
+  block: one(blocks, {
+    fields: [toolCalls.blockId],
+    references: [blocks.id],
+  }),
+}));
 
 // Type exports
 export type User = typeof users.$inferSelect;
@@ -357,7 +296,11 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type Block = typeof blocks.$inferSelect;
+export type NewBlock = typeof blocks.$inferInsert;
 export type Prompt = typeof prompts.$inferSelect;
 export type NewPrompt = typeof prompts.$inferInsert;
+export type PromptEvent = typeof promptEvents.$inferSelect;
+export type NewPromptEvent = typeof promptEvents.$inferInsert;
 export type ToolCall = typeof toolCalls.$inferSelect;
 export type NewToolCall = typeof toolCalls.$inferInsert;

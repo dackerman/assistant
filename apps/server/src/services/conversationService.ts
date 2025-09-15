@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, asc } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
@@ -7,6 +7,9 @@ import {
   type NewConversation,
   type NewMessage,
   type NewPrompt,
+  type Message,
+  type MessageStatus,
+  type Conversation,
   blocks,
   conversations,
   messages,
@@ -14,14 +17,17 @@ import {
   toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
+import { PromptService } from "./promptService";
 
 export class ConversationService {
   private db: DB;
   private logger: Logger;
+  private promptService: PromptService;
 
   constructor(dbInstance: DB = defaultDb) {
     this.db = dbInstance;
     this.logger = new Logger({ service: "ConversationService" });
+    this.promptService = new PromptService(dbInstance);
   }
 
   /**
@@ -36,12 +42,17 @@ export class ConversationService {
       } as NewConversation)
       .returning();
 
-    // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
+    this.logger.info("Created new conversation", {
+      conversationId: conversation!.id,
+      userId,
+      title,
+    });
+
     return conversation!.id;
   }
 
   /**
-   * Get conversation with all messages and blocks
+   * Get conversation with all messages and blocks (includes queued messages)
    */
   async getConversation(conversationId: number, userId: number) {
     // Get conversation
@@ -59,7 +70,7 @@ export class ConversationService {
       return null;
     }
 
-    // Get all completed messages with their blocks
+    // Get all messages (completed and queued) with their blocks
     const messagesWithBlocks = await this.db
       .select({
         message: messages,
@@ -67,13 +78,8 @@ export class ConversationService {
       })
       .from(messages)
       .leftJoin(blocks, eq(messages.id, blocks.messageId))
-      .where(
-        and(
-          eq(messages.conversationId, conversationId),
-          eq(messages.isComplete, true),
-        ),
-      )
-      .orderBy(messages.id, blocks.indexNum);
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt, messages.queueOrder, blocks.order);
 
     // Group blocks by message
     const messageMap = new Map();
@@ -85,12 +91,11 @@ export class ConversationService {
         });
       }
       if (row.block) {
-        // biome-ignore lint/style/noNonNullAssertion: We know the message exists in the map
         messageMap.get(row.message.id)!.blocks.push(row.block);
       }
     }
 
-    // Get all tool calls for this conversation's blocks
+    // Get tool calls for all blocks in this conversation
     const conversationToolCalls = await this.db
       .select({
         toolCall: toolCalls,
@@ -99,29 +104,23 @@ export class ConversationService {
       .from(toolCalls)
       .innerJoin(blocks, eq(toolCalls.blockId, blocks.id))
       .innerJoin(messages, eq(blocks.messageId, messages.id))
-      .where(
-        and(
-          eq(messages.conversationId, conversationId),
-          eq(messages.isComplete, true),
-        ),
-      )
+      .where(eq(messages.conversationId, conversationId))
       .orderBy(toolCalls.id);
 
-    // Create a map of blockId -> toolCall for quick lookup
+    // Attach tool calls to blocks
     const toolCallsByBlockId = new Map();
     for (const row of conversationToolCalls) {
-      toolCallsByBlockId.set(row.blockId, row.toolCall);
+      if (row.blockId) {
+        toolCallsByBlockId.set(row.blockId, row.toolCall);
+      }
     }
 
-    // Attach tool calls to their respective blocks within messages
     for (const message of messageMap.values()) {
       for (const block of message.blocks) {
         if (toolCallsByBlockId.has(block.id)) {
           block.toolCall = toolCallsByBlockId.get(block.id);
         }
       }
-      // Remove the toolCalls array since we're embedding them in blocks
-      delete message.toolCalls;
     }
 
     return {
@@ -131,157 +130,285 @@ export class ConversationService {
   }
 
   /**
-   * Get active streaming state for a conversation
+   * Get the currently active prompt for a conversation
    */
-  async getActiveStream(conversationId: number) {
-    // Get active prompt
+  async getActivePrompt(conversationId: number) {
     const [activePrompt] = await this.db
       .select()
       .from(prompts)
       .where(
         and(
           eq(prompts.conversationId, conversationId),
-          eq(prompts.state, "IN_PROGRESS"),
-        ),
-      );
-
-    if (!activePrompt) {
-      return null;
-    }
-
-    // Get streaming blocks (not yet finalized)
-    const streamingBlocks = await this.db
-      .select()
-      .from(blocks)
-      .where(
-        and(
-          eq(blocks.promptId, activePrompt.id),
-          eq(blocks.isFinalized, false),
+          eq(prompts.status, "streaming"),
         ),
       )
-      .orderBy(blocks.indexNum);
+      .orderBy(desc(prompts.createdAt))
+      .limit(1);
 
-    return {
-      prompt: activePrompt,
-      blocks: streamingBlocks,
-    };
+    return activePrompt || null;
   }
 
   /**
-   * Create a user message and start assistant response
+   * Queue a user message for processing
    */
-  async createUserMessage(
+  async queueMessage(
     conversationId: number,
     content: string,
-    model = "claude-sonnet-4-20250514",
-  ): Promise<{ userMessageId: number; promptId: number }> {
-    const serviceLogger = this.logger.child({
-      conversationId,
-      contentLength: content.length,
-      model,
-    });
+  ): Promise<number> {
+    // Get the highest queue order for this conversation
+    const [lastQueued] = await this.db
+      .select({ queueOrder: messages.queueOrder })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.status, "queued"),
+        ),
+      )
+      .orderBy(desc(messages.queueOrder))
+      .limit(1);
 
-    serviceLogger.info("Creating user message and starting assistant response");
+    const nextQueueOrder = (lastQueued?.queueOrder || 0) + 1;
 
-    return await this.db.transaction(async (tx: DB) => {
-      // Create user message
-      const userMessageRecord = {
+    const [message] = await this.db
+      .insert(messages)
+      .values({
         conversationId,
         role: "user",
-        isComplete: true,
-      } as NewMessage;
+        content,
+        status: "queued",
+        queueOrder: nextQueueOrder,
+      } as NewMessage)
+      .returning();
 
-      serviceLogger.info("Creating user message record", {
-        table: "messages",
-        record: userMessageRecord,
+    this.logger.info("Queued user message", {
+      conversationId,
+      messageId: message!.id,
+      queueOrder: nextQueueOrder,
+      contentLength: content.length,
+    });
+
+    // If no active prompt, start processing the queue
+    const activePrompt = await this.getActivePrompt(conversationId);
+    if (!activePrompt) {
+      await this.processQueue(conversationId);
+    }
+
+    return message!.id;
+  }
+
+  /**
+   * Edit a queued message (only allowed if not yet processing)
+   */
+  async editQueuedMessage(
+    messageId: number,
+    content: string,
+  ): Promise<boolean> {
+    const result = await this.db
+      .update(messages)
+      .set({ content, updatedAt: new Date() })
+      .where(
+        and(
+          eq(messages.id, messageId),
+          eq(messages.status, "queued"),
+        ),
+      );
+
+    this.logger.info("Edited queued message", {
+      messageId,
+      contentLength: content.length,
+    });
+
+    return (result as any).rowCount > 0;
+  }
+
+  /**
+   * Delete a queued message
+   */
+  async deleteQueuedMessage(messageId: number): Promise<boolean> {
+    const result = await this.db
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.id, messageId),
+          eq(messages.status, "queued"),
+        ),
+      );
+
+    this.logger.info("Deleted queued message", { messageId });
+    return (result as any).rowCount > 0;
+  }
+
+  /**
+   * Process the next queued message
+   */
+  async processQueue(conversationId: number): Promise<void> {
+    // Check if there's already an active prompt
+    const activePrompt = await this.getActivePrompt(conversationId);
+    if (activePrompt) {
+      this.logger.info("Cannot process queue - active prompt exists", {
+        conversationId,
+        activePromptId: activePrompt.id,
       });
+      return;
+    }
 
-      const [userMessage] = await tx
-        .insert(messages)
-        .values(userMessageRecord)
-        .returning();
+    // Get the next queued message
+    const [nextMessage] = await this.db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.status, "queued"),
+        ),
+      )
+      .orderBy(asc(messages.queueOrder))
+      .limit(1);
 
-      serviceLogger.info("User message created", {
-        userMessageId: userMessage?.id,
-        conversationId: userMessage?.conversationId,
-      });
+    if (!nextMessage) {
+      this.logger.info("No queued messages to process", { conversationId });
+      return;
+    }
 
-      // Create assistant message placeholder
+    this.logger.info("Processing next queued message", {
+      conversationId,
+      messageId: nextMessage.id,
+      queueOrder: nextMessage.queueOrder,
+    });
+
+    await this.db.transaction(async (tx) => {
+      // Update message status to processing
+      await tx
+        .update(messages)
+        .set({ status: "processing" })
+        .where(eq(messages.id, nextMessage.id));
+
+      // Create assistant message for the response
       const [assistantMessage] = await tx
         .insert(messages)
         .values({
           conversationId,
           role: "assistant",
-          isComplete: false,
+          status: "processing",
         } as NewMessage)
         .returning();
 
-      // Create prompt for streaming
-      const [prompt] = await tx
-        .insert(prompts)
-        .values({
-          conversationId,
-          // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-          messageId: assistantMessage!.id,
-          state: "CREATED",
-          model,
-          systemMessage: `You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.`,
-        } as NewPrompt)
-        .returning();
-
-      // Create a separate prompt for the user message
-      const [userPrompt] = await tx
-        .insert(prompts)
-        .values({
-          conversationId,
-          // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-          messageId: userMessage!.id,
-          state: "COMPLETED", // User messages are immediately complete
-          model: "user", // Not an AI model, just a marker
-          systemMessage: null,
-        } as NewPrompt)
-        .returning();
-
-      // Create user message block with its own prompt
+      // Create a text block for the user message
       await tx.insert(blocks).values({
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        promptId: userPrompt!.id,
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        messageId: userMessage!.id,
+        messageId: nextMessage.id,
         type: "text",
-        indexNum: 0, // User messages have simple indexing starting from 0
-        content,
-        isFinalized: true,
+        content: nextMessage.content,
+        order: 0,
+      } as NewBlock);
+
+      // Create and start the prompt
+      await this.promptService.createAndStreamPrompt({
+        conversationId,
+        messageId: assistantMessage!.id,
+        model: "claude-sonnet-4-20250514",
+        systemMessage: this.getSystemMessage(),
       });
 
-      // Update conversation's active prompt
+      // Update conversation's updated timestamp
       await tx
         .update(conversations)
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        .set({ activePromptId: prompt!.id })
+        .set({ updatedAt: new Date() })
         .where(eq(conversations.id, conversationId));
-
-      return {
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        userMessageId: userMessage!.id,
-        // biome-ignore lint/style/noNonNullAssertion: Insert always returns a row
-        promptId: prompt!.id,
-      };
     });
+  }
+
+  /**
+   * Mark a message as completed and process next in queue
+   */
+  async completeMessage(messageId: number): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      // Get the message to find its conversation
+      const [message] = await tx
+        .select()
+        .from(messages)
+        .where(eq(messages.id, messageId));
+
+      if (!message) return;
+
+      // Update message status
+      await tx
+        .update(messages)
+        .set({ status: "completed" })
+        .where(eq(messages.id, messageId));
+
+      // Clear active prompt from conversation
+      await tx
+        .update(conversations)
+        .set({ activePromptId: null, updatedAt: new Date() })
+        .where(eq(conversations.id, message.conversationId));
+
+      this.logger.info("Completed message", {
+        messageId,
+        conversationId: message.conversationId,
+      });
+    });
+
+    // Process next in queue if any
+    const [message] = await this.db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, messageId));
+    
+    if (message) {
+      await this.processQueue(message.conversationId);
+    }
+  }
+
+  /**
+   * Create a block within a message
+   */
+  async createBlock(
+    messageId: number,
+    type: string,
+    content: string,
+    metadata?: any,
+  ): Promise<number> {
+    // Get the current highest order for this message
+    const [lastBlock] = await this.db
+      .select({ order: blocks.order })
+      .from(blocks)
+      .where(eq(blocks.messageId, messageId))
+      .orderBy(desc(blocks.order))
+      .limit(1);
+
+    const nextOrder = (lastBlock?.order || -1) + 1;
+
+    const [block] = await this.db
+      .insert(blocks)
+      .values({
+        messageId,
+        type: type as any,
+        content,
+        order: nextOrder,
+        metadata,
+      } as NewBlock)
+      .returning();
+
+    return block!.id;
+  }
+
+  /**
+   * Update a block's content
+   */
+  async updateBlock(
+    blockId: number,
+    content: string,
+    metadata?: any,
+  ): Promise<void> {
+    await this.db
+      .update(blocks)
+      .set({ 
+        content, 
+        metadata,
+        updatedAt: new Date(),
+      })
+      .where(eq(blocks.id, blockId));
   }
 
   /**
@@ -295,10 +422,13 @@ Execute the commands and then explain the results in a helpful way.`,
       .orderBy(desc(conversations.updatedAt));
   }
 
-  async setTitle(conversationId: number, title: string) {
+  /**
+   * Set conversation title
+   */
+  async setTitle(conversationId: number, title: string): Promise<void> {
     await this.db
       .update(conversations)
-      .set({ title })
+      .set({ title, updatedAt: new Date() })
       .where(eq(conversations.id, conversationId));
   }
 
@@ -337,18 +467,6 @@ Execute the commands and then explain the results in a helpful way.`,
   }
 
   /**
-   * Get prompt by ID
-   */
-  async getPromptById(promptId: number) {
-    const [prompt] = await this.db
-      .select()
-      .from(prompts)
-      .where(eq(prompts.id, promptId));
-
-    return prompt || null;
-  }
-
-  /**
    * Build conversation history for AI model
    */
   async buildConversationHistory(conversationId: number, userId: number) {
@@ -357,7 +475,12 @@ Execute the commands and then explain the results in a helpful way.`,
 
     const history = [];
 
-    for (const message of result.messages) {
+    // Only include completed messages in the history
+    const completedMessages = result.messages.filter(
+      (msg: any) => msg.status === "completed"
+    );
+
+    for (const message of completedMessages) {
       if (message.role === "user") {
         // User message - combine all text blocks
         const content = message.blocks
@@ -365,12 +488,14 @@ Execute the commands and then explain the results in a helpful way.`,
           .map((b: Block) => b.content)
           .join("");
 
-        history.push({
-          role: "user",
-          content,
-        });
+        if (content) {
+          history.push({
+            role: "user",
+            content,
+          });
+        }
       } else if (message.role === "assistant") {
-        // Assistant message - only include text blocks (not thinking/tool_call)
+        // Assistant message - only include text blocks (not thinking/tool_use)
         const content = message.blocks
           .filter((b: Block) => b.type === "text")
           .map((b: Block) => b.content)
@@ -386,5 +511,80 @@ Execute the commands and then explain the results in a helpful way.`,
     }
 
     return history;
+  }
+
+  /**
+   * Get active streaming state for a conversation (compatibility method)
+   */
+  async getActiveStream(conversationId: number) {
+    const activePrompt = await this.getActivePrompt(conversationId);
+    if (!activePrompt) {
+      return null;
+    }
+
+    // Get blocks for the active prompt's message
+    const streamingBlocks = await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.messageId, activePrompt.messageId))
+      .orderBy(blocks.order);
+
+    return {
+      prompt: activePrompt,
+      blocks: streamingBlocks,
+    };
+  }
+
+  /**
+   * Create user message and start assistant response (compatibility method)
+   */
+  async createUserMessage(
+    conversationId: number,
+    content: string,
+    model = "claude-sonnet-4-20250514",
+  ): Promise<{ userMessageId: number; promptId: number }> {
+    // Queue the message and get the response
+    const userMessageId = await this.queueMessage(conversationId, content);
+    
+    // Get the active prompt that should have been created
+    const activePrompt = await this.getActivePrompt(conversationId);
+    
+    return {
+      userMessageId,
+      promptId: activePrompt?.id || 0, // Fallback for compatibility
+    };
+  }
+
+  /**
+   * Get prompt by ID (compatibility method)
+   */
+  async getPromptById(promptId: number) {
+    const [prompt] = await this.db
+      .select()
+      .from(prompts)
+      .where(eq(prompts.id, promptId));
+
+    return prompt || null;
+  }
+
+  /**
+   * Get the system message for prompts
+   */
+  private getSystemMessage(): string {
+    return `You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.`;
   }
 }

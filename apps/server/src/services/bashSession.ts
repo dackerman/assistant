@@ -148,7 +148,7 @@ export class BashSession {
       if (currentCmd && this.isProcessingCommand) {
         // Extract exit code from the last command
         const exitCodeMatch = currentCmd.stdout.match(/EXIT_CODE:(\d+)/);
-        const exitCode = exitCodeMatch
+        const exitCode = exitCodeMatch?.[1]
           ? Number.parseInt(exitCodeMatch[1], 10)
           : 0;
 

@@ -6,7 +6,6 @@ import { WebSocketServer } from "ws";
 import type { RawData, WebSocket } from "ws";
 import "dotenv/config";
 
-// import { db } from "./src/db";
 import { ConversationService } from "./src/services/conversationService";
 import { ToolExecutorService } from "./src/services/toolExecutorService";
 import { StreamingStateMachine } from "./src/streaming/stateMachine";
@@ -124,6 +123,9 @@ app.post("/api/conversations/:id/messages", async (c) => {
     model,
   );
 
+  // Start streaming the response
+  await startAnthropicStream(result.promptId, conversationId);
+
   return c.json(result);
 });
 
@@ -177,15 +179,6 @@ app.put("/api/conversations/:id", async (c) => {
   }
 });
 
-app.post("/api/conversations/:id/messages", async (c) => {
-  const conversationId = Number.parseInt(c.req.param("id"));
-  const body = await c.req.json();
-
-  const result = await conversationService.createUserMessage(
-    conversationId,
-    body.content,
-  );
-});
 
 // Serve static files for production (when frontend is built)
 app.get("*", (c) => {
@@ -257,20 +250,21 @@ const wss = new WebSocketServer({ server });
 
 // Simple in-memory subscription registry
 type OutgoingMessage =
-  | { type: "title_generated"; title: string }
-  | { type: "text_delta"; promptId: number; delta: string }
-  | { type: "stream_complete"; promptId: number }
-  | { type: "stream_error"; promptId: number; error: string }
   | { type: "subscribed"; conversationId: number }
+  | { type: "conversation_updated"; conversationId: number; data: any }
+  | { type: "message_created"; conversationId: number; message: any }
   | {
       type: "snapshot";
       conversationId: number;
-      promptId: number;
-      currentState: string;
-      content: string;
+      activeStream: any;
     }
+  | { type: "stream_started"; conversationId: number; promptId: number }
+  | { type: "stream_delta"; conversationId: number; promptId: number; delta: string }
+  | { type: "stream_complete"; conversationId: number; promptId: number }
+  | { type: "stream_error"; conversationId: number; promptId: number; error: string }
   | {
       type: "tool_call_started";
+      conversationId: number;
       promptId: number;
       toolCallId: number;
       toolName: string;
@@ -278,6 +272,7 @@ type OutgoingMessage =
     }
   | {
       type: "tool_call_output_delta";
+      conversationId: number;
       promptId: number;
       toolCallId: number;
       stream: "stdout" | "stderr";
@@ -285,25 +280,20 @@ type OutgoingMessage =
     }
   | {
       type: "tool_call_completed";
+      conversationId: number;
       promptId: number;
       toolCallId: number;
       exitCode: number;
     }
   | {
       type: "tool_call_error";
+      conversationId: number;
       promptId: number;
       toolCallId: number;
       error: string;
     };
 
-type ClientMessage =
-  | {
-      type: "send_message";
-      conversationId: number;
-      content: string;
-      model?: string;
-    }
-  | { type: "subscribe"; conversationId: number };
+type ClientMessage = { type: "subscribe"; conversationId: number };
 
 const subscriptions = new Map<number, Set<WebSocket>>();
 const wsToConversations = new Map<WebSocket, Set<number>>();
@@ -339,8 +329,8 @@ function broadcast(conversationId: number, payload: OutgoingMessage) {
   });
 }
 
-// Initialize ToolExecutorService with broadcast capability
-const toolExecutorService = new ToolExecutorService({}, broadcast);
+// Initialize ToolExecutorService
+const toolExecutorService = new ToolExecutorService();
 toolExecutorService.initialize();
 
 wss.on("connection", (ws: WebSocket) => {
@@ -353,57 +343,7 @@ wss.on("connection", (ws: WebSocket) => {
       const message = JSON.parse(data.toString()) as ClientMessage;
       wsLogger.wsEvent("message_received", { type: message.type });
 
-      if (message.type === "send_message") {
-        const messageLogger = wsLogger.child({
-          conversationId: message.conversationId,
-          contentLength: message.content.length,
-          requestedModel: message.model,
-        });
-
-        messageLogger.wsEvent("send_message_request");
-
-        // Validate and normalize model
-        const requestedModel = message.model || DEFAULT_MODEL;
-        const supportedModelsList = Object.values(SUPPORTED_MODELS);
-
-        if (
-          !supportedModelsList.includes(
-            requestedModel as (typeof SUPPORTED_MODELS)[keyof typeof SUPPORTED_MODELS],
-          )
-        ) {
-          messageLogger.warn("Unsupported model requested", {
-            requestedModel,
-            supportedModels: supportedModelsList,
-          });
-
-          ws.send(
-            JSON.stringify({
-              type: "error",
-              error: `Unsupported model: ${requestedModel}. Supported models: ${supportedModelsList.join(", ")}`,
-            }),
-          );
-          return;
-        }
-
-        // Type assertion is safe here because we validated above
-        const model =
-          requestedModel as (typeof SUPPORTED_MODELS)[keyof typeof SUPPORTED_MODELS];
-        messageLogger.info(`Using model: ${model}`);
-
-        // Create user message and start streaming
-        messageLogger.info("Creating user message");
-        const result = await conversationService.createUserMessage(
-          message.conversationId,
-          message.content,
-          model,
-        );
-
-        messageLogger.info("Starting Anthropic stream", {
-          promptId: result.promptId,
-        });
-        // Start streaming with Anthropic
-        await startAnthropicStream(result.promptId, message.conversationId);
-      } else if (message.type === "subscribe") {
+      if (message.type === "subscribe") {
         const subscribeLogger = wsLogger.child({
           conversationId: message.conversationId,
         });
@@ -432,32 +372,19 @@ wss.on("connection", (ws: WebSocket) => {
 
         // Send snapshot if an active stream exists
         subscribeLogger.info("Checking for active stream");
-        const active = await conversationService.getActiveStream(convId);
-        if (active) {
-          const content = active.blocks
-            .filter((b) => b.type === "text")
-            .map((b) => b.content || "")
-            .join("");
+        const activeStream = await conversationService.getActiveStream(convId);
+        
+        subscribeLogger.wsEvent("snapshot_sent", {
+          hasActiveStream: !!activeStream,
+        });
 
-          subscribeLogger.wsEvent("snapshot_sent", {
-            promptId: active.prompt.id,
-            currentState: active.prompt.state,
-            contentLength: content.length,
-            blockCount: active.blocks.length,
-          });
-
-          ws.send(
-            JSON.stringify({
-              type: "snapshot",
-              conversationId: convId,
-              promptId: active.prompt.id,
-              currentState: active.prompt.state,
-              content,
-            }),
-          );
-        } else {
-          subscribeLogger.info("No active stream found for conversation");
-        }
+        ws.send(
+          JSON.stringify({
+            type: "snapshot",
+            conversationId: convId,
+            activeStream,
+          }),
+        );
       }
     } catch (error) {
       wsLogger.error("WebSocket message handling error", error);
@@ -552,6 +479,7 @@ async function waitForToolsAndContinue(
           );
           broadcast(conversationId, {
             type: "stream_error",
+            conversationId,
             promptId,
             error: "Tool execution timeout",
           });
@@ -565,6 +493,7 @@ async function waitForToolsAndContinue(
         logger.info("Stream already complete", { status: resumeResult.status });
         broadcast(conversationId, {
           type: "stream_complete",
+          conversationId,
           promptId,
         });
       }
@@ -572,6 +501,7 @@ async function waitForToolsAndContinue(
       logger.error("Error during tool completion polling", error);
       broadcast(conversationId, {
         type: "stream_error",
+        conversationId,
         promptId,
         error:
           error instanceof Error
@@ -725,7 +655,8 @@ async function continueStreamingWithToolResults(
         });
 
         broadcast(conversationId, {
-          type: "text_delta",
+          type: "stream_delta",
+          conversationId,
           promptId,
           delta: event.delta.text,
         });
@@ -809,6 +740,7 @@ async function continueStreamingWithToolResults(
           logger.info("Stream continuation fully completed", { promptId });
           broadcast(conversationId, {
             type: "stream_complete",
+            conversationId,
             promptId,
           });
         }
@@ -827,6 +759,7 @@ async function continueStreamingWithToolResults(
     });
     broadcast(conversationId, {
       type: "stream_error",
+      conversationId,
       promptId,
       error: error instanceof Error ? error.message : "Error continuing stream",
     });
@@ -954,8 +887,9 @@ Query: ${userQuery}
               ? firstContentBlock.text
               : null) || "New Conversation (failed)";
           broadcast(conversationId, {
-            type: "title_generated",
-            title,
+            type: "conversation_updated",
+            conversationId,
+            data: { title },
           });
           return conversationService.setTitle(conversationId, title);
         })
@@ -1156,7 +1090,8 @@ Query: ${userQuery}
           );
 
           broadcast(conversationId, {
-            type: "text_delta",
+            type: "stream_delta",
+            conversationId,
             promptId,
             delta: event.delta.text,
           });
@@ -1263,6 +1198,7 @@ Query: ${userQuery}
           // No tools to wait for, stream is complete
           broadcast(conversationId, {
             type: "stream_complete",
+            conversationId,
             promptId,
           });
 
@@ -1291,6 +1227,7 @@ Query: ${userQuery}
 
     broadcast(conversationId, {
       type: "stream_error",
+      conversationId,
       promptId,
       error: errorMessage,
     });

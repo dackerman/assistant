@@ -37,7 +37,7 @@ export class BashToolSession implements ToolSession {
       throw new Error("Bash session not started");
     }
 
-    const request = toolCall.request;
+    const request = toolCall.input as any;
     if (
       !request ||
       typeof request !== "object" ||
