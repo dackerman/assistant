@@ -127,10 +127,7 @@ export const blocks = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => ({
-    messageIdx: index("idx_blocks_message").on(
-      table.messageId,
-      table.order,
-    ),
+    messageIdx: index("idx_blocks_message").on(table.messageId, table.order),
     typeIdx: index("idx_blocks_type").on(table.type),
   }),
 );
@@ -155,9 +152,7 @@ export const prompts = pgTable(
     completedAt: timestamp("completed_at"),
   },
   (table) => ({
-    conversationIdx: index("idx_prompts_conversation").on(
-      table.conversationId,
-    ),
+    conversationIdx: index("idx_prompts_conversation").on(table.conversationId),
     statusIdx: index("idx_prompts_status").on(table.status),
     messageIdx: index("idx_prompts_message").on(table.messageId),
   }),
@@ -187,8 +182,9 @@ export const toolCalls = pgTable(
     promptId: integer("prompt_id")
       .notNull()
       .references(() => prompts.id, { onDelete: "cascade" }),
-    blockId: integer("block_id")
-      .references(() => blocks.id, { onDelete: "cascade" }),
+    blockId: integer("block_id").references(() => blocks.id, {
+      onDelete: "cascade",
+    }),
     apiToolCallId: text("api_tool_call_id").notNull(),
     name: text("name").notNull(),
     input: jsonb("input").notNull(),

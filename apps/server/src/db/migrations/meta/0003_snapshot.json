@@ -75,12 +75,8 @@
           "name": "conversations_user_id_users_id_fk",
           "tableFrom": "conversations",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -170,12 +166,8 @@
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -215,12 +207,8 @@
           "name": "prompt_events_prompt_id_prompts_id_fk",
           "tableFrom": "prompt_events",
           "tableTo": "prompts",
-          "columnsFrom": [
-            "prompt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prompt_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -560,12 +548,8 @@
           "name": "tool_calls_prompt_id_prompts_id_fk",
           "tableFrom": "tool_calls",
           "tableTo": "prompts",
-          "columnsFrom": [
-            "prompt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prompt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -607,9 +591,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -621,32 +603,17 @@
     "public.block_type": {
       "name": "block_type",
       "schema": "public",
-      "values": [
-        "text",
-        "thinking",
-        "tool_call",
-        "attachment"
-      ]
+      "values": ["text", "thinking", "tool_call", "attachment"]
     },
     "public.event_type": {
       "name": "event_type",
       "schema": "public",
-      "values": [
-        "block_start",
-        "block_delta",
-        "block_end",
-        "message_stop"
-      ]
+      "values": ["block_start", "block_delta", "block_end", "message_stop"]
     },
     "public.llm_providers": {
       "name": "llm_providers",
       "schema": "public",
-      "values": [
-        "anthropic",
-        "openai",
-        "xai",
-        "google"
-      ]
+      "values": ["anthropic", "openai", "xai", "google"]
     },
     "public.llm_request_state": {
       "name": "llm_request_state",
@@ -662,11 +629,7 @@
     "public.message_role": {
       "name": "message_role",
       "schema": "public",
-      "values": [
-        "user",
-        "assistant",
-        "system"
-      ]
+      "values": ["user", "assistant", "system"]
     },
     "public.prompt_state": {
       "name": "prompt_state",
@@ -684,13 +647,7 @@
     "public.tool_state": {
       "name": "tool_state",
       "schema": "public",
-      "values": [
-        "created",
-        "running",
-        "complete",
-        "error",
-        "canceled"
-      ]
+      "values": ["created", "running", "complete", "error", "canceled"]
     }
   },
   "schemas": {},

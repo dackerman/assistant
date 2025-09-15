@@ -13,10 +13,12 @@ export default defineConfig({
     hookTimeout: 30000,
     // Disable parallel execution for database tests to avoid conflicts
     pool: runDbTests ? "forks" : "threads",
-    poolOptions: runDbTests ? {
-      forks: {
-        singleFork: true,
-      },
-    } : {},
+    poolOptions: runDbTests
+      ? {
+          forks: {
+            singleFork: true,
+          },
+        }
+      : {},
   },
 });

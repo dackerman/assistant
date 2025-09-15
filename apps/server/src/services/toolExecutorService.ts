@@ -1,12 +1,12 @@
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
   type ToolCall,
   type ToolState,
-  toolCalls,
-  prompts,
   blocks,
+  prompts,
+  toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
 import { SessionManager } from "./sessionManager";
@@ -25,10 +25,7 @@ export class ToolExecutorService {
   private sessionManager: SessionManager;
   private config: Required<ToolExecutorConfig>;
 
-  constructor(
-    dbInstance: DB = defaultDb,
-    config: ToolExecutorConfig = {},
-  ) {
+  constructor(dbInstance: DB = defaultDb, config: ToolExecutorConfig = {}) {
     this.db = dbInstance;
     this.logger = new Logger({ service: "ToolExecutorService" });
     this.sessionManager = new SessionManager({
@@ -110,8 +107,9 @@ export class ToolExecutorService {
       });
     } catch (error) {
       // Mark as failed
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       await this.db
         .update(toolCalls)
         .set({
@@ -123,7 +121,10 @@ export class ToolExecutorService {
 
       // Update tool result block with error
       if (toolCall.blockId) {
-        await this.updateToolResultBlock(toolCall.blockId, `Error: ${errorMessage}`);
+        await this.updateToolResultBlock(
+          toolCall.blockId,
+          `Error: ${errorMessage}`,
+        );
       }
 
       this.logger.error("Tool call failed", {
@@ -183,7 +184,7 @@ export class ToolExecutorService {
 
     if (!result.success) {
       throw new Error(
-        result.error || `Command failed with exit code ${result.exitCode}`
+        result.error || `Command failed with exit code ${result.exitCode}`,
       );
     }
 

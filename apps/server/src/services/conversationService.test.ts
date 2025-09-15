@@ -137,12 +137,12 @@ describe("ConversationService", () => {
 
     const result = await service.getConversation(convId, userId);
     expect(result).not.toBeNull();
-    expect(result!.conversation.id).toBe(convId);
+    expect(result?.conversation.id).toBe(convId);
     // Only completed messages should appear: user + assistant
-    expect(result!.messages.length).toBe(2);
+    expect(result?.messages.length).toBe(2);
 
     // Check assistant message has blocks
-    const assistant = result!.messages.find((m: any) => m.role === "assistant");
+    const assistant = result?.messages.find((m: any) => m.role === "assistant");
     expect(assistant.blocks.length).toBe(1);
     expect(assistant.blocks[0].content).toBe("A1");
   });
@@ -161,25 +161,31 @@ describe("ConversationService", () => {
       .where(eq(prompts.id, promptId));
 
     // create assistant tool_call block
-    const [toolCallBlock] = await testDb.insert(blocks).values({
-      promptId,
-      messageId: prompt.messageId!,
-      type: "tool_call",
-      indexNum: 0,
-      content: "Running ls command",
-      isFinalized: true,
-    }).returning();
+    const [toolCallBlock] = await testDb
+      .insert(blocks)
+      .values({
+        promptId,
+        messageId: prompt.messageId!,
+        type: "tool_call",
+        indexNum: 0,
+        content: "Running ls command",
+        isFinalized: true,
+      })
+      .returning();
 
     // create a tool call associated with this block
-    const [toolCall] = await testDb.insert(toolCalls).values({
-      promptId,
-      blockId: toolCallBlock.id,
-      apiToolCallId: "call_123",
-      toolName: "Bash",
-      state: "complete",
-      request: { command: "ls" },
-      response: { output: "file1.txt\nfile2.txt" },
-    }).returning();
+    const [toolCall] = await testDb
+      .insert(toolCalls)
+      .values({
+        promptId,
+        blockId: toolCallBlock.id,
+        apiToolCallId: "call_123",
+        toolName: "Bash",
+        state: "complete",
+        request: { command: "ls" },
+        response: { output: "file1.txt\nfile2.txt" },
+      })
+      .returning();
 
     // mark assistant message as complete
     await testDb
@@ -190,11 +196,11 @@ describe("ConversationService", () => {
     // Test: get conversation should include tool calls
     const result = await service.getConversation(convId, userId);
     expect(result).not.toBeNull();
-    expect(result!.conversation.id).toBe(convId);
-    expect(result!.messages.length).toBe(2);
+    expect(result?.conversation.id).toBe(convId);
+    expect(result?.messages.length).toBe(2);
 
     // Check assistant message has tool call embedded in block
-    const assistant = result!.messages.find((m: any) => m.role === "assistant");
+    const assistant = result?.messages.find((m: any) => m.role === "assistant");
     expect(assistant).toBeDefined();
     expect(assistant.blocks).toBeDefined();
     expect(assistant.blocks.length).toBe(1);
@@ -204,7 +210,9 @@ describe("ConversationService", () => {
     expect(assistant.blocks[0].toolCall.toolName).toBe("Bash");
     expect(assistant.blocks[0].toolCall.state).toBe("complete");
     expect(assistant.blocks[0].toolCall.request).toEqual({ command: "ls" });
-    expect(assistant.blocks[0].toolCall.response).toEqual({ output: "file1.txt\nfile2.txt" });
+    expect(assistant.blocks[0].toolCall.response).toEqual({
+      output: "file1.txt\nfile2.txt",
+    });
   });
 
   it("getActiveStream returns active prompt and non-finalized blocks", async () => {
@@ -227,9 +235,9 @@ describe("ConversationService", () => {
 
     const active = await service.getActiveStream(convId);
     expect(active).not.toBeNull();
-    expect(active!.prompt.id).toBe(promptId);
-    expect(active!.blocks.length).toBe(1);
-    expect(active!.blocks.at(0)!.isFinalized).toBe(false);
+    expect(active?.prompt.id).toBe(promptId);
+    expect(active?.blocks.length).toBe(1);
+    expect(active?.blocks.at(0)?.isFinalized).toBe(false);
   });
 
   it("lists conversations ordered by updatedAt desc", async () => {
@@ -247,7 +255,7 @@ describe("ConversationService", () => {
     const list = await service.listConversations(userId);
     expect(list.length).toBe(2);
     // B should come first
-    expect(list.at(0)!.title).toBe("B");
+    expect(list.at(0)?.title).toBe("B");
   });
 
   it("builds conversation history with user and assistant text only", async () => {

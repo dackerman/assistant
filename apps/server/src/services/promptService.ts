@@ -4,15 +4,15 @@ import { and, eq, or } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
-  type NewPrompt,
   type NewBlock,
-  type NewToolCall,
+  type NewPrompt,
   type NewPromptEvent,
-  prompts,
-  promptEvents,
+  type NewToolCall,
   blocks,
-  toolCalls,
   messages,
+  promptEvents,
+  prompts,
+  toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
 import { ToolExecutorService } from "./toolExecutorService";
@@ -71,7 +71,13 @@ export class PromptService {
     params: CreatePromptParams,
     callbacks?: StreamingCallbacks,
   ): Promise<number> {
-    const { conversationId, messageId, model = "claude-sonnet-4-20250514", systemMessage, maxTokens = 50000 } = params;
+    const {
+      conversationId,
+      messageId,
+      model = "claude-sonnet-4-20250514",
+      systemMessage,
+      maxTokens = 50000,
+    } = params;
 
     this.logger.info("Creating and streaming prompt", {
       conversationId,
@@ -91,18 +97,19 @@ export class PromptService {
       tools: [
         {
           name: "bash",
-          description: "Execute bash commands in a persistent shell session. Use this to run any command line operations, check files, install packages, etc.",
+          description:
+            "Execute bash commands in a persistent shell session. Use this to run any command line operations, check files, install packages, etc.",
           input_schema: {
             type: "object",
             properties: {
               command: {
                 type: "string",
-                description: "The bash command to execute"
-              }
+                description: "The bash command to execute",
+              },
             },
-            required: ["command"]
-          }
-        }
+            required: ["command"],
+          },
+        },
       ],
     };
 
@@ -119,7 +126,7 @@ export class PromptService {
       } as NewPrompt)
       .returning();
 
-    const promptId = prompt!.id;
+    const promptId = prompt?.id;
 
     try {
       await this.streamPromptResponse(promptId, request, callbacks);
@@ -128,10 +135,15 @@ export class PromptService {
       // Mark prompt as failed
       await this.db
         .update(prompts)
-        .set({ status: "error", error: error instanceof Error ? error.message : String(error) })
+        .set({
+          status: "error",
+          error: error instanceof Error ? error.message : String(error),
+        })
         .where(eq(prompts.id, promptId));
 
-      callbacks?.onError?.(error instanceof Error ? error : new Error(String(error)));
+      callbacks?.onError?.(
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }
@@ -146,7 +158,7 @@ export class PromptService {
   ): Promise<void> {
     const client = await this.getAnthropicClient();
     let currentRequest = request;
-    let toolCallResults: any[] = [];
+    const toolCallResults: any[] = [];
 
     // Keep looping until no more tool calls are needed
     while (true) {
@@ -172,7 +184,7 @@ export class PromptService {
         ...request,
         messages: [
           ...request.messages,
-          ...toolCallResults.map(result => ({
+          ...toolCallResults.map((result) => ({
             role: "user" as const,
             content: [
               {
@@ -223,11 +235,11 @@ export class PromptService {
                 } as NewBlock)
                 .returning();
 
-              blockMap.set(event.index, block!.id);
-              callbacks?.onBlockStart?.(block!.id, "text");
+              blockMap.set(event.index, block?.id);
+              callbacks?.onBlockStart?.(block?.id, "text");
             } else if (event.content_block.type === "tool_use") {
               hasToolCalls = true;
-              
+
               // Create tool_use block
               const [block] = await this.db
                 .insert(blocks)
@@ -243,15 +255,15 @@ export class PromptService {
                 } as NewBlock)
                 .returning();
 
-              blockMap.set(event.index, block!.id);
+              blockMap.set(event.index, block?.id);
               toolInputs.set(event.index, {
-                blockId: block!.id,
+                blockId: block?.id,
                 toolName: event.content_block.name,
                 toolUseId: event.content_block.id,
                 input: "",
               });
 
-              callbacks?.onBlockStart?.(block!.id, "tool_use");
+              callbacks?.onBlockStart?.(block?.id, "tool_use");
             }
             break;
           }
@@ -283,7 +295,7 @@ export class PromptService {
               // Tool call complete - start execution
               try {
                 const parsedInput = JSON.parse(toolData.input);
-                
+
                 // Create tool call record
                 const [toolCall] = await this.db
                   .insert(toolCalls)
@@ -297,16 +309,20 @@ export class PromptService {
                   } as NewToolCall)
                   .returning();
 
-                callbacks?.onToolStart?.(toolCall!.id, toolData.toolName, parsedInput);
+                callbacks?.onToolStart?.(
+                  toolCall?.id,
+                  toolData.toolName,
+                  parsedInput,
+                );
 
                 // Start tool execution
-                await this.toolExecutor.executeToolCall(toolCall!.id);
+                await this.toolExecutor.executeToolCall(toolCall?.id);
 
                 // Get the result for continuation
                 const [completedTool] = await this.db
                   .select()
                   .from(toolCalls)
-                  .where(eq(toolCalls.id, toolCall!.id));
+                  .where(eq(toolCalls.id, toolCall?.id));
 
                 if (completedTool) {
                   toolResults.push({
@@ -315,13 +331,16 @@ export class PromptService {
                   });
 
                   callbacks?.onToolEnd?.(
-                    toolCall!.id,
+                    toolCall?.id,
                     completedTool.output || "",
-                    completedTool.state === "completed"
+                    completedTool.state === "completed",
                   );
                 }
               } catch (error) {
-                this.logger.error("Error parsing tool input", { error, input: toolData.input });
+                this.logger.error("Error parsing tool input", {
+                  error,
+                  input: toolData.input,
+                });
               }
             }
 
@@ -359,7 +378,7 @@ export class PromptService {
         .where(eq(blocks.id, blockId));
 
       const newContent = (currentBlock?.content || "") + content;
-      
+
       await this.db
         .update(blocks)
         .set({ content: newContent, updatedAt: new Date() })
@@ -391,8 +410,8 @@ export class PromptService {
         );
 
       if (activeCalls.length === 0) break;
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -405,9 +424,9 @@ export class PromptService {
   ): Promise<void> {
     await this.db
       .update(prompts)
-      .set({ 
-        status: "completed", 
-        completedAt: new Date() 
+      .set({
+        status: "completed",
+        completedAt: new Date(),
       })
       .where(eq(prompts.id, promptId));
 
@@ -425,13 +444,15 @@ export class PromptService {
       .from(prompts)
       .where(eq(prompts.id, promptId));
 
-    return prompt!.messageId;
+    return prompt?.messageId;
   }
 
   /**
    * Build conversation history for prompt
    */
-  private async buildConversationHistory(conversationId: number): Promise<Anthropic.Messages.MessageParam[]> {
+  private async buildConversationHistory(
+    conversationId: number,
+  ): Promise<Anthropic.Messages.MessageParam[]> {
     // Get all completed messages with their blocks
     const messagesWithBlocks = await this.db
       .select({
@@ -458,13 +479,13 @@ export class PromptService {
         });
       }
       if (row.block) {
-        messageMap.get(row.message.id)!.blocks.push(row.block);
+        messageMap.get(row.message.id)?.blocks.push(row.block);
       }
     }
 
     // Convert to Anthropic format
     const history: Anthropic.Messages.MessageParam[] = [];
-    
+
     for (const message of messageMap.values()) {
       if (message.role === "user") {
         const content = message.blocks
@@ -486,7 +507,7 @@ export class PromptService {
 
         if (content) {
           history.push({
-            role: "assistant", 
+            role: "assistant",
             content,
           });
         }

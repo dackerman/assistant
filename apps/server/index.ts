@@ -179,7 +179,6 @@ app.put("/api/conversations/:id", async (c) => {
   }
 });
 
-
 // Serve static files for production (when frontend is built)
 app.get("*", (c) => {
   return c.text(
@@ -259,9 +258,19 @@ type OutgoingMessage =
       activeStream: any;
     }
   | { type: "stream_started"; conversationId: number; promptId: number }
-  | { type: "stream_delta"; conversationId: number; promptId: number; delta: string }
+  | {
+      type: "stream_delta";
+      conversationId: number;
+      promptId: number;
+      delta: string;
+    }
   | { type: "stream_complete"; conversationId: number; promptId: number }
-  | { type: "stream_error"; conversationId: number; promptId: number; error: string }
+  | {
+      type: "stream_error";
+      conversationId: number;
+      promptId: number;
+      error: string;
+    }
   | {
       type: "tool_call_started";
       conversationId: number;
@@ -373,7 +382,7 @@ wss.on("connection", (ws: WebSocket) => {
         // Send snapshot if an active stream exists
         subscribeLogger.info("Checking for active stream");
         const activeStream = await conversationService.getActiveStream(convId);
-        
+
         subscribeLogger.wsEvent("snapshot_sent", {
           hasActiveStream: !!activeStream,
         });
@@ -799,7 +808,7 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
 
     const anthropicLogger = streamLogger.child({
       model: promptDetails.model,
-      systemMessage: promptDetails.systemMessage?.substring(0, 100) + "...",
+      systemMessage: `${promptDetails.systemMessage?.substring(0, 100)}...`,
     });
 
     // Get conversation history
@@ -811,7 +820,7 @@ async function startAnthropicStream(promptId: number, conversationId: number) {
     )) as Anthropic.Message[];
 
     if (messages.length === 1) {
-      const userQuery = messages[0]!.content;
+      const userQuery = messages[0]?.content;
       anthropic.messages
         .create({
           model: "claude-3-5-haiku-latest",

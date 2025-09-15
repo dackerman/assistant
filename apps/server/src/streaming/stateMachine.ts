@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
-import { prompts, blocks, toolCalls } from "../db/schema";
-import type { Logger } from "../utils/logger";
+import { blocks, prompts, toolCalls } from "../db/schema";
 import type { ToolExecutorService } from "../services/toolExecutorService";
+import type { Logger } from "../utils/logger";
 
 /**
  * Simplified StreamingStateMachine stub for compatibility.
@@ -20,17 +20,19 @@ export class StreamingStateMachine {
     promptId: number,
     dbInstance: DB = defaultDb,
     toolExecutor?: ToolExecutorService,
-    logger?: Logger
+    logger?: Logger,
   ) {
     this.promptId = promptId;
     this.db = dbInstance;
     this.toolExecutor = toolExecutor;
-    this.logger = logger || {
-      info: () => {},
-      error: () => {},
-      warn: () => {},
-      debug: () => {},
-    } as any;
+    this.logger =
+      logger ||
+      ({
+        info: () => {},
+        error: () => {},
+        warn: () => {},
+        debug: () => {},
+      } as any);
   }
 
   /**
@@ -44,7 +46,7 @@ export class StreamingStateMachine {
       .where(eq(prompts.id, this.promptId))
       .orderBy(blocks.order);
 
-    return promptBlocks.map(row => row.blocks);
+    return promptBlocks.map((row) => row.blocks);
   }
 
   /**
@@ -57,13 +59,15 @@ export class StreamingStateMachine {
       .where(eq(toolCalls.promptId, this.promptId));
 
     const pendingTools = toolCallsForPrompt.filter(
-      call => call.state === "pending" || call.state === "executing"
+      (call) => call.state === "pending" || call.state === "executing",
     );
 
     return {
       allComplete: pendingTools.length === 0,
-      completedTools: toolCallsForPrompt.filter(call => call.state === "completed"),
-      failedTools: toolCallsForPrompt.filter(call => call.state === "error"),
+      completedTools: toolCallsForPrompt.filter(
+        (call) => call.state === "completed",
+      ),
+      failedTools: toolCallsForPrompt.filter((call) => call.state === "error"),
       pendingTools,
     };
   }
@@ -84,9 +88,9 @@ export class StreamingStateMachine {
   async completePrompt() {
     await this.db
       .update(prompts)
-      .set({ 
+      .set({
         status: "completed",
-        completedAt: new Date()
+        completedAt: new Date(),
       })
       .where(eq(prompts.id, this.promptId));
 
@@ -117,9 +121,10 @@ export class StreamingStateMachine {
       .where(eq(blocks.messageId, prompt.messageId))
       .orderBy(blocks.order);
 
-    const nextOrder = existingBlocks.length > 0 
-      ? Math.max(...existingBlocks.map(b => b.order)) + 1 
-      : 0;
+    const nextOrder =
+      existingBlocks.length > 0
+        ? Math.max(...existingBlocks.map((b) => b.order)) + 1
+        : 0;
 
     const [block] = await this.db
       .insert(blocks)
@@ -141,10 +146,10 @@ export class StreamingStateMachine {
   async updateBlock(blockId: number, content: string, metadata?: any) {
     await this.db
       .update(blocks)
-      .set({ 
-        content, 
+      .set({
+        content,
         metadata,
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       })
       .where(eq(blocks.id, blockId));
   }
@@ -195,21 +200,21 @@ export class StreamingStateMachine {
   async resume() {
     // Check if there are any pending/executing tool calls
     const completion = await this.checkToolCompletion();
-    
+
     if (completion.pendingTools.length > 0) {
       return {
         status: "waiting_for_tools" as const,
         data: completion.pendingTools,
       };
     }
-    
+
     if (completion.completedTools.length > 0) {
       return {
         status: "continue_with_tools" as const,
         data: completion.completedTools,
       };
     }
-    
+
     return {
       status: "already_complete" as const,
       data: [],
@@ -239,10 +244,10 @@ export class StreamingStateMachine {
   async handleError(errorMessage: string) {
     await this.db
       .update(prompts)
-      .set({ 
+      .set({
         status: "error",
         error: errorMessage,
-        completedAt: new Date()
+        completedAt: new Date(),
       })
       .where(eq(prompts.id, this.promptId));
 

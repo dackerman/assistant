@@ -1,5 +1,5 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 interface LogContext {
   conversationId?: number;
@@ -32,10 +32,10 @@ class Logger {
 
     // Generate unique timestamp for this server run
     const isoString = new Date().toISOString();
-    const dateTimePart = isoString.split('.')[0] || isoString; // Remove milliseconds first: YYYY-MM-DDTHH:MM:SS
+    const dateTimePart = isoString.split(".")[0] || isoString; // Remove milliseconds first: YYYY-MM-DDTHH:MM:SS
     this.logFileTimestamp = dateTimePart
-      .replace(/[:.]/g, '-')  // Replace : and . with - for safe filename
-      .replace('T', '_');     // Replace T with _ for readability: YYYY-MM-DD_HH-MM-SS
+      .replace(/[:.]/g, "-") // Replace : and . with - for safe filename
+      .replace("T", "_"); // Replace T with _ for readability: YYYY-MM-DD_HH-MM-SS
 
     // Set log level from environment
     const envLevel = process.env.LOG_LEVEL?.toUpperCase();
@@ -80,13 +80,13 @@ class Logger {
     // Write to file if enabled
     if (this.enableFileLogging) {
       const logFile = join(this.logDir, `app-${this.logFileTimestamp}.log`);
-      const logLine = JSON.stringify(logEntry) + '\n';
-      
+      const logLine = `${JSON.stringify(logEntry)}\n`;
+
       try {
         appendFileSync(logFile, logLine);
       } catch (error) {
         // If file logging fails, at least log to console
-        console.error('Failed to write to log file:', error);
+        console.error("Failed to write to log file:", error);
       }
     }
 

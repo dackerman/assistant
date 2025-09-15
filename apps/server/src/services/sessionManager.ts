@@ -1,5 +1,5 @@
-import { BashSession } from "./bashSession";
 import { Logger } from "../utils/logger";
+import { BashSession } from "./bashSession";
 
 export interface SessionConfig {
   workingDirectory?: string;
@@ -33,15 +33,12 @@ export class SessionManager {
 
     if (!session) {
       this.logger.info("Creating new bash session", { conversationId });
-      
-      session = new BashSession(
-        this.logger.child({ conversationId }),
-        {
-          ...this.defaultConfig,
-          // Each conversation gets its own working directory if needed
-          workingDirectory: this.defaultConfig.workingDirectory,
-        }
-      );
+
+      session = new BashSession(this.logger.child({ conversationId }), {
+        ...this.defaultConfig,
+        // Each conversation gets its own working directory if needed
+        workingDirectory: this.defaultConfig.workingDirectory,
+      });
 
       await session.start();
       this.sessions.set(conversationId, session);
@@ -74,11 +71,11 @@ export class SessionManager {
    */
   async destroySession(conversationId: number): Promise<void> {
     const session = this.sessions.get(conversationId);
-    
+
     if (session) {
-      this.logger.info("Destroying bash session", { 
-        conversationId, 
-        pid: session.pid 
+      this.logger.info("Destroying bash session", {
+        conversationId,
+        pid: session.pid,
       });
 
       try {
@@ -91,7 +88,7 @@ export class SessionManager {
       }
 
       this.sessions.delete(conversationId);
-      
+
       this.logger.info("Bash session destroyed", { conversationId });
     }
   }
@@ -105,11 +102,11 @@ export class SessionManager {
     });
 
     const destroyPromises = Array.from(this.sessions.keys()).map(
-      conversationId => this.destroySession(conversationId)
+      (conversationId) => this.destroySession(conversationId),
     );
 
     await Promise.all(destroyPromises);
-    
+
     this.logger.info("All bash sessions destroyed");
   }
 
@@ -122,7 +119,7 @@ export class SessionManager {
         conversationId,
         pid: session.pid,
         alive: session.alive,
-      })
+      }),
     );
 
     return {

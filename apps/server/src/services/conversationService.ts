@@ -1,15 +1,15 @@
-import { and, desc, eq, isNull, asc } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
   type Block,
+  type Conversation,
+  type Message,
+  type MessageStatus,
   type NewBlock,
   type NewConversation,
   type NewMessage,
   type NewPrompt,
-  type Message,
-  type MessageStatus,
-  type Conversation,
   blocks,
   conversations,
   messages,
@@ -43,12 +43,12 @@ export class ConversationService {
       .returning();
 
     this.logger.info("Created new conversation", {
-      conversationId: conversation!.id,
+      conversationId: conversation?.id,
       userId,
       title,
     });
 
-    return conversation!.id;
+    return conversation?.id;
   }
 
   /**
@@ -91,7 +91,7 @@ export class ConversationService {
         });
       }
       if (row.block) {
-        messageMap.get(row.message.id)!.blocks.push(row.block);
+        messageMap.get(row.message.id)?.blocks.push(row.block);
       }
     }
 
@@ -151,10 +151,7 @@ export class ConversationService {
   /**
    * Queue a user message for processing
    */
-  async queueMessage(
-    conversationId: number,
-    content: string,
-  ): Promise<number> {
+  async queueMessage(conversationId: number, content: string): Promise<number> {
     // Get the highest queue order for this conversation
     const [lastQueued] = await this.db
       .select({ queueOrder: messages.queueOrder })
@@ -183,7 +180,7 @@ export class ConversationService {
 
     this.logger.info("Queued user message", {
       conversationId,
-      messageId: message!.id,
+      messageId: message?.id,
       queueOrder: nextQueueOrder,
       contentLength: content.length,
     });
@@ -194,7 +191,7 @@ export class ConversationService {
       await this.processQueue(conversationId);
     }
 
-    return message!.id;
+    return message?.id;
   }
 
   /**
@@ -207,12 +204,7 @@ export class ConversationService {
     const result = await this.db
       .update(messages)
       .set({ content, updatedAt: new Date() })
-      .where(
-        and(
-          eq(messages.id, messageId),
-          eq(messages.status, "queued"),
-        ),
-      );
+      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")));
 
     this.logger.info("Edited queued message", {
       messageId,
@@ -228,12 +220,7 @@ export class ConversationService {
   async deleteQueuedMessage(messageId: number): Promise<boolean> {
     const result = await this.db
       .delete(messages)
-      .where(
-        and(
-          eq(messages.id, messageId),
-          eq(messages.status, "queued"),
-        ),
-      );
+      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")));
 
     this.logger.info("Deleted queued message", { messageId });
     return (result as any).rowCount > 0;
@@ -305,7 +292,7 @@ export class ConversationService {
       // Create and start the prompt
       await this.promptService.createAndStreamPrompt({
         conversationId,
-        messageId: assistantMessage!.id,
+        messageId: assistantMessage?.id,
         model: "claude-sonnet-4-20250514",
         systemMessage: this.getSystemMessage(),
       });
@@ -354,7 +341,7 @@ export class ConversationService {
       .select()
       .from(messages)
       .where(eq(messages.id, messageId));
-    
+
     if (message) {
       await this.processQueue(message.conversationId);
     }
@@ -390,7 +377,7 @@ export class ConversationService {
       } as NewBlock)
       .returning();
 
-    return block!.id;
+    return block?.id;
   }
 
   /**
@@ -403,8 +390,8 @@ export class ConversationService {
   ): Promise<void> {
     await this.db
       .update(blocks)
-      .set({ 
-        content, 
+      .set({
+        content,
         metadata,
         updatedAt: new Date(),
       })
@@ -477,7 +464,7 @@ export class ConversationService {
 
     // Only include completed messages in the history
     const completedMessages = result.messages.filter(
-      (msg: any) => msg.status === "completed"
+      (msg: any) => msg.status === "completed",
     );
 
     for (const message of completedMessages) {
@@ -545,10 +532,10 @@ export class ConversationService {
   ): Promise<{ userMessageId: number; promptId: number }> {
     // Queue the message and get the response
     const userMessageId = await this.queueMessage(conversationId, content);
-    
+
     // Get the active prompt that should have been created
     const activePrompt = await this.getActivePrompt(conversationId);
-    
+
     return {
       userMessageId,
       promptId: activePrompt?.id || 0, // Fallback for compatibility

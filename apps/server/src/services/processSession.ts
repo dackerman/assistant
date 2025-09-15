@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { ToolCall } from "../db/schema.js";
 import { Logger } from "../utils/logger.js";
 import { BaseSession, type ToolResult } from "./toolSession.js";
@@ -181,14 +181,14 @@ export class ProcessSession extends BaseSession {
             .trim();
 
           // Clean up listeners
-          this.process!.stdout!.removeListener("data", handleOutput);
-          this.process!.stderr!.removeListener("data", handleError);
+          this.process?.stdout?.removeListener("data", handleOutput);
+          this.process?.stderr?.removeListener("data", handleError);
 
           complete({
             success: true,
             output: cleanOutput,
             metadata: {
-              pid: this.process!.pid,
+              pid: this.process?.pid,
               executionTime: Date.now(),
             },
           });
@@ -199,11 +199,11 @@ export class ProcessSession extends BaseSession {
         output += data.toString();
       };
 
-      this.process!.stdout!.on("data", handleOutput);
-      this.process!.stderr!.on("data", handleError);
+      this.process?.stdout?.on("data", handleOutput);
+      this.process?.stderr?.on("data", handleError);
 
       // Send command to process
-      this.process!.stdin!.write(`${command}\necho "COMMAND_COMPLETE_$$"\n`);
+      this.process?.stdin?.write(`${command}\necho "COMMAND_COMPLETE_$$"\n`);
     });
   }
 
