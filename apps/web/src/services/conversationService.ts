@@ -2,6 +2,34 @@ import type { Conversation, Message } from "@/types/conversation";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4001/api";
 
+// Types for active stream response
+interface Prompt {
+  id: number;
+  conversationId: number;
+  messageId: number;
+  model: string;
+  status: "queued" | "streaming" | "completed" | "failed";
+  createdAt: string;
+  updatedAt: string;
+  systemMessage?: string | null;
+}
+
+interface Block {
+  id: number;
+  messageId: number;
+  type: "text" | "tool_use" | "tool_result" | "thinking";
+  content: string;
+  order: number;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActiveStream {
+  prompt: Prompt;
+  blocks: Block[];
+}
+
 export class ConversationService {
   /**
    * Create a new conversation
@@ -40,7 +68,7 @@ export class ConversationService {
    * Get active streaming state
    */
   async getActiveStream(conversationId: number): Promise<{
-    activeStream: any | null;
+    activeStream: ActiveStream | null;
   }> {
     const response = await fetch(
       `${API_BASE}/conversations/${conversationId}/stream`,

@@ -9,7 +9,8 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
-    "format": "prettier --write .",
+    "format": "prettier --write . && biome check --write .",
+    "format:imports": "biome check --write --organize-imports-enabled=true .",
     "clean": "turbo clean"
   },
   "devDependencies": {

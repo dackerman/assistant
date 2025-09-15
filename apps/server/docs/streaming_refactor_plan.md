@@ -1,9 +1,11 @@
 # Streaming Architecture Refactor Plan
 
 ## Overview
+
 Refactor the server to use ConversationService as the main orchestrator, with a simplified schema and cleaner streaming architecture.
 
 ## Core Principles
+
 1. **ConversationService is the single entry point** - All API requests go through ConversationService
 2. **REST for mutations, WebSocket for streaming** - Clear separation of concerns
 3. **Conversation-centric WebSocket** - Clients connect to conversations, not individual prompts
@@ -13,6 +15,7 @@ Refactor the server to use ConversationService as the main orchestrator, with a 
 ## Database Schema
 
 ### Final Schema Design
+
 ```sql
 -- Core conversation tracking
 conversations (
@@ -55,12 +58,14 @@ toolCalls (
 ```
 
 ### Tables to Remove
+
 - Any commented out schema in `schema.ts`
 - Remove complex relationships that aren't needed
 
 ## Architecture
 
 ### Data Flow
+
 ```
 1. User sends POST /api/conversations/:id/messages
    ↓
@@ -94,13 +99,15 @@ toolCalls (
 ### Service Responsibilities
 
 #### ConversationService
+
 - Message queue management
 - Message and block CRUD
 - Orchestrates PromptService
 - Manages conversation state
 - Handles WebSocket snapshot/subscription
 
-#### PromptService  
+#### PromptService
+
 - Creates prompts from messages
 - Handles Anthropic streaming
 - Creates/updates blocks as content streams
@@ -108,12 +115,14 @@ toolCalls (
 - Saves streaming events for recovery
 
 #### ToolExecutorService
+
 - Executes tools (currently just bash)
 - Manages BashSession instances via SessionManager
 - Streams tool output to blocks
 - Handles timeouts and errors
 
 #### SessionManager (to be created)
+
 - Manages BashSession lifecycle
 - One session per conversation
 - Handles cleanup on conversation end
@@ -121,11 +130,13 @@ toolCalls (
 ## Implementation Steps
 
 ### Phase 1: Schema Cleanup
+
 1. Clean up `schema.ts` - remove commented code, implement final schema
 2. Run migrations to update database
 3. Update all type definitions
 
 ### Phase 2: Core Service Updates
+
 1. **ConversationService refactor**:
    - Remove references to old schema
    - Add message queue methods
@@ -148,6 +159,7 @@ toolCalls (
    - Fix streaming callbacks to update blocks
 
 ### Phase 3: WebSocket Refactor
+
 1. **Remove StreamingStateMachine** (probably not needed)
 2. **Update WebSocket handler**:
    - Change from prompt-specific to conversation-specific connections
@@ -156,6 +168,7 @@ toolCalls (
    - Support multiple clients per conversation
 
 ### Phase 4: API Updates
+
 1. **Update message endpoints**:
    - POST `/api/conversations/:id/messages` - queues message
    - GET `/api/conversations/:id/messages` - includes queued messages
@@ -167,6 +180,7 @@ toolCalls (
    - POST `/api/conversations/:id/clear-queue` - remove all queued messages
 
 ### Phase 5: Cleanup
+
 1. Remove dead code:
    - StreamingStateMachine (if not needed)
    - Old schema references
@@ -183,6 +197,7 @@ toolCalls (
    - Cleanup on failures
 
 ## Success Criteria
+
 - [ ] Project compiles without errors
 - [ ] No dead code or commented schemas
 - [ ] Can create conversation and send messages
@@ -193,6 +208,7 @@ toolCalls (
 - [ ] Queued messages can be edited/deleted
 
 ## Testing Plan
+
 1. Start development database
 2. Run migrations
 3. Start server
@@ -204,6 +220,7 @@ toolCalls (
 9. Test multi-client streaming
 
 ## Notes
+
 - Keep the implementation simple initially - we can add optimizations later
 - Focus on getting the core flow working end-to-end
 - Use transactions where needed for data consistency

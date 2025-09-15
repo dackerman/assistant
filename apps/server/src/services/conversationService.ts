@@ -1,16 +1,13 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
   type Block,
   type BlockType,
-  type Conversation,
   type Message,
-  type MessageStatus,
   type NewBlock,
   type NewConversation,
   type NewMessage,
-  type NewPrompt,
   blocks,
   conversations,
   messages,

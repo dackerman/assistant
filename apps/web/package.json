@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest",
-    "lint": "eslint .",
+    "lint": "eslint . && biome check .",
+    "lint:fix": "eslint . --fix && biome check --write .",
     "preview": "vite preview"
   },
   "dependencies": {

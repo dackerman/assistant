@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 interface LogContext {
   conversationId?: number;
@@ -63,7 +63,11 @@ class Logger {
     return childLogger;
   }
 
-  private log(level: LogLevel, message: string, data?: Record<string, unknown>) {
+  private log(
+    level: LogLevel,
+    message: string,
+    data?: Record<string, unknown>,
+  ) {
     if (level < this.level) return;
 
     const timestamp = new Date().toISOString();
@@ -130,7 +134,7 @@ class Logger {
             stack: error.stack,
           }
         : error && typeof error === "object"
-          ? error as Record<string, unknown>
+          ? (error as Record<string, unknown>)
           : { error };
 
     this.log(LogLevel.ERROR, message, data);
@@ -154,7 +158,11 @@ class Logger {
     this.debug(`Anthropic: ${eventType}`, data);
   }
 
-  dbOperation(operation: string, table: string, data?: Record<string, unknown>) {
+  dbOperation(
+    operation: string,
+    table: string,
+    data?: Record<string, unknown>,
+  ) {
     this.debug(`DB: ${operation} ${table}`, data);
   }
 }

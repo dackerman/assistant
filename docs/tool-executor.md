@@ -7,17 +7,20 @@ The Tool Executor is a lightweight, robust system for executing tools during AI 
 ## Architecture Principles
 
 ### 1. Lightweight & Simple
+
 - **No external dependencies**: Uses existing PostgreSQL database for persistence
 - **In-process execution**: Direct async execution without worker processes
 - **Minimal overhead**: ~1KB code footprint vs ~20MB for BullMQ
 
 ### 2. Robust Recovery
+
 - **Process interruption handling**: Graceful recovery from server restarts
 - **Orphan cleanup**: Automatically handles abandoned executions
 - **Heartbeat monitoring**: Detects and cleans up stale processes
 - **PID tracking**: Can kill runaway processes
 
 ### 3. System Access by Design
+
 - **Direct bash execution**: Full system access is a feature, not a security concern
 - **Real-time output**: Stream tool output via WebSocket
 - **Resource monitoring**: Track CPU, memory, execution time
@@ -74,12 +77,12 @@ class ToolExecutorService {
   // Core execution
   async executeTool(toolCall: ToolCall): Promise<ToolResult>
   async cancelTool(toolCallId: number): Promise<void>
-  
+
   // Recovery & monitoring
   async recoverOrphanedTools(): Promise<void>
   async cleanupStaleTools(): Promise<void>
   async killRunningProcess(toolCallId: number): Promise<void>
-  
+
   // State management
   private updateHeartbeat(toolCallId: number): Promise<void>
   private markToolComplete(toolCallId: number, result: any): Promise<void>
@@ -91,35 +94,36 @@ class ToolExecutorService {
 
 ```typescript
 interface ActiveTool {
-  id: number;
-  process: ChildProcess;
-  startedAt: Date;
-  timeoutHandle: NodeJS.Timeout;
-  heartbeatHandle: NodeJS.Timeout;
-  outputBuffer: string[];
+  id: number
+  process: ChildProcess
+  startedAt: Date
+  timeoutHandle: NodeJS.Timeout
+  heartbeatHandle: NodeJS.Timeout
+  outputBuffer: string[]
 }
 
 class ProcessManager {
-  private activeTools = new Map<number, ActiveTool>();
-  private maxConcurrency = 5;
-  private semaphore = new Semaphore(this.maxConcurrency);
+  private activeTools = new Map<number, ActiveTool>()
+  private maxConcurrency = 5
+  private semaphore = new Semaphore(this.maxConcurrency)
 }
 ```
 
 ### 3. Recovery Strategies
 
 #### Startup Recovery
+
 ```typescript
 async recoverOrphanedTools() {
   const orphaned = await db.select()
     .from(toolCalls)
     .where(inArray(toolCalls.state, ['created', 'running']));
-    
+
   for (const tool of orphaned) {
     if (tool.pid && await this.isProcessRunning(tool.pid)) {
       process.kill(tool.pid, 'SIGTERM');
     }
-    
+
     if (tool.retryCount < tool.maxRetries) {
       await this.retryTool(tool.id);
     } else {
@@ -130,11 +134,12 @@ async recoverOrphanedTools() {
 ```
 
 #### Heartbeat Monitoring
+
 ```typescript
 private startHeartbeatMonitoring() {
   setInterval(async () => {
     const staleThreshold = new Date(Date.now() - 60_000); // 1 minute
-    
+
     const stale = await db.select()
       .from(toolCalls)
       .where(
@@ -143,7 +148,7 @@ private startHeartbeatMonitoring() {
           lt(toolCalls.lastHeartbeat, staleThreshold)
         )
       );
-      
+
     for (const tool of stale) {
       await this.handleStaleToolExecution(tool);
     }
@@ -152,22 +157,23 @@ private startHeartbeatMonitoring() {
 ```
 
 #### Graceful Shutdown
+
 ```typescript
 async shutdown() {
   this.logger.info('Shutting down tool executor');
-  
+
   // Cancel all active tools
   for (const [toolId, activeTool] of this.activeTools) {
     clearTimeout(activeTool.timeoutHandle);
     clearInterval(activeTool.heartbeatHandle);
-    
+
     if (activeTool.process.pid) {
       process.kill(activeTool.process.pid, 'SIGTERM');
     }
-    
+
     await this.markToolFailed(toolId, 'Server shutdown');
   }
-  
+
   // Wait for cleanup
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
@@ -185,11 +191,11 @@ process.on('SIGINT', () => toolExecutor.shutdown());
 // In StreamingStateMachine
 private async handleBlockEnd(tx: any, event: StreamEvent) {
   // ... existing code ...
-  
+
   if (event.blockType === "tool_call" && event.toolCallData) {
     // Create tool call record
     const [toolCall] = await tx.insert(toolCalls).values({...}).returning();
-    
+
     // Trigger async execution (don't await)
     this.toolExecutor.executeTool(toolCall).catch(error => {
       this.logger.error('Tool execution failed', error);
@@ -202,7 +208,7 @@ private async handleBlockEnd(tx: any, event: StreamEvent) {
 
 ```typescript
 // New message types
-type ToolMessage = 
+type ToolMessage =
   | { type: 'tool_started'; promptId: number; toolCallId: number; toolName: string }
   | { type: 'tool_output'; promptId: number; toolCallId: number; output: string }
   | { type: 'tool_complete'; promptId: number; toolCallId: number; result: any }
@@ -223,49 +229,51 @@ private streamToolOutput(toolCallId: number, output: string) {
 ## Error Handling & Retries
 
 ### Retry Strategy
+
 ```typescript
 async retryTool(toolCallId: number): Promise<void> {
   const toolCall = await this.getToolCall(toolCallId);
-  
+
   if (toolCall.retryCount >= toolCall.maxRetries) {
     await this.markToolFailed(toolCallId, 'Max retries exceeded');
     return;
   }
-  
+
   // Exponential backoff
   const delay = Math.min(1000 * Math.pow(2, toolCall.retryCount), 30000);
-  
+
   setTimeout(async () => {
     await db.update(toolCalls)
-      .set({ 
+      .set({
         state: 'created',
         retryCount: toolCall.retryCount + 1,
         error: null
       })
       .where(eq(toolCalls.id, toolCallId));
-      
+
     await this.executeTool(toolCall);
   }, delay);
 }
 ```
 
 ### Error Categories
+
 ```typescript
 enum ToolErrorType {
   TIMEOUT = 'timeout',
-  PERMISSION_DENIED = 'permission_denied', 
+  PERMISSION_DENIED = 'permission_denied',
   COMMAND_NOT_FOUND = 'command_not_found',
   RESOURCE_EXHAUSTED = 'resource_exhausted',
   PROCESS_KILLED = 'process_killed',
-  SYSTEM_ERROR = 'system_error'
+  SYSTEM_ERROR = 'system_error',
 }
 
 interface ToolError {
-  type: ToolErrorType;
-  message: string;
-  exitCode?: number;
-  signal?: string;
-  retryable: boolean;
+  type: ToolErrorType
+  message: string
+  exitCode?: number
+  signal?: string
+  retryable: boolean
 }
 ```
 
@@ -276,69 +284,69 @@ interface ToolError {
 ```typescript
 // Using Sinon for clock control
 describe('Tool Executor Timeouts', () => {
-  let clock: sinon.SinonFakeTimers;
-  
+  let clock: sinon.SinonFakeTimers
+
   beforeEach(() => {
-    clock = sinon.useFakeTimers();
-  });
-  
+    clock = sinon.useFakeTimers()
+  })
+
   afterEach(() => {
-    clock.restore();
-  });
-  
+    clock.restore()
+  })
+
   it('should timeout long-running tools', async () => {
     const execution = toolExecutor.executeTool({
       id: 1,
       toolName: 'bash',
       request: { command: 'sleep 1000' },
-      timeoutSeconds: 5
-    });
-    
+      timeoutSeconds: 5,
+    })
+
     // Fast-forward past timeout
-    clock.tick(6000);
-    
-    await expect(execution).to.be.rejectedWith('Tool execution timeout');
-    
+    clock.tick(6000)
+
+    await expect(execution).to.be.rejectedWith('Tool execution timeout')
+
     // Verify database state
-    const toolCall = await getToolCall(1);
-    expect(toolCall.state).to.equal('error');
-    expect(toolCall.error).to.include('timeout');
-  });
-});
+    const toolCall = await getToolCall(1)
+    expect(toolCall.state).to.equal('error')
+    expect(toolCall.error).to.include('timeout')
+  })
+})
 ```
 
 ### 2. Process Mocking
 
 ```typescript
 describe('Process Management', () => {
-  let mockSpawn: sinon.SinonStub;
-  let mockProcess: MockChildProcess;
-  
+  let mockSpawn: sinon.SinonStub
+  let mockProcess: MockChildProcess
+
   beforeEach(() => {
-    mockProcess = new MockChildProcess();
-    mockSpawn = sinon.stub(childProcess, 'spawn').returns(mockProcess);
-  });
-  
+    mockProcess = new MockChildProcess()
+    mockSpawn = sinon.stub(childProcess, 'spawn').returns(mockProcess)
+  })
+
   it('should track process PID in database', async () => {
-    mockProcess.pid = 12345;
-    
-    const execution = toolExecutor.executeTool(sampleTool);
-    
+    mockProcess.pid = 12345
+
+    const execution = toolExecutor.executeTool(sampleTool)
+
     // Verify PID stored
-    const toolCall = await getToolCall(1);
-    expect(toolCall.pid).to.equal(12345);
-    expect(toolCall.state).to.equal('running');
-  });
-  
+    const toolCall = await getToolCall(1)
+    expect(toolCall.pid).to.equal(12345)
+    expect(toolCall.state).to.equal('running')
+  })
+
   it('should kill process on cancellation', async () => {
-    mockProcess.pid = 12345;
-    const killSpy = sinon.spy(process, 'kill');
-    
-    await toolExecutor.cancelTool(1);
-    
-    expect(killSpy).to.have.been.calledWith(12345, 'SIGTERM');
-  });
-});
+    mockProcess.pid = 12345
+    const killSpy = sinon.spy(process, 'kill')
+
+    await toolExecutor.cancelTool(1)
+
+    expect(killSpy).to.have.been.calledWith(12345, 'SIGTERM')
+  })
+})
 ```
 
 ### 3. Database State Verification
@@ -349,23 +357,23 @@ describe('Recovery Operations', () => {
     // Setup orphaned tools in database
     await insertToolCalls([
       { id: 1, state: 'running', pid: 999, startedAt: new Date() },
-      { id: 2, state: 'created', retryCount: 0 }
-    ]);
-    
+      { id: 2, state: 'created', retryCount: 0 },
+    ])
+
     // Mock process.kill
-    const killSpy = sinon.stub(process, 'kill');
-    
-    await toolExecutor.recoverOrphanedTools();
-    
+    const killSpy = sinon.stub(process, 'kill')
+
+    await toolExecutor.recoverOrphanedTools()
+
     // Verify database cleanup
-    const tools = await getAllToolCalls();
-    expect(tools[0].state).to.equal('failed');
-    expect(tools[0].error).to.include('Server restart');
-    expect(tools[1].state).to.equal('created'); // Should be retried
-    
-    expect(killSpy).to.have.been.calledWith(999, 'SIGTERM');
-  });
-});
+    const tools = await getAllToolCalls()
+    expect(tools[0].state).to.equal('failed')
+    expect(tools[0].error).to.include('Server restart')
+    expect(tools[1].state).to.equal('created') // Should be retried
+
+    expect(killSpy).to.have.been.calledWith(999, 'SIGTERM')
+  })
+})
 ```
 
 ### 4. Concurrency Testing
@@ -373,29 +381,29 @@ describe('Recovery Operations', () => {
 ```typescript
 describe('Concurrent Execution', () => {
   it('should respect max concurrency limits', async () => {
-    const maxConcurrency = 2;
-    toolExecutor.setMaxConcurrency(maxConcurrency);
-    
+    const maxConcurrency = 2
+    toolExecutor.setMaxConcurrency(maxConcurrency)
+
     // Start 5 tools simultaneously
-    const executions = Array.from({ length: 5 }, (_, i) => 
+    const executions = Array.from({ length: 5 }, (_, i) =>
       toolExecutor.executeTool({ id: i + 1, ...baseTool })
-    );
-    
+    )
+
     // Only first 2 should be running
-    await clock.tickAsync(100);
-    
-    const runningTools = await getToolCallsByState('running');
-    expect(runningTools).to.have.length(maxConcurrency);
-    
+    await clock.tickAsync(100)
+
+    const runningTools = await getToolCallsByState('running')
+    expect(runningTools).to.have.length(maxConcurrency)
+
     // Complete first tool
-    mockProcesses[0].emit('exit', 0);
-    await clock.tickAsync(100);
-    
+    mockProcesses[0].emit('exit', 0)
+    await clock.tickAsync(100)
+
     // Third tool should now start
-    const stillRunning = await getToolCallsByState('running');
-    expect(stillRunning).to.have.length(maxConcurrency);
-  });
-});
+    const stillRunning = await getToolCallsByState('running')
+    expect(stillRunning).to.have.length(maxConcurrency)
+  })
+})
 ```
 
 ### 5. WebSocket Integration Tests
@@ -403,74 +411,77 @@ describe('Concurrent Execution', () => {
 ```typescript
 describe('WebSocket Broadcasting', () => {
   it('should broadcast tool progress updates', async () => {
-    const mockWs = new MockWebSocket();
-    subscribeToConversation(1, mockWs);
-    
+    const mockWs = new MockWebSocket()
+    subscribeToConversation(1, mockWs)
+
     const execution = toolExecutor.executeTool({
       id: 1,
       promptId: 10,
       toolName: 'bash',
-      request: { command: 'echo "hello"' }
-    });
-    
+      request: { command: 'echo "hello"' },
+    })
+
     // Simulate tool output
-    mockProcess.stdout.emit('data', 'hello\n');
-    await clock.tickAsync(100);
-    
+    mockProcess.stdout.emit('data', 'hello\n')
+    await clock.tickAsync(100)
+
     // Verify WebSocket messages
     expect(mockWs.sentMessages).to.deep.include({
       type: 'tool_output',
       promptId: 10,
       toolCallId: 1,
-      output: 'hello\n'
-    });
-    
+      output: 'hello\n',
+    })
+
     // Complete tool
-    mockProcess.emit('exit', 0);
-    await execution;
-    
+    mockProcess.emit('exit', 0)
+    await execution
+
     expect(mockWs.sentMessages).to.deep.include({
       type: 'tool_complete',
       promptId: 10,
       toolCallId: 1,
-      result: { stdout: 'hello\n', exitCode: 0 }
-    });
-  });
-});
+      result: { stdout: 'hello\n', exitCode: 0 },
+    })
+  })
+})
 ```
 
 ## Performance Considerations
 
 ### 1. Memory Management
+
 - **Output buffering**: Limit tool output buffer size (default: 1MB)
 - **Process cleanup**: Ensure all processes are properly terminated
 - **Database connections**: Reuse connections, avoid connection leaks
 
 ### 2. Resource Limits
+
 ```typescript
 const TOOL_LIMITS = {
-  MAX_EXECUTION_TIME: 5 * 60 * 1000,    // 5 minutes
-  MAX_OUTPUT_SIZE: 1024 * 1024,         // 1MB
-  MAX_CONCURRENT_TOOLS: 5,              // Per server
-  MAX_MEMORY_USAGE: 100 * 1024 * 1024   // 100MB per tool
-};
+  MAX_EXECUTION_TIME: 5 * 60 * 1000, // 5 minutes
+  MAX_OUTPUT_SIZE: 1024 * 1024, // 1MB
+  MAX_CONCURRENT_TOOLS: 5, // Per server
+  MAX_MEMORY_USAGE: 100 * 1024 * 1024, // 100MB per tool
+}
 ```
 
 ### 3. Monitoring & Metrics
+
 ```typescript
 interface ToolMetrics {
-  totalExecutions: number;
-  successfulExecutions: number;
-  failedExecutions: number;
-  averageExecutionTime: number;
-  activeTools: number;
-  queuedTools: number;
+  totalExecutions: number
+  successfulExecutions: number
+  failedExecutions: number
+  averageExecutionTime: number
+  activeTools: number
+  queuedTools: number
 }
 
 // Expose metrics endpoint
-app.get('/api/metrics/tools', (c) => {
-  return c.json(toolExecutor.getMetrics());
-});
+app.get('/api/metrics/tools', c => {
+  return c.json(toolExecutor.getMetrics())
+})
 ```
 
 This design provides a robust, lightweight tool execution system that leverages existing infrastructure while providing comprehensive recovery capabilities and thorough test coverage.

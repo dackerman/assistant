@@ -9,8 +9,40 @@ import {
   type SupportedModel,
 } from "@/constants/models";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { conversationService } from "@/services/conversationService";
+import {
+  type ActiveStream,
+  conversationService,
+} from "@/services/conversationService";
 import type { Message } from "@/types/conversation";
+
+// API message format types
+interface ApiToolCall {
+  id: number;
+  apiToolCallId?: string;
+  toolName: string;
+  request: Record<string, unknown>;
+  response?: unknown;
+  state: string;
+  completedAt?: string;
+}
+
+interface ApiBlock {
+  id: number;
+  type: "text" | "tool_call" | "tool_result" | "thinking";
+  content: string;
+  createdAt: string;
+  toolCall?: ApiToolCall;
+}
+
+interface ApiMessage {
+  id: number;
+  role: "user" | "assistant" | "system";
+  createdAt: string;
+  promptId?: number;
+  model?: string;
+  blocks?: ApiBlock[];
+}
+
 import {
   Check,
   MoreHorizontal,
@@ -147,150 +179,180 @@ export function ConversationView({
   );
 
   // Tool call handlers for streaming
-  const handleToolCallStarted = useCallback((promptId: number, toolCallId: number, toolName: string, parameters: Record<string, unknown>) => {
-    console.log("Tool call started:", toolName, toolCallId);
-    
-    setMessages((prev) => {
-      const messageIndex = prev.findIndex(
-        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-      );
+  const handleToolCallStarted = useCallback(
+    (
+      promptId: number,
+      toolCallId: number,
+      toolName: string,
+      parameters: Record<string, unknown>,
+    ) => {
+      console.log("Tool call started:", toolName, toolCallId);
 
-      if (messageIndex >= 0) {
-        const updated = [...prev];
-        const message = updated[messageIndex];
-        
-        // Initialize toolCalls array if it doesn't exist
-        if (!message.toolCalls) {
-          message.toolCalls = [];
+      setMessages((prev) => {
+        const messageIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+        );
+
+        if (messageIndex >= 0) {
+          const updated = [...prev];
+          const message = updated[messageIndex];
+
+          // Initialize toolCalls array if it doesn't exist
+          if (!message.toolCalls) {
+            message.toolCalls = [];
+          }
+
+          // Add or update tool call
+          const existingToolCallIndex = message.toolCalls.findIndex(
+            (tc) => tc.id === toolCallId.toString(),
+          );
+          const toolCall = {
+            id: toolCallId.toString(),
+            name: toolName,
+            parameters: parameters,
+            status: "running" as const,
+            startTime: new Date().toISOString(),
+          };
+
+          if (existingToolCallIndex >= 0) {
+            message.toolCalls[existingToolCallIndex] = toolCall;
+          } else {
+            message.toolCalls.push(toolCall);
+          }
+
+          updated[messageIndex] = { ...message };
+          return updated;
         }
-        
-        // Add or update tool call
-        const existingToolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
-        const toolCall = {
-          id: toolCallId.toString(),
-          name: toolName,
-          parameters: parameters,
-          status: "running" as const,
-          startTime: new Date().toISOString(),
-        };
-        
-        if (existingToolCallIndex >= 0) {
-          message.toolCalls[existingToolCallIndex] = toolCall;
-        } else {
-          message.toolCalls.push(toolCall);
-        }
-        
-        updated[messageIndex] = { ...message };
-        return updated;
-      }
-      
-      return prev;
-    });
-  }, []);
 
-  const handleToolCallOutputDelta = useCallback((promptId: number, toolCallId: number, stream: "stdout" | "stderr", delta: string) => {
-    console.log("Tool call output delta:", toolCallId, stream, delta.length);
-    
-    setMessages((prev) => {
-      const messageIndex = prev.findIndex(
-        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-      );
+        return prev;
+      });
+    },
+    [],
+  );
 
-      if (messageIndex >= 0) {
-        const updated = [...prev];
-        const message = updated[messageIndex];
-        
-        if (message.toolCalls) {
-          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
-          if (toolCallIndex >= 0) {
-            const toolCall = { ...message.toolCalls[toolCallIndex] };
-            
-            // Initialize result if it doesn't exist
-            if (!toolCall.result) {
-              toolCall.result = "";
+  const handleToolCallOutputDelta = useCallback(
+    (
+      promptId: number,
+      toolCallId: number,
+      stream: "stdout" | "stderr",
+      delta: string,
+    ) => {
+      console.log("Tool call output delta:", toolCallId, stream, delta.length);
+
+      setMessages((prev) => {
+        const messageIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+        );
+
+        if (messageIndex >= 0) {
+          const updated = [...prev];
+          const message = updated[messageIndex];
+
+          if (message.toolCalls) {
+            const toolCallIndex = message.toolCalls.findIndex(
+              (tc) => tc.id === toolCallId.toString(),
+            );
+            if (toolCallIndex >= 0) {
+              const toolCall = { ...message.toolCalls[toolCallIndex] };
+
+              // Initialize result if it doesn't exist
+              if (!toolCall.result) {
+                toolCall.result = "";
+              }
+
+              // Append delta to result
+              if (typeof toolCall.result === "string") {
+                toolCall.result += delta;
+              } else {
+                toolCall.result = delta;
+              }
+
+              message.toolCalls[toolCallIndex] = toolCall;
             }
-            
-            // Append delta to result
-            if (typeof toolCall.result === "string") {
-              toolCall.result += delta;
-            } else {
-              toolCall.result = delta;
+          }
+
+          updated[messageIndex] = { ...message };
+          return updated;
+        }
+
+        return prev;
+      });
+    },
+    [],
+  );
+
+  const handleToolCallCompleted = useCallback(
+    (promptId: number, toolCallId: number, exitCode: number) => {
+      console.log("Tool call completed:", toolCallId, "exit code:", exitCode);
+
+      setMessages((prev) => {
+        const messageIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+        );
+
+        if (messageIndex >= 0) {
+          const updated = [...prev];
+          const message = updated[messageIndex];
+
+          if (message.toolCalls) {
+            const toolCallIndex = message.toolCalls.findIndex(
+              (tc) => tc.id === toolCallId.toString(),
+            );
+            if (toolCallIndex >= 0) {
+              const toolCall = { ...message.toolCalls[toolCallIndex] };
+              toolCall.status = "completed";
+              toolCall.endTime = new Date().toISOString();
+
+              message.toolCalls[toolCallIndex] = toolCall;
             }
-            
-            message.toolCalls[toolCallIndex] = toolCall;
           }
+
+          updated[messageIndex] = { ...message };
+          return updated;
         }
-        
-        updated[messageIndex] = { ...message };
-        return updated;
-      }
-      
-      return prev;
-    });
-  }, []);
 
-  const handleToolCallCompleted = useCallback((promptId: number, toolCallId: number, exitCode: number) => {
-    console.log("Tool call completed:", toolCallId, "exit code:", exitCode);
-    
-    setMessages((prev) => {
-      const messageIndex = prev.findIndex(
-        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-      );
+        return prev;
+      });
+    },
+    [],
+  );
 
-      if (messageIndex >= 0) {
-        const updated = [...prev];
-        const message = updated[messageIndex];
-        
-        if (message.toolCalls) {
-          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
-          if (toolCallIndex >= 0) {
-            const toolCall = { ...message.toolCalls[toolCallIndex] };
-            toolCall.status = "completed";
-            toolCall.endTime = new Date().toISOString();
-            
-            message.toolCalls[toolCallIndex] = toolCall;
+  const handleToolCallError = useCallback(
+    (promptId: number, toolCallId: number, error: string) => {
+      console.log("Tool call error:", toolCallId, error);
+
+      setMessages((prev) => {
+        const messageIndex = prev.findIndex(
+          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
+        );
+
+        if (messageIndex >= 0) {
+          const updated = [...prev];
+          const message = updated[messageIndex];
+
+          if (message.toolCalls) {
+            const toolCallIndex = message.toolCalls.findIndex(
+              (tc) => tc.id === toolCallId.toString(),
+            );
+            if (toolCallIndex >= 0) {
+              const toolCall = { ...message.toolCalls[toolCallIndex] };
+              toolCall.status = "error";
+              toolCall.error = error;
+              toolCall.endTime = new Date().toISOString();
+
+              message.toolCalls[toolCallIndex] = toolCall;
+            }
           }
-        }
-        
-        updated[messageIndex] = { ...message };
-        return updated;
-      }
-      
-      return prev;
-    });
-  }, []);
 
-  const handleToolCallError = useCallback((promptId: number, toolCallId: number, error: string) => {
-    console.log("Tool call error:", toolCallId, error);
-    
-    setMessages((prev) => {
-      const messageIndex = prev.findIndex(
-        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-      );
-
-      if (messageIndex >= 0) {
-        const updated = [...prev];
-        const message = updated[messageIndex];
-        
-        if (message.toolCalls) {
-          const toolCallIndex = message.toolCalls.findIndex(tc => tc.id === toolCallId.toString());
-          if (toolCallIndex >= 0) {
-            const toolCall = { ...message.toolCalls[toolCallIndex] };
-            toolCall.status = "error";
-            toolCall.error = error;
-            toolCall.endTime = new Date().toISOString();
-            
-            message.toolCalls[toolCallIndex] = toolCall;
-          }
+          updated[messageIndex] = { ...message };
+          return updated;
         }
-        
-        updated[messageIndex] = { ...message };
-        return updated;
-      }
-      
-      return prev;
-    });
-  }, []);
+
+        return prev;
+      });
+    },
+    [],
+  );
 
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
     handleTextDelta,
@@ -379,20 +441,20 @@ export function ConversationView({
     }
   };
 
-  const formatMessagesFromAPI = (apiMessages: any[]): Message[] => {
+  const formatMessagesFromAPI = (apiMessages: ApiMessage[]): Message[] => {
     return apiMessages.map((msg) => {
       // Combine text blocks for content
       const textContent =
         msg.blocks
-          ?.filter((b: any) => b.type === "text")
-          .map((b: any) => b.content || "")
+          ?.filter((b) => b.type === "text")
+          .map((b) => b.content || "")
           .join("") || "";
 
       // Process tool calls from blocks
-      const toolCalls: any[] = [];
-      const toolResults: any[] = [];
+      const toolCalls: Message["toolCalls"] = [];
+      const toolResults: Message["toolResults"] = [];
 
-      msg.blocks?.forEach((block: any) => {
+      msg.blocks?.forEach((block) => {
         if (block.type === "tool_call" && block.toolCall) {
           const toolCall = {
             id: block.toolCall.apiToolCallId || block.id.toString(),
@@ -446,19 +508,18 @@ export function ConversationView({
     }
   };
 
-  const restoreActiveStream = async (activeStream: any) => {
+  const restoreActiveStream = async (activeStream: ActiveStream) => {
     const { prompt, blocks } = activeStream;
 
     console.log("Restoring active stream:", {
       promptId: prompt.id,
-      state: prompt.state,
       blockCount: blocks.length,
     });
 
     // Build current content from streaming blocks
     const streamingContent = blocks
-      .filter((b: any) => b.type === "text")
-      .map((b: any) => b.content || "")
+      .filter((b) => b.type === "text")
+      .map((b) => b.content || "")
       .join("");
 
     if (streamingContent) {

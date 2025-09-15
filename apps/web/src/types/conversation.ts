@@ -1,8 +1,8 @@
 export interface ToolCall {
   id: string;
   name: string;
-  parameters: Record<string, any>;
-  result?: any;
+  parameters: Record<string, unknown>;
+  result?: unknown;
   status: "pending" | "running" | "completed" | "error";
   startTime: string;
   endTime?: string;
@@ -15,8 +15,8 @@ export interface ToolCall {
 export interface ToolResult {
   id: string;
   name: string;
-  parameters: Record<string, any>;
-  output: any;
+  parameters: Record<string, unknown>;
+  output: unknown;
   status: "completed";
   startTime: string;
   endTime: string;
@@ -29,7 +29,7 @@ export interface ToolResult {
 export interface ToolError {
   id: string;
   name: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   error: unknown;
   status: "error";
   startTime: string;
@@ -67,13 +67,13 @@ export interface StreamPart {
   source?: StreamSource;
   file?: StreamFile;
   finishReason?: string;
-  totalUsage?: any;
-  request?: any;
-  response?: any;
-  usage?: any;
-  warnings?: any[];
+  totalUsage?: Record<string, unknown>;
+  request?: Record<string, unknown>;
+  response?: Record<string, unknown>;
+  usage?: Record<string, unknown>;
+  warnings?: unknown[];
   error?: string;
-  providerMetadata?: any;
+  providerMetadata?: Record<string, unknown>;
   providerExecuted?: boolean;
   dynamic?: boolean;
 }
@@ -94,7 +94,7 @@ export interface Message {
     tokens?: number;
     cost?: number;
     finishReason?: string;
-    usage?: any;
+    usage?: Record<string, unknown>;
     promptId?: number;
   };
 }

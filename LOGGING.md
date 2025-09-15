@@ -13,6 +13,7 @@ Logging behavior is controlled by environment variables:
 ## File Logging
 
 When enabled, logs are written to daily files in JSON format:
+
 - Pattern: `{LOG_DIR}/app-YYYY-MM-DD.log`
 - Example: `./logs/app-2025-09-06.log`
 
@@ -42,11 +43,13 @@ pnpm run start:logs
 ## Log Format
 
 ### Console (Development)
+
 ```
 2025-09-06T19:30:00.123Z INFO  Server ready [port=4001, host=0.0.0.0]
 ```
 
 ### File (JSON)
+
 ```json
 {
   "timestamp": "2025-09-06T19:30:00.123Z",
@@ -62,7 +65,7 @@ pnpm run start:logs
 ## Log Levels
 
 - **DEBUG**: Detailed diagnostic information
-- **INFO**: General operational messages  
+- **INFO**: General operational messages
 - **WARN**: Warning conditions
 - **ERROR**: Error conditions with stack traces
 

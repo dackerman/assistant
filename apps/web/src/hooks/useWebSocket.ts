@@ -37,10 +37,28 @@ export function useWebSocket(
     state: string,
   ) => void,
   onTitleGenerated?: (title: string) => void,
-  onToolCallStarted?: (promptId: number, toolCallId: number, toolName: string, parameters: Record<string, unknown>) => void,
-  onToolCallOutputDelta?: (promptId: number, toolCallId: number, stream: "stdout" | "stderr", delta: string) => void,
-  onToolCallCompleted?: (promptId: number, toolCallId: number, exitCode: number) => void,
-  onToolCallError?: (promptId: number, toolCallId: number, error: string) => void,
+  onToolCallStarted?: (
+    promptId: number,
+    toolCallId: number,
+    toolName: string,
+    parameters: Record<string, unknown>,
+  ) => void,
+  onToolCallOutputDelta?: (
+    promptId: number,
+    toolCallId: number,
+    stream: "stdout" | "stderr",
+    delta: string,
+  ) => void,
+  onToolCallCompleted?: (
+    promptId: number,
+    toolCallId: number,
+    exitCode: number,
+  ) => void,
+  onToolCallError?: (
+    promptId: number,
+    toolCallId: number,
+    error: string,
+  ) => void,
 ): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -189,30 +207,72 @@ export function useWebSocket(
             break;
 
           case "tool_call_started":
-            if (data.promptId && data.toolCallId && data.toolName && data.parameters) {
+            if (
+              data.promptId &&
+              data.toolCallId &&
+              data.toolName &&
+              data.parameters
+            ) {
               console.log("Tool call started:", data.toolName, data.toolCallId);
-              onToolCallStartedRef.current?.(data.promptId, data.toolCallId, data.toolName, data.parameters);
+              onToolCallStartedRef.current?.(
+                data.promptId,
+                data.toolCallId,
+                data.toolName,
+                data.parameters,
+              );
             }
             break;
 
           case "tool_call_output_delta":
-            if (data.promptId && data.toolCallId && data.stream && data.delta !== undefined) {
-              console.log("Tool call output delta:", data.toolCallId, data.stream, data.delta.length);
-              onToolCallOutputDeltaRef.current?.(data.promptId, data.toolCallId, data.stream, data.delta);
+            if (
+              data.promptId &&
+              data.toolCallId &&
+              data.stream &&
+              data.delta !== undefined
+            ) {
+              console.log(
+                "Tool call output delta:",
+                data.toolCallId,
+                data.stream,
+                data.delta.length,
+              );
+              onToolCallOutputDeltaRef.current?.(
+                data.promptId,
+                data.toolCallId,
+                data.stream,
+                data.delta,
+              );
             }
             break;
 
           case "tool_call_completed":
-            if (data.promptId && data.toolCallId && data.exitCode !== undefined) {
-              console.log("Tool call completed:", data.toolCallId, "exit code:", data.exitCode);
-              onToolCallCompletedRef.current?.(data.promptId, data.toolCallId, data.exitCode);
+            if (
+              data.promptId &&
+              data.toolCallId &&
+              data.exitCode !== undefined
+            ) {
+              console.log(
+                "Tool call completed:",
+                data.toolCallId,
+                "exit code:",
+                data.exitCode,
+              );
+              onToolCallCompletedRef.current?.(
+                data.promptId,
+                data.toolCallId,
+                data.exitCode,
+              );
             }
             break;
 
           case "tool_call_error":
             if (data.promptId && data.toolCallId && data.error) {
               console.log("Tool call error:", data.toolCallId, data.error);
-              onToolCallErrorRef.current?.(data.promptId, data.toolCallId, data.error);
+              onToolCallErrorRef.current?.(
+                data.promptId,
+                data.toolCallId,
+                data.error,
+              );
             }
             break;
 

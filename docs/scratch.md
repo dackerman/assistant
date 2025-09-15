@@ -16,19 +16,20 @@ Ideally this is a single abstraction - like you "connect" to a conversation and 
 
 no matter what, it just has to be super robust to disconnections and reconnections - and when you reconnect, you can't lose any information.
 
-
 ## State machine for streaming
+
 ### Start stream
+
 - create a prompt with all inputs
 - prompt is in state CREATED
-- send prompt data to AI 
+- send prompt data to AI
   - on failure, prompt state is FAILED and store error in prompt
   - on success, prompt state is IN_PROGRESS
     - on event
       - in a transaction
         - write the event
         - if type is block_start, insert a new block with index N
-            - update prompt current_block to N
+          - update prompt current_block to N
         - if type is block_delta, update the block with index N
         - if type is block_end
           - if block type is tool_use
@@ -51,6 +52,7 @@ no matter what, it just has to be super robust to disconnections and reconnectio
         - prompt state is COMPLETED
 
 ### Resume stream
+
 - if prompt state is COMPLETED
   - return success
 - if prompt state is FAILED or CREATED
@@ -59,9 +61,10 @@ no matter what, it just has to be super robust to disconnections and reconnectio
 - if prompt state is ERROR
   - gather all completed text blocks and build up partial assistant message
   - send prompt data to AI
-    - continue the same stream handling 
+    - continue the same stream handling
 
 ### Cancel stream
+
 - if prompt state is CREATED, FAILED, ERROR, COMPLETED, or CANCELED
   - set prompt state to CANCELED
 - if prompt state is IN_PROGRESS
@@ -69,13 +72,16 @@ no matter what, it just has to be super robust to disconnections and reconnectio
     - mark them canceled
 
 ### tables
+
 prompts
+
 - state: CREATED, IN_PROGRESS, FAILED, ERROR, COMPLETED, CANCELED
 - last_updated: timestamp automatically updated
 - error: text (nullable)
 - current_block: integer (nullable)
 
 events
+
 - prompt: FK to prompts
 - index: integer (monotonically increasing)
 - type: block_start, block_delta, block_end
@@ -83,12 +89,14 @@ events
 - delta: text
 
 blocks
+
 - prompt: FK to prompts
 - type: text, thinking, tool_call
 - index: integer
 - content: text
 
 tool_calls
+
 - prompt: FK to prompts
 - block: FK to blocks
 - tool_name: text
@@ -98,6 +106,3 @@ tool_calls
 - request: text
 - response: text
 - error: text
-
-
-

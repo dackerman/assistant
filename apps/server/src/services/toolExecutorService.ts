@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
 import {
