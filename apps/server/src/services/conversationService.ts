@@ -48,7 +48,10 @@ export class ConversationService {
       title,
     });
 
-    return conversation?.id;
+    if (!conversation) {
+      throw new Error("Failed to create conversation");
+    }
+    return conversation.id;
   }
 
   /**
@@ -191,7 +194,10 @@ export class ConversationService {
       await this.processQueue(conversationId);
     }
 
-    return message?.id;
+    if (!message) {
+      throw new Error("Failed to create message");
+    }
+    return message.id;
   }
 
   /**
@@ -292,7 +298,7 @@ export class ConversationService {
       // Create and start the prompt
       await this.promptService.createAndStreamPrompt({
         conversationId,
-        messageId: assistantMessage?.id,
+        messageId: assistantMessage?.id || 0, // Should never be 0 due to transaction
         model: "claude-sonnet-4-20250514",
         systemMessage: this.getSystemMessage(),
       });
@@ -377,7 +383,10 @@ export class ConversationService {
       } as NewBlock)
       .returning();
 
-    return block?.id;
+    if (!block) {
+      throw new Error("Failed to create block");
+    }
+    return block.id;
   }
 
   /**

@@ -126,7 +126,10 @@ export class PromptService {
       } as NewPrompt)
       .returning();
 
-    const promptId = prompt?.id;
+    if (!prompt) {
+      throw new Error("Failed to create prompt");
+    }
+    const promptId = prompt.id;
 
     try {
       await this.streamPromptResponse(promptId, request, callbacks);
@@ -235,8 +238,10 @@ export class PromptService {
                 } as NewBlock)
                 .returning();
 
-              blockMap.set(event.index, block?.id);
-              callbacks?.onBlockStart?.(block?.id, "text");
+              if (block) {
+                blockMap.set(event.index, block.id);
+                callbacks?.onBlockStart?.(block.id, "text");
+              }
             } else if (event.content_block.type === "tool_use") {
               hasToolCalls = true;
 
@@ -255,15 +260,17 @@ export class PromptService {
                 } as NewBlock)
                 .returning();
 
-              blockMap.set(event.index, block?.id);
-              toolInputs.set(event.index, {
-                blockId: block?.id,
-                toolName: event.content_block.name,
-                toolUseId: event.content_block.id,
-                input: "",
-              });
+              if (block) {
+                blockMap.set(event.index, block.id);
+                toolInputs.set(event.index, {
+                  blockId: block.id,
+                  toolName: event.content_block.name,
+                  toolUseId: event.content_block.id,
+                  input: "",
+                });
 
-              callbacks?.onBlockStart?.(block?.id, "tool_use");
+                callbacks?.onBlockStart?.(block.id, "tool_use");
+              }
             }
             break;
           }
@@ -309,32 +316,34 @@ export class PromptService {
                   } as NewToolCall)
                   .returning();
 
-                callbacks?.onToolStart?.(
-                  toolCall?.id,
-                  toolData.toolName,
-                  parsedInput,
-                );
-
-                // Start tool execution
-                await this.toolExecutor.executeToolCall(toolCall?.id);
-
-                // Get the result for continuation
-                const [completedTool] = await this.db
-                  .select()
-                  .from(toolCalls)
-                  .where(eq(toolCalls.id, toolCall?.id));
-
-                if (completedTool) {
-                  toolResults.push({
-                    tool_use_id: toolData.toolUseId,
-                    content: completedTool.output || "No output",
-                  });
-
-                  callbacks?.onToolEnd?.(
-                    toolCall?.id,
-                    completedTool.output || "",
-                    completedTool.state === "completed",
+                if (toolCall) {
+                  callbacks?.onToolStart?.(
+                    toolCall.id,
+                    toolData.toolName,
+                    parsedInput,
                   );
+
+                  // Start tool execution
+                  await this.toolExecutor.executeToolCall(toolCall.id);
+
+                  // Get the result for continuation
+                  const [completedTool] = await this.db
+                    .select()
+                    .from(toolCalls)
+                    .where(eq(toolCalls.id, toolCall.id));
+
+                  if (completedTool) {
+                    toolResults.push({
+                      tool_use_id: toolData.toolUseId,
+                      content: completedTool.output || "No output",
+                    });
+
+                    callbacks?.onToolEnd?.(
+                      toolCall.id,
+                      completedTool.output || "",
+                      completedTool.state === "completed",
+                    );
+                  }
                 }
               } catch (error) {
                 this.logger.error("Error parsing tool input", {
@@ -444,7 +453,10 @@ export class PromptService {
       .from(prompts)
       .where(eq(prompts.id, promptId));
 
-    return prompt?.messageId;
+    if (!prompt) {
+      throw new Error(`Prompt ${promptId} not found`);
+    }
+    return prompt.messageId;
   }
 
   /**
