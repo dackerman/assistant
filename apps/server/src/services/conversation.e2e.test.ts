@@ -1,9 +1,8 @@
 import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
 import { sql, eq, and } from "drizzle-orm";
-import type { DB } from "../db";
 import { ConversationService } from "./conversationService";
 import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
-import { createPromptServiceFixture } from "../test/promptServiceFixture";
+import { createConversationServiceFixture } from "../test/conversationServiceFixture";
 import {
   conversations,
   messages,
@@ -11,7 +10,6 @@ import {
   blocks,
   users,
 } from "../db/schema";
-import { PromptService } from "./promptService";
 
 
 const truncateAll = async () => {
@@ -27,11 +25,8 @@ const truncateAll = async () => {
 };
 
 describe("ConversationService – createConversation", () => {
-  let service: ConversationService;
-
   beforeAll(async () => {
     await setupTestDatabase();
-    service = new ConversationService(testDb);
   });
 
   afterAll(async () => {
@@ -43,6 +38,7 @@ describe("ConversationService – createConversation", () => {
   });
 
   it("creates a conversation row for the provided user", async () => {
+    const service = new ConversationService(testDb);
     const [user] = await testDb
       .insert(users)
       .values({ email: "creator@example.com" })
@@ -103,23 +99,19 @@ describe("ConversationService – createConversation", () => {
       ],
     ];
 
-    const fixture = createPromptServiceFixture(testDb as unknown as DB);
+    const fixture = createConversationServiceFixture(testDb);
     streams.forEach((events) => fixture.enqueueStream(events));
-
-    const streamingService = new ConversationService(testDb);
-    (streamingService as unknown as { promptService: PromptService }).promptService =
-      fixture.promptService;
 
     const [user] = await testDb
       .insert(users)
       .values({ email: "queue@example.com" })
       .returning();
-    const conversationId = await streamingService.createConversation(
+    const conversationId = await fixture.conversationService.createConversation(
       user.id,
       "Queue Test",
     );
 
-    const messageId = await streamingService.queueMessage(
+    const messageId = await fixture.conversationService.queueMessage(
       conversationId,
       "Hello there",
     );
