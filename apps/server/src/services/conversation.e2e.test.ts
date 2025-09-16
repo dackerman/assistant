@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
 import { sql, eq, and } from "drizzle-orm";
+import type Anthropic from "@anthropic-ai/sdk";
 import { ConversationService } from "./conversationService";
 import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
 import {
@@ -9,6 +10,8 @@ import {
   blocks,
   users,
 } from "../db/schema";
+import { PromptService } from "./promptService";
+
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -62,97 +65,118 @@ describe("ConversationService – createConversation", () => {
   });
 
   it("queues the first user message and starts streaming", async () => {
-    const originalPromptService = (service as unknown as { promptService: unknown })
-      .promptService;
-
-    const fakePromptService = {
-      async createAndStreamPrompt(
-        params: { conversationId: number; messageId: number },
-        callbacks?: {
-          onPromptCreated?: (promptId: number) => void | Promise<void>;
-          onComplete?: (promptId: number) => void | Promise<void>;
-        },
-      ) {
-        const [prompt] = await testDb
-          .insert(prompts)
-          .values({
-            conversationId: params.conversationId,
-            messageId: params.messageId,
-            status: "streaming",
-            model: "claude-sonnet-4-20250514",
-          })
-          .returning();
-
-        await callbacks?.onPromptCreated?.(prompt.id);
-
-        await testDb
-          .update(prompts)
-          .set({ status: "completed", completedAt: new Date() })
-          .where(eq(prompts.id, prompt.id));
-
-        await callbacks?.onComplete?.(prompt.id);
-        return prompt.id;
-      },
-    };
-
-    (service as unknown as { promptService: unknown }).promptService =
-      fakePromptService;
-
-    try {
-      const [user] = await testDb
-        .insert(users)
-        .values({ email: "queue@example.com" })
-        .returning();
-      const conversationId = await service.createConversation(
-        user.id,
-        "Queue Test",
-      );
-
-      const messageId = await service.queueMessage(
-        conversationId,
-        "Hello there",
-      );
-
-      const [userMessage] = await testDb
-        .select()
-        .from(messages)
-        .where(eq(messages.id, messageId));
-      expect(userMessage.status).toBe("completed");
-
-      const assistantMessages = await testDb
-        .select()
-        .from(messages)
-        .where(
-          and(
-            eq(messages.conversationId, conversationId),
-            eq(messages.role, "assistant"),
-          ),
-        );
-      expect(assistantMessages).toHaveLength(1);
-      expect(assistantMessages[0].status).toBe("completed");
-
-      const [conversationRow] = await testDb
-        .select()
-        .from(conversations)
-        .where(eq(conversations.id, conversationId));
-      expect(conversationRow.activePromptId).toBeNull();
-
-      const promptRows = await testDb
-        .select()
-        .from(prompts)
-        .where(eq(prompts.conversationId, conversationId));
-      expect(promptRows).toHaveLength(1);
-      expect(promptRows[0].status).toBe("completed");
-
-      const userBlocks = await testDb
-        .select()
-        .from(blocks)
-        .where(eq(blocks.messageId, userMessage.id));
-      expect(userBlocks).toHaveLength(1);
-      expect(userBlocks[0].content).toBe("Hello there");
-    } finally {
-      (service as unknown as { promptService: unknown }).promptService =
-        originalPromptService;
+    class StubStream {
+      constructor(private events: Array<Record<string, unknown>>) {}
+      async *[Symbol.asyncIterator]() {
+        for (const event of this.events) {
+          yield event;
+        }
+      }
     }
+
+    class StubAnthropic {
+      constructor(
+        private queue: Array<Array<Record<string, unknown>>>,
+      ) {}
+
+      messages = {
+        create: async () => new StubStream(this.queue.shift() ?? []),
+      };
+    }
+
+    const streams = [
+      [
+        {
+          type: "message_start",
+          message: {
+            id: "msg_test",
+            role: "assistant",
+            content: [],
+            model: "claude-sonnet-4-20250514",
+            stop_reason: null,
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 0 },
+          },
+        },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "text", text: "" },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: "Hi!" },
+        },
+        {
+          type: "content_block_stop",
+          index: 0,
+        },
+        {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: 1 },
+        },
+        { type: "message_stop" },
+      ],
+    ];
+
+    const streamingService = new ConversationService(testDb);
+    (streamingService as unknown as { promptService: PromptService }).promptService =
+      new PromptService(testDb, {
+        anthropicClient: new StubAnthropic(streams) as unknown as Anthropic,
+      });
+
+    const [user] = await testDb
+      .insert(users)
+      .values({ email: "queue@example.com" })
+      .returning();
+    const conversationId = await streamingService.createConversation(
+      user.id,
+      "Queue Test",
+    );
+
+    const messageId = await streamingService.queueMessage(
+      conversationId,
+      "Hello there",
+    );
+
+    const [userMessage] = await testDb
+      .select()
+      .from(messages)
+      .where(eq(messages.id, messageId));
+    expect(userMessage.status).toBe("completed");
+
+    const assistantMessages = await testDb
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.role, "assistant"),
+        ),
+      );
+    expect(assistantMessages).toHaveLength(1);
+    expect(assistantMessages[0].status).toBe("completed");
+
+    const [conversationRow] = await testDb
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+    expect(conversationRow.activePromptId).toBeNull();
+
+    const promptRows = await testDb
+      .select()
+      .from(prompts)
+      .where(eq(prompts.conversationId, conversationId));
+    expect(promptRows).toHaveLength(1);
+    expect(promptRows[0].status).toBe("completed");
+
+    const userBlocks = await testDb
+      .select()
+      .from(blocks)
+      .where(eq(blocks.messageId, userMessage.id));
+    expect(userBlocks).toHaveLength(1);
+    expect(userBlocks[0].content).toBe("Hello there");
   });
 });
