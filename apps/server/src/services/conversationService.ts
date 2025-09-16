@@ -15,7 +15,7 @@ import {
   toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
-import { PromptService } from "./promptService";
+import { PromptService, type StreamingCallbacks } from "./promptService";
 
 export class ConversationService {
   private db: DB;
@@ -208,14 +208,15 @@ export class ConversationService {
     const result = await this.db
       .update(messages)
       .set({ content, updatedAt: new Date() })
-      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")));
+      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")))
+      .returning();
 
     this.logger.info("Edited queued message", {
       messageId,
       contentLength: content.length,
     });
 
-    return result.count > 0;
+    return result.length > 0;
   }
 
   /**
@@ -224,10 +225,11 @@ export class ConversationService {
   async deleteQueuedMessage(messageId: number): Promise<boolean> {
     const result = await this.db
       .delete(messages)
-      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")));
+      .where(and(eq(messages.id, messageId), eq(messages.status, "queued")))
+      .returning();
 
     this.logger.info("Deleted queued message", { messageId });
-    return result.count > 0;
+    return result.length > 0;
   }
 
   /**
@@ -573,6 +575,37 @@ export class ConversationService {
       .from(blocks)
       .where(eq(blocks.messageId, activePrompt.messageId))
       .orderBy(blocks.order);
+
+    return {
+      prompt: activePrompt,
+      blocks: streamingBlocks,
+    };
+  }
+
+  async restoreActiveStream(
+    conversationId: number,
+    callbacks: StreamingCallbacks,
+  ) {
+    const activePrompt = await this.getActivePrompt(conversationId);
+    if (!activePrompt) {
+      return null;
+    }
+
+    callbacks.onPromptCreated?.(activePrompt.id);
+
+    const streamingBlocks = await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.messageId, activePrompt.messageId))
+      .orderBy(blocks.order);
+
+    for (const block of streamingBlocks) {
+      callbacks.onBlockStart?.(block.id, block.type);
+      if (block.type === "text" && block.content) {
+        callbacks.onBlockDelta?.(block.id, block.content);
+      }
+      callbacks.onBlockEnd?.(block.id);
+    }
 
     return {
       prompt: activePrompt,

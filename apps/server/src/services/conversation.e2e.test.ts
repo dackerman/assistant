@@ -232,6 +232,36 @@ describe("ConversationService – createConversation", () => {
     expect(activePrompt).not.toBeNull();
     expect(activePrompt?.status).toBe("streaming");
 
+    const blockEvents: Array<
+      | { type: "start"; blockId: number; blockType: string }
+      | { type: "delta"; blockId: number; content: string }
+      | { type: "end"; blockId: number }
+    > = [];
+    let restoredPromptId: number | null = null;
+
+    const restored = await fixture.conversationService.restoreActiveStream(
+      conversationId,
+      {
+        onPromptCreated: (promptId) => {
+          restoredPromptId = promptId;
+        },
+        onBlockStart: (blockId, blockType) => {
+          blockEvents.push({ type: "start", blockId, blockType });
+        },
+        onBlockDelta: (blockId, content) => {
+          blockEvents.push({ type: "delta", blockId, content });
+        },
+        onBlockEnd: (blockId) => {
+          blockEvents.push({ type: "end", blockId });
+        },
+      },
+    );
+
+    expect(restored).not.toBeNull();
+    expect(restoredPromptId).toBe(restored?.prompt.id);
+    expect(restored?.prompt.status).toBe("streaming");
+    expect(blockEvents.some((e) => e.type === "delta" && e.content === "Partial...")).toBe(true);
+
     try {
       streamController.push({
         type: "content_block_stop",
