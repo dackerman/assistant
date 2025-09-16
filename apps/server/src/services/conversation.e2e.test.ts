@@ -1,8 +1,9 @@
 import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
 import { sql, eq, and } from "drizzle-orm";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { DB } from "../db";
 import { ConversationService } from "./conversationService";
 import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
+import { createPromptServiceFixture } from "../test/promptServiceFixture";
 import {
   conversations,
   messages,
@@ -65,25 +66,6 @@ describe("ConversationService – createConversation", () => {
   });
 
   it("queues the first user message and starts streaming", async () => {
-    class StubStream {
-      constructor(private events: Array<Record<string, unknown>>) {}
-      async *[Symbol.asyncIterator]() {
-        for (const event of this.events) {
-          yield event;
-        }
-      }
-    }
-
-    class StubAnthropic {
-      constructor(
-        private queue: Array<Array<Record<string, unknown>>>,
-      ) {}
-
-      messages = {
-        create: async () => new StubStream(this.queue.shift() ?? []),
-      };
-    }
-
     const streams = [
       [
         {
@@ -121,11 +103,12 @@ describe("ConversationService – createConversation", () => {
       ],
     ];
 
+    const fixture = createPromptServiceFixture(testDb as unknown as DB);
+    streams.forEach((events) => fixture.enqueueStream(events));
+
     const streamingService = new ConversationService(testDb);
     (streamingService as unknown as { promptService: PromptService }).promptService =
-      new PromptService(testDb, {
-        anthropicClient: new StubAnthropic(streams) as unknown as Anthropic,
-      });
+      fixture.promptService;
 
     const [user] = await testDb
       .insert(users)
