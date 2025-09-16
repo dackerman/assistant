@@ -70,10 +70,7 @@ export class PromptService {
   private logger: Logger;
   private toolExecutor: ToolExecutorService;
 
-  constructor(
-    dbInstance: DB = defaultDb,
-    options: PromptServiceOptions = {},
-  ) {
+  constructor(dbInstance: DB = defaultDb, options: PromptServiceOptions = {}) {
     this.db = dbInstance;
     this.logger = options.logger ?? new Logger({ service: "PromptService" });
     this.toolExecutor =

@@ -3,11 +3,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { users } from "../db/schema";
 import {
   createConversationServiceFixture,
-  expectMessagesState,
   expectBlockEvents,
+  expectMessagesState,
 } from "../test/conversationServiceFixture";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
-import { ConversationService } from "./conversationService";
+import {
+  ConversationService,
+  type ConversationState,
+  type RestoredStreamEvent,
+} from "./conversationService";
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -156,25 +160,44 @@ describe("ConversationService – createConversation", () => {
     const fixture = createConversationServiceFixture(testDb);
     const streamController = fixture.enqueueStream([], { autoFinish: false });
 
+    // Create conversation and queue user prompt
     const [user] = await fixture.insertUser("stream@example.com");
     const conversationId = await fixture.conversationService.createConversation(
       user.id,
       "Streaming",
     );
 
+    // Initial user prompt
     const queuePromise = fixture.conversationService.queueMessage(
       conversationId,
-      "Start streaming",
+      "What's the weather in Tokyo?",
     );
 
+    const convoContainer: { convo: ConversationState | null } = { convo: null };
+
     await waitFor(async () => {
-      const current = await fixture.conversationService.getConversation(
+      convoContainer.convo = await fixture.conversationService.getConversation(
         conversationId,
         user.id,
       );
-      return (current?.messages?.length ?? 0) === 2;
+      return (convoContainer.convo?.messages?.length ?? 0) === 2;
     });
 
+    // User prompt and empty assistant response exists before streaming starts
+    expectMessagesState(convoContainer.convo?.messages, [
+      {
+        role: "user",
+        status: "completed",
+        blocks: [{ type: "text", content: "What's the weather in Tokyo?" }],
+      },
+      {
+        role: "assistant",
+        status: "processing",
+        blocks: [{ type: "text", content: "" }],
+      },
+    ]);
+
+    // Start streaming assistant response
     streamController.push({
       type: "message_start",
       message: {
@@ -195,31 +218,28 @@ describe("ConversationService – createConversation", () => {
     streamController.push({
       type: "content_block_delta",
       index: 0,
-      delta: { type: "text_delta", text: "Partial..." },
+      delta: { type: "text_delta", text: "That's a g" },
     });
 
     await waitFor(async () => {
-      const current = await fixture.conversationService.getConversation(
+      convoContainer.convo = await fixture.conversationService.getConversation(
         conversationId,
         user.id,
       );
-      const assistant = current?.messages?.find((m) => m.role === "assistant");
+      const assistant = convoContainer.convo?.messages?.find(
+        (m) => m.role === "assistant",
+      );
       return (
         assistant?.blocks?.some((b) => b.content === "Partial...") ?? false
       );
     });
 
-    const conversationState = await fixture.conversationService.getConversation(
-      conversationId,
-      user.id,
-    );
-
-    expect(conversationState).not.toBeNull();
-    expectMessagesState(conversationState?.messages, [
+    expect(convoContainer.convo).not.toBeNull();
+    expectMessagesState(convoContainer.convo?.messages, [
       {
         role: "user",
         status: "completed",
-        blocks: [{ type: "text", content: "Start streaming" }],
+        blocks: [{ type: "text", content: "What's the weather in Tokyo?" }],
       },
       {
         role: "assistant",
@@ -233,45 +253,34 @@ describe("ConversationService – createConversation", () => {
     expect(activePrompt).not.toBeNull();
     expect(activePrompt?.status).toBe("streaming");
 
-    const blockEvents: Array<
-      | { type: "start"; blockId: number; blockType: string }
-      | { type: "delta"; blockId: number; content: string }
-      | { type: "end"; blockId: number }
-    > = [];
-    let restoredPromptId: number | null = null;
-
-    const restored = await fixture.conversationService.restoreActiveStream(
-      conversationId,
-      {
-        onPromptCreated: (promptId) => {
-          restoredPromptId = promptId;
-        },
-        onBlockStart: (blockId, blockType) => {
-          blockEvents.push({ type: "start", blockId, blockType });
-        },
-        onBlockDelta: (blockId, content) => {
-          blockEvents.push({ type: "delta", blockId, content });
-        },
-        onBlockEnd: (blockId) => {
-          blockEvents.push({ type: "end", blockId });
-        },
-      },
-    );
+    const restored =
+      await fixture.conversationService.restoreActiveStream(conversationId);
 
     expect(restored).not.toBeNull();
-    expect(restoredPromptId).toBe(restored?.prompt.id);
-    expect(restored?.prompt.status).toBe("streaming");
-    expectBlockEvents(blockEvents, [
+    if (!restored) return;
+
+    expect(restored.prompt.id).toBe(activePrompt?.id);
+    expect(restored.prompt.status).toBe("streaming");
+
+    const iterator = restored.events[Symbol.asyncIterator]();
+    const initialEvents: RestoredStreamEvent[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const { value, done } = await iterator.next();
+      expect(done).toBe(false);
+      expect(value).toBeDefined();
+      if (value) {
+        initialEvents.push(value);
+      }
+    }
+
+    expectBlockEvents(initialEvents, [
       { type: "start", blockType: "text" },
       { type: "delta", content: "Partial..." },
       { type: "end" },
     ]);
 
     try {
-      streamController.push({
-        type: "content_block_stop",
-        index: 0,
-      });
+      streamController.push({ type: "content_block_stop", index: 0 });
       streamController.push({
         type: "message_delta",
         delta: { stop_reason: "end_turn", stop_sequence: null },
@@ -281,6 +290,9 @@ describe("ConversationService – createConversation", () => {
     } finally {
       streamController.finish();
       await queuePromise;
+      if (iterator?.return) {
+        await iterator.return(undefined);
+      }
     }
   });
 });

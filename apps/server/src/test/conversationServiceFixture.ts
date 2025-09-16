@@ -1,9 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { sql } from "drizzle-orm";
-import type { DB } from "../db";
-import { users, type BlockType } from "../db/schema";
 import { expect } from "vitest";
-import { ConversationService } from "../services/conversationService";
+import type { DB } from "../db";
+import { type BlockType, users } from "../db/schema";
+import {
+  ConversationService,
+  type RestoredStreamEvent,
+} from "../services/conversationService";
 import { PromptService } from "../services/promptService";
 
 interface StreamEvent {
@@ -44,7 +47,10 @@ class ControlledStream {
           return Promise.resolve({ value, done: false });
         }
         if (this.done) {
-          return Promise.resolve({ value: undefined as unknown as StreamEvent, done: true });
+          return Promise.resolve({
+            value: undefined as unknown as StreamEvent,
+            done: true,
+          });
         }
         return new Promise((resolve) => {
           this.resolvers.push(resolve);
@@ -64,10 +70,13 @@ class StubAnthropic {
 
 export function createConversationServiceFixture(db: DB) {
   const streamQueue: ControlledStream[] = [];
-  const anthropicClient = new StubAnthropic(streamQueue) as unknown as Anthropic;
+  const anthropicClient = new StubAnthropic(
+    streamQueue,
+  ) as unknown as Anthropic;
   const conversationService = new ConversationService(db);
-  (conversationService as unknown as { promptService: PromptService }).promptService =
-    new PromptService(db, { anthropicClient });
+  (
+    conversationService as unknown as { promptService: PromptService }
+  ).promptService = new PromptService(db, { anthropicClient });
 
   const truncateAll = async () => {
     await db.execute(sql`
@@ -83,9 +92,14 @@ export function createConversationServiceFixture(db: DB) {
 
   return {
     conversationService,
-    enqueueStream(initialEvents: StreamEvent[] = [], options?: { autoFinish?: boolean }) {
+    enqueueStream(
+      initialEvents: StreamEvent[] = [],
+      options?: { autoFinish?: boolean },
+    ) {
       const controller = new ControlledStream();
-      initialEvents.forEach((event) => controller.push(event));
+      for (const event of initialEvents) {
+        controller.push(event);
+      }
       if (options?.autoFinish !== false) {
         controller.finish();
       }
@@ -119,17 +133,17 @@ type BlockEventExpectation =
   | { type: "end" };
 
 export function expectMessagesState(
-  actual: Array<{
-    role: string;
-    status?: string;
-    blocks?: Array<{ type: BlockType; content: string | null }>;
-  }> | undefined,
+  actual:
+    | Array<{
+        role: string;
+        status?: string;
+        blocks?: Array<{ type: BlockType; content: string | null }>;
+      }>
+    | undefined,
   expected: ExpectedMessage[],
 ) {
   const actualList = actual ?? [];
-  expect(actualList.length).toBe(
-    expected.length,
-  );
+  expect(actualList.length).toBe(expected.length);
 
   actualList.forEach((message, index) => {
     const spec = expected[index];
@@ -157,24 +171,20 @@ export function expectMessagesState(
 }
 
 export function expectBlockEvents(
-  actual:
-    | Array<
-        | { type: "start"; blockId: number; blockType: BlockType }
-        | { type: "delta"; blockId: number; content: string }
-        | { type: "end"; blockId: number }
-      >
-    | undefined,
+  actual: RestoredStreamEvent[] | undefined,
   expected: BlockEventExpectation[],
 ) {
-  const list = (actual ?? []).map((event) => {
-    if (event.type === "start") {
-      return { type: "start", blockType: event.blockType };
-    }
-    if (event.type === "delta") {
-      return { type: "delta", content: event.content };
-    }
-    return { type: "end" };
-  });
+  const list = (actual ?? [])
+    .filter((event) => event.type !== "prompt-created")
+    .map((event) => {
+      if (event.type === "block-start") {
+        return { type: "start", blockType: event.blockType };
+      }
+      if (event.type === "block-delta") {
+        return { type: "delta", content: event.content };
+      }
+      return { type: "end" };
+    });
 
   expect(list).toEqual(expected);
 }

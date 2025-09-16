@@ -1,6 +1,7 @@
 import { and, asc, desc, eq } from "drizzle-orm";
+import postgres from "postgres";
 import { db as defaultDb } from "../db";
-import type { DB } from "../db";
+import type { Conversation, DB, Prompt, ToolCall } from "../db";
 import {
   type Block,
   type BlockType,
@@ -15,7 +16,66 @@ import {
   toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
-import { PromptService, type StreamingCallbacks } from "./promptService";
+import { PromptService } from "./promptService";
+
+export interface ConversationState {
+  conversation: Conversation;
+  messages: (Message & { blocks: (Block & { toolCall?: ToolCall })[] })[];
+}
+
+export type RestoredStreamEvent =
+  | { type: "prompt-created"; promptId: number }
+  | { type: "block-start"; blockId: number; blockType: BlockType }
+  | { type: "block-delta"; blockId: number; content: string }
+  | { type: "block-end"; blockId: number };
+
+type PromptStreamNotification = {
+  type: "block_start" | "block_delta" | "block_end";
+  prompt_id: number;
+  block_id: number;
+  block_type: BlockType;
+  delta?: string;
+};
+
+class AsyncEventQueue<T> {
+  private backlog: T[] = [];
+  private resolvers: Array<(value: { value: T; done: boolean }) => void> = [];
+  private closed = false;
+
+  push(value: T) {
+    if (this.closed) return;
+    const resolve = this.resolvers.shift();
+    if (resolve) {
+      resolve({ value, done: false });
+      return;
+    }
+    this.backlog.push(value);
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    while (this.resolvers.length > 0) {
+      const resolve = this.resolvers.shift();
+      resolve?.({ value: undefined as T, done: true });
+    }
+  }
+
+  async next(): Promise<{ value: T; done: boolean }> {
+    if (this.backlog.length > 0) {
+      const value = this.backlog.shift()!;
+      return { value, done: false };
+    }
+
+    if (this.closed) {
+      return { value: undefined as T, done: true };
+    }
+
+    return new Promise((resolve) => {
+      this.resolvers.push(resolve);
+    });
+  }
+}
 
 export class ConversationService {
   private db: DB;
@@ -55,7 +115,10 @@ export class ConversationService {
   /**
    * Get conversation with all messages and blocks (includes queued messages)
    */
-  async getConversation(conversationId: number, userId: number) {
+  async getConversation(
+    conversationId: number,
+    userId: number,
+  ): Promise<ConversationState | null> {
     // Get conversation
     const [conversation] = await this.db
       .select()
@@ -83,7 +146,10 @@ export class ConversationService {
       .orderBy(messages.createdAt, messages.queueOrder, blocks.order);
 
     // Group blocks by message
-    const messageMap = new Map();
+    const messageMap = new Map<
+      number,
+      Message & { blocks: (Block & { toolCall?: ToolCall })[] }
+    >();
     for (const row of messagesWithBlocks) {
       if (!messageMap.has(row.message.id)) {
         messageMap.set(row.message.id, {
@@ -109,7 +175,7 @@ export class ConversationService {
       .orderBy(toolCalls.id);
 
     // Attach tool calls to blocks
-    const toolCallsByBlockId = new Map();
+    const toolCallsByBlockId = new Map<number, ToolCall>();
     for (const row of conversationToolCalls) {
       if (row.blockId) {
         toolCallsByBlockId.set(row.blockId, row.toolCall);
@@ -582,16 +648,15 @@ export class ConversationService {
     };
   }
 
-  async restoreActiveStream(
-    conversationId: number,
-    callbacks: StreamingCallbacks,
-  ) {
+  async restoreActiveStream(conversationId: number): Promise<{
+    prompt: Prompt;
+    blocks: Block[];
+    events: AsyncGenerator<RestoredStreamEvent>;
+  } | null> {
     const activePrompt = await this.getActivePrompt(conversationId);
     if (!activePrompt) {
       return null;
     }
-
-    callbacks.onPromptCreated?.(activePrompt.id);
 
     const streamingBlocks = await this.db
       .select()
@@ -599,17 +664,125 @@ export class ConversationService {
       .where(eq(blocks.messageId, activePrompt.messageId))
       .orderBy(blocks.order);
 
+    const queue = new AsyncEventQueue<RestoredStreamEvent>();
+    queue.push({ type: "prompt-created", promptId: activePrompt.id });
+
     for (const block of streamingBlocks) {
-      callbacks.onBlockStart?.(block.id, block.type);
+      queue.push({
+        type: "block-start",
+        blockId: block.id,
+        blockType: block.type,
+      });
       if (block.type === "text" && block.content) {
-        callbacks.onBlockDelta?.(block.id, block.content);
+        queue.push({
+          type: "block-delta",
+          blockId: block.id,
+          content: block.content,
+        });
       }
-      callbacks.onBlockEnd?.(block.id);
+      queue.push({ type: "block-end", blockId: block.id });
     }
+
+    const connectionString = this.getConnectionString();
+    let sqlClient: ReturnType<typeof postgres> | null = null;
+
+    if (!connectionString) {
+      this.logger.warn("No database connection string for stream restoration", {
+        conversationId,
+      });
+      queue.close();
+    } else {
+      try {
+        sqlClient = postgres(connectionString, { max: 1 });
+        await sqlClient.listen("prompt_stream_events", (payload: string) => {
+          try {
+            const data = JSON.parse(payload) as PromptStreamNotification;
+            if (data.prompt_id !== activePrompt.id) return;
+
+            switch (data.type) {
+              case "block_start": {
+                queue.push({
+                  type: "block-start",
+                  blockId: data.block_id,
+                  blockType: data.block_type,
+                });
+                break;
+              }
+              case "block_delta": {
+                if (data.delta) {
+                  queue.push({
+                    type: "block-delta",
+                    blockId: data.block_id,
+                    content: data.delta,
+                  });
+                }
+                break;
+              }
+              case "block_end": {
+                queue.push({
+                  type: "block-end",
+                  blockId: data.block_id,
+                });
+                break;
+              }
+            }
+          } catch (error) {
+            this.logger.error("Failed to parse prompt stream notification", {
+              error,
+              payload,
+            });
+          }
+        });
+      } catch (error) {
+        this.logger.error("Failed to subscribe to prompt stream events", {
+          error,
+          promptId: activePrompt.id,
+        });
+        queue.close();
+        if (sqlClient) {
+          try {
+            await sqlClient.end({ timeout: 5 });
+          } catch (closeError) {
+            this.logger.error("Failed to close notification client", {
+              error: closeError,
+            });
+          }
+        }
+        sqlClient = null;
+      }
+    }
+
+    const service = this;
+    const events = (async function* (): AsyncGenerator<RestoredStreamEvent> {
+      try {
+        while (true) {
+          const { value, done } = await queue.next();
+          if (done) {
+            return;
+          }
+          yield value;
+        }
+      } finally {
+        queue.close();
+        if (sqlClient) {
+          try {
+            await sqlClient.end({ timeout: 5 });
+          } catch (error) {
+            if (error instanceof Error) {
+              service.logger.error("Failed to close prompt event client", {
+                error,
+                promptId: activePrompt.id,
+              });
+            }
+          }
+        }
+      }
+    })();
 
     return {
       prompt: activePrompt,
       blocks: streamingBlocks,
+      events,
     };
   }
 
@@ -664,6 +837,13 @@ For example:
 - "check disk space" → use bash tool with "df -h" command
 
 Execute the commands and then explain the results in a helpful way.`;
+  }
+
+  private getConnectionString(): string | undefined {
+    if (process.env.NODE_ENV === "test") {
+      return process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+    }
+    return process.env.DATABASE_URL;
   }
 
   private async handlePromptCreated(
