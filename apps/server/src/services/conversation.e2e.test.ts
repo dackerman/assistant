@@ -4,6 +4,7 @@ import { users } from "../db/schema";
 import {
   createConversationServiceFixture,
   expectMessagesState,
+  expectBlockEvents,
 } from "../test/conversationServiceFixture";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import { ConversationService } from "./conversationService";
@@ -260,7 +261,11 @@ describe("ConversationService – createConversation", () => {
     expect(restored).not.toBeNull();
     expect(restoredPromptId).toBe(restored?.prompt.id);
     expect(restored?.prompt.status).toBe("streaming");
-    expect(blockEvents.some((e) => e.type === "delta" && e.content === "Partial...")).toBe(true);
+    expectBlockEvents(blockEvents, [
+      { type: "start", blockType: "text" },
+      { type: "delta", content: "Partial..." },
+      { type: "end" },
+    ]);
 
     try {
       streamController.push({

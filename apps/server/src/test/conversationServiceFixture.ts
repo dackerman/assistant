@@ -113,6 +113,11 @@ interface ExpectedMessage {
   blocks?: ExpectedBlock[];
 }
 
+type BlockEventExpectation =
+  | { type: "start"; blockType: BlockType }
+  | { type: "delta"; content: string }
+  | { type: "end" };
+
 export function expectMessagesState(
   actual: Array<{
     role: string;
@@ -147,6 +152,33 @@ export function expectMessagesState(
           expect(block.content ?? "").toBe(blockSpec.content);
         }
       });
+    }
+  });
+}
+
+export function expectBlockEvents(
+  actual:
+    | Array<
+        | { type: "start"; blockId: number; blockType: string }
+        | { type: "delta"; blockId: number; content: string }
+        | { type: "end"; blockId: number }
+      >
+    | undefined,
+  expected: BlockEventExpectation[],
+) {
+  const list = actual ?? [];
+  expect(list.length).toBe(expected.length);
+
+  list.forEach((event, index) => {
+    const spec = expected[index];
+    expect(spec).toBeDefined();
+    if (!spec) return;
+    expect(event.type).toBe(spec.type);
+
+    if (spec.type === "start") {
+      expect((event as { blockType: string }).blockType).toBe(spec.blockType);
+    } else if (spec.type === "delta") {
+      expect((event as { content: string }).content).toBe(spec.content);
     }
   });
 }
