@@ -21,6 +21,14 @@ const truncateAll = async () => {
   `);
 };
 
+const waitFor = async (predicate: () => Promise<boolean>, attempts = 20, delayMs = 25) => {
+  for (let i = 0; i < attempts; i++) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error("Condition not met within timeout");
+};
+
 describe("ConversationService – createConversation", () => {
   beforeAll(async () => {
     await setupTestDatabase();
@@ -133,5 +141,102 @@ describe("ConversationService – createConversation", () => {
       conversationId,
     );
     expect(activePrompt).toBeNull();
+  });
+
+  it("exposes active prompt state while streaming", async () => {
+    const fixture = createConversationServiceFixture(testDb);
+    const streamController = fixture.enqueueStream([], { autoFinish: false });
+
+    const [user] = await fixture.insertUser("stream@example.com");
+    const conversationId = await fixture.conversationService.createConversation(
+      user.id,
+      "Streaming",
+    );
+
+    const queuePromise = fixture.conversationService.queueMessage(
+      conversationId,
+      "Start streaming",
+    );
+
+    await waitFor(async () => {
+      const current = await fixture.conversationService.getConversation(
+        conversationId,
+        user.id,
+      );
+      return (current?.messages?.length ?? 0) === 2;
+    });
+
+    streamController.push({
+      type: "message_start",
+      message: {
+        id: "msg_stream",
+        role: "assistant",
+        content: [],
+        model: "claude-sonnet-4-20250514",
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 0 },
+      },
+    });
+    streamController.push({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "" },
+    });
+    streamController.push({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text: "Partial..." },
+    });
+
+    await waitFor(async () => {
+      const current = await fixture.conversationService.getConversation(
+        conversationId,
+        user.id,
+      );
+      const assistant = current?.messages?.find((m) => m.role === "assistant");
+      return assistant?.blocks?.some((b) => b.content === "Partial...") ?? false;
+    });
+
+    const conversationState = await fixture.conversationService.getConversation(
+      conversationId,
+      user.id,
+    );
+
+    expect(conversationState).not.toBeNull();
+    expectMessagesState(conversationState?.messages, [
+      {
+        role: "user",
+        status: "completed",
+        blocks: [{ type: "text", content: "Start streaming" }],
+      },
+      {
+        role: "assistant",
+        status: "processing",
+        blocks: [{ type: "text", content: "Partial..." }],
+      },
+    ]);
+
+    const activePrompt = await fixture.conversationService.getActivePrompt(
+      conversationId,
+    );
+    expect(activePrompt).not.toBeNull();
+    expect(activePrompt?.status).toBe("streaming");
+
+    try {
+      streamController.push({
+        type: "content_block_stop",
+        index: 0,
+      });
+      streamController.push({
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: 1 },
+      });
+      streamController.push({ type: "message_stop" });
+    } finally {
+      streamController.finish();
+      await queuePromise;
+    }
   });
 });

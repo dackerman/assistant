@@ -10,26 +10,60 @@ interface StreamEvent {
   [key: string]: unknown;
 }
 
-class StreamIterator {
-  constructor(private readonly events: StreamEvent[]) {}
+class ControlledStream {
+  private events: StreamEvent[] = [];
+  private resolvers: ((result: IteratorResult<StreamEvent>) => void)[] = [];
+  private done = false;
 
-  async *[Symbol.asyncIterator]() {
-    for (const event of this.events) {
-      yield event;
+  push(event: StreamEvent) {
+    if (this.done) {
+      throw new Error("Stream already finished");
     }
+    const resolver = this.resolvers.shift();
+    if (resolver) {
+      resolver({ value: event, done: false });
+    } else {
+      this.events.push(event);
+    }
+  }
+
+  finish() {
+    if (this.done) return;
+    this.done = true;
+    while (this.resolvers.length > 0) {
+      const resolver = this.resolvers.shift();
+      resolver?.({ value: undefined as unknown as StreamEvent, done: true });
+    }
+  }
+
+  [Symbol.asyncIterator]() {
+    return {
+      next: (): Promise<IteratorResult<StreamEvent>> => {
+        if (this.events.length > 0) {
+          const value = this.events.shift()!;
+          return Promise.resolve({ value, done: false });
+        }
+        if (this.done) {
+          return Promise.resolve({ value: undefined as unknown as StreamEvent, done: true });
+        }
+        return new Promise((resolve) => {
+          this.resolvers.push(resolve);
+        });
+      },
+    };
   }
 }
 
 class StubAnthropic {
-  constructor(private readonly queue: StreamEvent[][]) {}
+  constructor(private readonly queue: ControlledStream[]) {}
 
   messages = {
-    create: async () => new StreamIterator(this.queue.shift() ?? []),
+    create: async () => this.queue.shift() ?? new ControlledStream(),
   };
 }
 
 export function createConversationServiceFixture(db: DB) {
-  const streamQueue: StreamEvent[][] = [];
+  const streamQueue: ControlledStream[] = [];
   const anthropicClient = new StubAnthropic(streamQueue) as unknown as Anthropic;
   const conversationService = new ConversationService(db);
   (conversationService as unknown as { promptService: PromptService }).promptService =
@@ -49,8 +83,17 @@ export function createConversationServiceFixture(db: DB) {
 
   return {
     conversationService,
-    enqueueStream(events: StreamEvent[]) {
-      streamQueue.push(events);
+    enqueueStream(initialEvents: StreamEvent[] = [], options?: { autoFinish?: boolean }) {
+      const controller = new ControlledStream();
+      initialEvents.forEach((event) => controller.push(event));
+      if (options?.autoFinish !== false) {
+        controller.finish();
+      }
+      streamQueue.push(controller);
+      return {
+        push: (event: StreamEvent) => controller.push(event),
+        finish: () => controller.finish(),
+      };
     },
     truncateAll,
     insertUser: (email: string) =>
