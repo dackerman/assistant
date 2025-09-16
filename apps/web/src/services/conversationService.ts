@@ -1,5 +1,3 @@
-import type { Conversation, Message } from "@/types/conversation";
-
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4001/api";
 
 // Types for active stream response
@@ -12,6 +10,14 @@ interface Prompt {
   createdAt: string;
   updatedAt: string;
   systemMessage?: string | null;
+  state?:
+    | "IN_PROGRESS"
+    | "WAITING_FOR_TOOLS"
+    | "WAITING_FOR_RESPONSE"
+    | "COMPLETED"
+    | "FAILED"
+    | "CANCELED"
+    | string;
 }
 
 interface Block {
@@ -28,6 +34,42 @@ interface Block {
 export interface ActiveStream {
   prompt: Prompt;
   blocks: Block[];
+}
+
+export interface ApiToolCall {
+  id: number;
+  apiToolCallId?: string;
+  toolName: string;
+  request: Record<string, unknown>;
+  response?: unknown;
+  state: string;
+  completedAt?: string;
+  providerExecuted?: boolean;
+  dynamic?: boolean;
+}
+
+export interface ApiBlock {
+  id: number;
+  type: "text" | "tool_call" | "tool_result" | "thinking";
+  content: string;
+  createdAt: string;
+  toolCall?: ApiToolCall;
+}
+
+export interface ApiMessage {
+  id: number;
+  role: "user" | "assistant" | "system";
+  createdAt: string;
+  promptId?: number;
+  model?: string;
+  blocks?: ApiBlock[];
+}
+
+export interface ApiConversation {
+  id: number;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class ConversationService {
@@ -52,8 +94,8 @@ export class ConversationService {
    * Get conversation with all messages and blocks
    */
   async getConversation(conversationId: number): Promise<{
-    conversation: Conversation;
-    messages: Message[];
+    conversation: ApiConversation;
+    messages: ApiMessage[];
   }> {
     const response = await fetch(`${API_BASE}/conversations/${conversationId}`);
 
@@ -108,7 +150,7 @@ export class ConversationService {
   /**
    * List all conversations
    */
-  async listConversations(): Promise<{ conversations: Conversation[] }> {
+  async listConversations(): Promise<{ conversations: ApiConversation[] }> {
     const response = await fetch(`${API_BASE}/conversations`);
 
     if (!response.ok) {

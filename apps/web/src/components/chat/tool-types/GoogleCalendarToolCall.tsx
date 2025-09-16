@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { ToolCall } from "@/types/conversation";
 import { Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { formatInlineValue, formatMultilineValue } from "./utils";
 
 interface GoogleCalendarToolCallProps {
   toolCall: ToolCall;
@@ -15,15 +16,22 @@ export function GoogleCalendarToolCall({
   onToggle,
   statusIcon,
 }: GoogleCalendarToolCallProps) {
+  const params = toolCall.parameters;
+  const action = typeof params.action === "string" ? params.action : "";
+
   const getActionDescription = () => {
-    if (toolCall.parameters.action === "create_event") {
-      return `Creating event: "${toolCall.parameters.title}"`;
+    if (action === "create_event") {
+      return `Creating event: "${formatInlineValue(params.title)}"`;
     }
-    if (toolCall.parameters.action === "get_events") {
-      return `Fetching events for ${toolCall.parameters.date || "today"}`;
+    if (action === "get_events") {
+      const targetDate =
+        params.date !== undefined && params.date !== null
+          ? formatInlineValue(params.date)
+          : "today";
+      return `Fetching events for ${targetDate}`;
     }
-    if (toolCall.parameters.action === "update_event") {
-      return `Updating event: "${toolCall.parameters.title}"`;
+    if (action === "update_event") {
+      return `Updating event: "${formatInlineValue(params.title)}"`;
     }
     return "Calendar operation";
   };
@@ -63,51 +71,53 @@ export function GoogleCalendarToolCall({
                   </span>
                 </div>
                 <div className="space-y-2 text-xs">
-                  {toolCall.parameters.title && (
+                  {params.title !== undefined && params.title !== null && (
                     <div>
                       <span className="font-medium">Title:</span>{" "}
-                      {toolCall.parameters.title}
+                      {formatInlineValue(params.title)}
                     </div>
                   )}
-                  {toolCall.parameters.start_time && (
+                  {params.start_time !== undefined &&
+                    params.start_time !== null && (
                     <div>
                       <span className="font-medium">Start:</span>{" "}
-                      {toolCall.parameters.start_time}
+                      {formatInlineValue(params.start_time)}
                     </div>
                   )}
-                  {toolCall.parameters.end_time && (
+                  {params.end_time !== undefined && params.end_time !== null && (
                     <div>
                       <span className="font-medium">End:</span>{" "}
-                      {toolCall.parameters.end_time}
+                      {formatInlineValue(params.end_time)}
                     </div>
                   )}
-                  {toolCall.parameters.location && (
+                  {params.location !== undefined && params.location !== null && (
                     <div>
                       <span className="font-medium">Location:</span>{" "}
-                      {toolCall.parameters.location}
+                      {formatInlineValue(params.location)}
                     </div>
                   )}
-                  {toolCall.parameters.attendees && (
+                  {params.attendees !== undefined &&
+                    params.attendees !== null && (
                     <div>
                       <span className="font-medium">Attendees:</span>{" "}
-                      {Array.isArray(toolCall.parameters.attendees)
-                        ? toolCall.parameters.attendees.join(", ")
-                        : toolCall.parameters.attendees}
+                      {Array.isArray(params.attendees)
+                        ? params.attendees
+                            .map((attendee) => formatInlineValue(attendee))
+                            .join(", ")
+                        : formatInlineValue(params.attendees)}
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {toolCall.result && (
+            {toolCall.result !== undefined && toolCall.result !== null && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1 font-medium">
                   Result:
                 </p>
                 <div className="bg-green-50 border border-green-200 p-3 rounded text-xs">
-                  {typeof toolCall.result === "string"
-                    ? toolCall.result
-                    : JSON.stringify(toolCall.result, null, 2)}
+                  {formatMultilineValue(toolCall.result)}
                 </div>
               </div>
             )}

@@ -1,15 +1,11 @@
 import { ConversationTitle } from "@/components/ui/ConversationTitle";
 import { Button } from "@/components/ui/button";
-import { conversationService } from "@/services/conversationService";
+import {
+  conversationService,
+  type ApiConversation,
+} from "@/services/conversationService";
 import type { Conversation } from "@/types/conversation";
 
-// Raw conversation from API (numeric ID)
-interface RawConversation {
-  id: number;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-}
 import {
   Check,
   MessageCircle,
@@ -66,7 +62,7 @@ export function ConversationSidebar({
 
       // Transform backend format to frontend format
       const formattedConversations: Conversation[] = result.conversations.map(
-        (conv: RawConversation) => ({
+        (conv: ApiConversation) => ({
           id: conv.id.toString(),
           title: conv.title || "New Conversation",
           messages: [], // We don't need full messages for the sidebar

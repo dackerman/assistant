@@ -1,5 +1,5 @@
 import { Logger } from "../utils/logger";
-import { BashSession } from "./bashSession";
+import type { BashSessionFactory, BashSessionLike } from "./bashSession";
 
 export interface SessionConfig {
   workingDirectory?: string;
@@ -12,33 +12,50 @@ export interface SessionConfig {
  * Each conversation gets its own persistent bash session.
  */
 export class SessionManager {
-  private sessions = new Map<number, BashSession>();
+  private sessions = new Map<number, BashSessionLike>();
   private logger: Logger;
   private defaultConfig: SessionConfig;
+  private sessionFactory: (
+    logger: Logger,
+    config: SessionConfig,
+  ) => Promise<BashSessionLike>;
 
-  constructor(config: SessionConfig = {}) {
+  constructor(
+    config: SessionConfig = {},
+    sessionFactory?: BashSessionFactory,
+  ) {
     this.logger = new Logger({ service: "SessionManager" });
     this.defaultConfig = {
       workingDirectory: config.workingDirectory || process.cwd(),
       timeout: config.timeout || 300000, // 5 minutes
       environment: config.environment || {},
     };
+    this.sessionFactory = sessionFactory
+      ? async (logger, factoryConfig) =>
+          await sessionFactory(logger, factoryConfig)
+      : async (logger, factoryConfig) => {
+          const { BashSession } = await import("./bashSession.js");
+          return new BashSession(logger, factoryConfig);
+        };
   }
 
   /**
    * Get or create a bash session for a conversation
    */
-  async getSession(conversationId: number): Promise<BashSession> {
+  async getSession(conversationId: number): Promise<BashSessionLike> {
     let session = this.sessions.get(conversationId);
 
     if (!session) {
       this.logger.info("Creating new bash session", { conversationId });
 
-      session = new BashSession(this.logger.child({ conversationId }), {
-        ...this.defaultConfig,
-        // Each conversation gets its own working directory if needed
-        workingDirectory: this.defaultConfig.workingDirectory,
-      });
+      session = await this.sessionFactory(
+        this.logger.child({ conversationId }),
+        {
+          ...this.defaultConfig,
+          // Each conversation gets its own working directory if needed
+          workingDirectory: this.defaultConfig.workingDirectory,
+        },
+      );
 
       await session.start();
       this.sessions.set(conversationId, session);
@@ -62,7 +79,7 @@ export class SessionManager {
   /**
    * Get session if it exists, but don't create it
    */
-  getExistingSession(conversationId: number): BashSession | null {
+  getExistingSession(conversationId: number): BashSessionLike | null {
     return this.sessions.get(conversationId) || null;
   }
 

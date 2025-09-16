@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ToolCall } from "@/types/conversation";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { formatInlineValue, formatMultilineValue } from "./utils";
 
 interface DefaultToolCallProps {
   toolCall: ToolCall;
@@ -15,21 +16,23 @@ export function DefaultToolCall({
   onToggle,
   statusIcon,
 }: DefaultToolCallProps) {
+  const params = toolCall.parameters;
+
   const getSimpleDescription = () => {
     // For write commands, show the file path
-    if (toolCall.name === "write" && toolCall.parameters.filePath) {
-      return `Write to ${toolCall.parameters.filePath}`;
+    if (toolCall.name === "write" && params.filePath !== undefined) {
+      return `Write to ${formatInlineValue(params.filePath)}`;
     }
 
     // For other tools, show description if available, otherwise parameters
-    if (toolCall.parameters.description) {
-      return toolCall.parameters.description;
+    if (params.description !== undefined && params.description !== null) {
+      return formatInlineValue(params.description);
     }
 
     // Fallback to showing the tool name with first parameter
-    const firstParam = Object.entries(toolCall.parameters)[0];
+    const firstParam = Object.entries(params)[0];
     return firstParam
-      ? `${firstParam[0]}: ${String(firstParam[1]).slice(0, 50)}...`
+      ? `${firstParam[0]}: ${formatInlineValue(firstParam[1]).slice(0, 50)}...`
       : "No parameters";
   };
 
@@ -63,19 +66,17 @@ export function DefaultToolCall({
                 Parameters:
               </p>
               <pre className="text-xs bg-muted p-2 rounded font-mono overflow-x-auto leading-tight">
-                {JSON.stringify(toolCall.parameters, null, 2)}
+                {formatMultilineValue(params)}
               </pre>
             </div>
 
-            {toolCall.result && (
+            {toolCall.result !== undefined && toolCall.result !== null && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1 font-medium">
                   Result:
                 </p>
                 <pre className="text-xs bg-green-50 p-2 rounded font-mono overflow-x-auto border border-green-200 leading-tight">
-                  {typeof toolCall.result === "string"
-                    ? toolCall.result
-                    : JSON.stringify(toolCall.result, null, 2)}
+                  {formatMultilineValue(toolCall.result)}
                 </pre>
               </div>
             )}

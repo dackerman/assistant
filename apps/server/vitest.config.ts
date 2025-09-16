@@ -6,7 +6,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    setupFiles: runDbTests ? ["./src/test/setup.ts"] : [],
+    setupFiles: runDbTests
+      ? ["./src/test/mockNodePty.ts", "./src/test/setup.ts"]
+      : ["./src/test/mockNodePty.ts"],
     include: ["src/**/*.test.ts"],
     passWithNoTests: true,
     testTimeout: 30000,

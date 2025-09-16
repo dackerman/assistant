@@ -53,6 +53,12 @@ export interface StreamingCallbacks {
   onError?: (promptId: number | null, error: Error) => Promise<void> | void;
 }
 
+interface PromptServiceOptions {
+  anthropicClient?: Anthropic;
+  toolExecutor?: ToolExecutorService;
+  logger?: Logger;
+}
+
 /**
  * PromptService handles individual prompts to LLM and manages streaming responses.
  * It creates and updates blocks during streaming and handles tool execution.
@@ -64,11 +70,15 @@ export class PromptService {
   private logger: Logger;
   private toolExecutor: ToolExecutorService;
 
-  constructor(dbInstance: DB = defaultDb) {
-    // Import Anthropic dynamically to avoid issues during testing
+  constructor(
+    dbInstance: DB = defaultDb,
+    options: PromptServiceOptions = {},
+  ) {
     this.db = dbInstance;
-    this.logger = new Logger({ service: "PromptService" });
-    this.toolExecutor = new ToolExecutorService(dbInstance);
+    this.logger = options.logger ?? new Logger({ service: "PromptService" });
+    this.toolExecutor =
+      options.toolExecutor ?? new ToolExecutorService(dbInstance);
+    this.client = options.anthropicClient;
   }
 
   private async getAnthropicClient(): Promise<Anthropic> {

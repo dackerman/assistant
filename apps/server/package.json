@@ -19,8 +19,13 @@
     "lint:fix": "biome check --write ."
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.5.1",
     "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
     "@vitest/ui": "^3.2.4",
+    "pg": "^8.16.3",
+    "pg-mem": "^3.0.5",
+    "testcontainers": "^11.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^3.2.4"

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { ToolCall } from "@/types/conversation";
 import { CheckSquare, ChevronDown, ChevronRight } from "lucide-react";
+import { formatInlineValue, formatMultilineValue } from "./utils";
 
 interface AsanaToolCallProps {
   toolCall: ToolCall;
@@ -15,15 +16,20 @@ export function AsanaToolCall({
   onToggle,
   statusIcon,
 }: AsanaToolCallProps) {
+  const params = toolCall.parameters;
+  const action = typeof params.action === "string" ? params.action : "";
+
   const getActionDescription = () => {
-    if (toolCall.parameters.action === "create_task") {
-      return `Creating task: "${toolCall.parameters.name}"`;
+    if (action === "create_task") {
+      return `Creating task: "${formatInlineValue(params.name)}"`;
     }
-    if (toolCall.parameters.action === "update_task") {
-      return `Updating task: "${toolCall.parameters.name}"`;
+    if (action === "update_task") {
+      return `Updating task: "${formatInlineValue(params.name)}"`;
     }
-    if (toolCall.parameters.action === "get_tasks") {
-      return `Fetching tasks from project: ${toolCall.parameters.project}`;
+    if (action === "get_tasks") {
+      return `Fetching tasks from project: ${formatInlineValue(
+        params.project,
+      )}`;
     }
     return "Asana operation";
   };
@@ -63,43 +69,41 @@ export function AsanaToolCall({
                   </span>
                 </div>
                 <div className="space-y-2 text-xs">
-                  {toolCall.parameters.name && (
+                  {params.name !== undefined && params.name !== null && (
                     <div>
                       <span className="font-medium">Task:</span>{" "}
-                      {toolCall.parameters.name}
+                      {formatInlineValue(params.name)}
                     </div>
                   )}
-                  {toolCall.parameters.project && (
+                  {params.project !== undefined && params.project !== null && (
                     <div>
                       <span className="font-medium">Project:</span>{" "}
-                      {toolCall.parameters.project}
+                      {formatInlineValue(params.project)}
                     </div>
                   )}
-                  {toolCall.parameters.assignee && (
+                  {params.assignee !== undefined && params.assignee !== null && (
                     <div>
                       <span className="font-medium">Assignee:</span>{" "}
-                      {toolCall.parameters.assignee}
+                      {formatInlineValue(params.assignee)}
                     </div>
                   )}
-                  {toolCall.parameters.due_date && (
+                  {params.due_date !== undefined && params.due_date !== null && (
                     <div>
                       <span className="font-medium">Due:</span>{" "}
-                      {toolCall.parameters.due_date}
+                      {formatInlineValue(params.due_date)}
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {toolCall.result && (
+            {toolCall.result !== undefined && toolCall.result !== null && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1 font-medium">
                   Result:
                 </p>
                 <div className="bg-green-50 border border-green-200 p-3 rounded text-xs">
-                  {typeof toolCall.result === "string"
-                    ? toolCall.result
-                    : JSON.stringify(toolCall.result, null, 2)}
+                  {formatMultilineValue(toolCall.result)}
                 </div>
               </div>
             )}

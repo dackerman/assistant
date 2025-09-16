@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { ToolCall } from "@/types/conversation";
 import { ChevronDown, ChevronRight, Mail } from "lucide-react";
+import { formatInlineValue, formatMultilineValue } from "./utils";
 
 interface GmailToolCallProps {
   toolCall: ToolCall;
@@ -15,15 +16,18 @@ export function GmailToolCall({
   onToggle,
   statusIcon,
 }: GmailToolCallProps) {
+  const params = toolCall.parameters;
+  const action = typeof params.action === "string" ? params.action : "";
+
   const getActionDescription = () => {
-    if (toolCall.parameters.action === "send_email") {
-      return `Sending email to: ${toolCall.parameters.to}`;
+    if (action === "send_email") {
+      return `Sending email to: ${formatInlineValue(params.to)}`;
     }
-    if (toolCall.parameters.action === "get_emails") {
+    if (action === "get_emails") {
       return `Fetching emails from inbox`;
     }
-    if (toolCall.parameters.action === "reply_to_email") {
-      return `Replying to email: "${toolCall.parameters.subject}"`;
+    if (action === "reply_to_email") {
+      return `Replying to email: "${formatInlineValue(params.subject)}"`;
     }
     return "Gmail operation";
   };
@@ -63,45 +67,43 @@ export function GmailToolCall({
                   </span>
                 </div>
                 <div className="space-y-2 text-xs">
-                  {toolCall.parameters.to && (
+                  {params.to !== undefined && params.to !== null && (
                     <div>
                       <span className="font-medium">To:</span>{" "}
-                      {toolCall.parameters.to}
+                      {formatInlineValue(params.to)}
                     </div>
                   )}
-                  {toolCall.parameters.subject && (
+                  {params.subject !== undefined && params.subject !== null && (
                     <div>
                       <span className="font-medium">Subject:</span>{" "}
-                      {toolCall.parameters.subject}
+                      {formatInlineValue(params.subject)}
                     </div>
                   )}
-                  {toolCall.parameters.body && (
+                  {params.body !== undefined && params.body !== null && (
                     <div>
                       <span className="font-medium">Body:</span>
                       <div className="mt-1 p-2 bg-white border rounded text-xs max-h-20 overflow-y-auto">
-                        {toolCall.parameters.body}
+                        {formatMultilineValue(params.body)}
                       </div>
                     </div>
                   )}
-                  {toolCall.parameters.cc && (
+                  {params.cc !== undefined && params.cc !== null && (
                     <div>
                       <span className="font-medium">CC:</span>{" "}
-                      {toolCall.parameters.cc}
+                      {formatInlineValue(params.cc)}
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {toolCall.result && (
+            {toolCall.result !== undefined && toolCall.result !== null && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1 font-medium">
                   Result:
                 </p>
                 <div className="bg-green-50 border border-green-200 p-3 rounded text-xs">
-                  {typeof toolCall.result === "string"
-                    ? toolCall.result
-                    : JSON.stringify(toolCall.result, null, 2)}
+                  {formatMultilineValue(toolCall.result)}
                 </div>
               </div>
             )}

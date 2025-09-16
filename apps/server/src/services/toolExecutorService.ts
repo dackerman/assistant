@@ -25,14 +25,19 @@ export class ToolExecutorService {
   private sessionManager: SessionManager;
   private config: Required<ToolExecutorConfig>;
 
-  constructor(dbInstance: DB = defaultDb, config: ToolExecutorConfig = {}) {
+  constructor(
+    dbInstance: DB = defaultDb,
+    config: ToolExecutorConfig = {},
+    sessionManager?: SessionManager,
+  ) {
+    const timeout = config.timeout || 300000;
+
     this.db = dbInstance;
     this.logger = new Logger({ service: "ToolExecutorService" });
-    this.sessionManager = new SessionManager({
-      timeout: config.timeout || 300000, // 5 minutes
-    });
+    this.sessionManager =
+      sessionManager || new SessionManager({ timeout });
     this.config = {
-      timeout: config.timeout || 300000,
+      timeout,
     };
   }
 

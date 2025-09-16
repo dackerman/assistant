@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { ToolCall } from "@/types/conversation";
 import { ChevronDown, ChevronRight, Loader2, Terminal } from "lucide-react";
+import { formatInlineValue, formatMultilineValue } from "./utils";
 
 interface BashToolCallProps {
   toolCall: ToolCall;
@@ -15,6 +16,10 @@ export function BashToolCall({
   onToggle,
   statusIcon,
 }: BashToolCallProps) {
+  const params = toolCall.parameters;
+  const command = formatInlineValue(params.command);
+  const hasResult = toolCall.result !== undefined && toolCall.result !== null;
+
   return (
     <>
       <style>
@@ -43,7 +48,7 @@ export function BashToolCall({
             {statusIcon}
           </div>
           <div className="text-xs text-muted-foreground font-mono mt-1 leading-tight">
-            $ {toolCall.parameters.command || "No command"}
+            $ {command || "No command"}
           </div>
         </CardHeader>
 
@@ -62,12 +67,12 @@ export function BashToolCall({
                   </div>
                   <div className="text-green-400">
                     <span className="text-blue-400">$</span>{" "}
-                    {toolCall.parameters.command}
+                    {command}
                   </div>
                 </div>
               </div>
 
-              {(toolCall.result || toolCall.status === "running") && (
+              {(hasResult || toolCall.status === "running") && (
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-xs text-muted-foreground font-medium">
@@ -83,11 +88,7 @@ export function BashToolCall({
                     )}
                   </div>
                   <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-xs overflow-x-auto leading-relaxed whitespace-pre relative">
-                    {typeof toolCall.result === "string"
-                      ? toolCall.result
-                      : toolCall.result
-                        ? JSON.stringify(toolCall.result, null, 2)
-                        : ""}
+                    {hasResult ? formatMultilineValue(toolCall.result) : ""}
                     {toolCall.status === "running" && (
                       <span
                         className="inline-block w-2 h-4 bg-green-400 ml-1 animate-pulse"

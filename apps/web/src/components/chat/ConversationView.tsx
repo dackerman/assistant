@@ -11,37 +11,11 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import {
   type ActiveStream,
+  type ApiBlock,
+  type ApiMessage,
   conversationService,
 } from "@/services/conversationService";
-import type { Message } from "@/types/conversation";
-
-// API message format types
-interface ApiToolCall {
-  id: number;
-  apiToolCallId?: string;
-  toolName: string;
-  request: Record<string, unknown>;
-  response?: unknown;
-  state: string;
-  completedAt?: string;
-}
-
-interface ApiBlock {
-  id: number;
-  type: "text" | "tool_call" | "tool_result" | "thinking";
-  content: string;
-  createdAt: string;
-  toolCall?: ApiToolCall;
-}
-
-interface ApiMessage {
-  id: number;
-  role: "user" | "assistant" | "system";
-  createdAt: string;
-  promptId?: number;
-  model?: string;
-  blocks?: ApiBlock[];
-}
+import type { Message, ToolCall, ToolResult } from "@/types/conversation";
 
 import {
   Check,
@@ -441,6 +415,20 @@ export function ConversationView({
     }
   };
 
+  const formatUnknownValue = (value: unknown): string => {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") {
+      return value.toString();
+    }
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      console.warn("Failed to stringify value", error);
+      return String(value);
+    }
+  };
+
   const formatMessagesFromAPI = (apiMessages: ApiMessage[]): Message[] => {
     return apiMessages.map((msg) => {
       // Combine text blocks for content
@@ -451,12 +439,12 @@ export function ConversationView({
           .join("") || "";
 
       // Process tool calls from blocks
-      const toolCalls: Message["toolCalls"] = [];
-      const toolResults: Message["toolResults"] = [];
+      const toolCalls: ToolCall[] = [];
+      const toolResults: ToolResult[] = [];
 
-      msg.blocks?.forEach((block) => {
+      msg.blocks?.forEach((block: ApiBlock) => {
         if (block.type === "tool_call" && block.toolCall) {
-          const toolCall = {
+          const toolCall: ToolCall = {
             id: block.toolCall.apiToolCallId || block.id.toString(),
             name: block.toolCall.toolName,
             parameters: block.toolCall.request || {},
@@ -464,13 +452,26 @@ export function ConversationView({
             status: mapToolCallState(block.toolCall.state),
             startTime: block.createdAt,
             endTime: block.toolCall.completedAt,
+            providerExecuted: block.toolCall.providerExecuted,
+            dynamic: block.toolCall.dynamic,
           };
 
-          if (toolCall.status === "completed" && toolCall.result) {
-            toolResults.push({
-              ...toolCall,
+          if (toolCall.status === "completed") {
+            const resultString = formatUnknownValue(block.toolCall.response);
+            const toolResult: ToolResult = {
+              id: toolCall.id,
+              name: toolCall.name,
+              parameters: toolCall.parameters,
               output: toolCall.result,
-            });
+              status: "completed",
+              startTime: toolCall.startTime,
+              endTime: toolCall.endTime || toolCall.startTime,
+              result: resultString,
+              providerExecuted: toolCall.providerExecuted,
+              dynamic: toolCall.dynamic,
+            };
+
+            toolResults.push(toolResult);
           } else {
             toolCalls.push(toolCall);
           }

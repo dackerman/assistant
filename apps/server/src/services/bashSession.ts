@@ -22,11 +22,25 @@ export interface StreamingCallbacks {
   onError?: (error: Error) => void;
 }
 
+export interface BashSessionLike {
+  start(): Promise<void>;
+  exec(command: string, callbacks?: StreamingCallbacks): Promise<CommandResult>;
+  stop(): Promise<void>;
+  readonly alive: boolean;
+  readonly pid: number | undefined;
+  writeInput(input: string): void;
+}
+
+export type BashSessionFactory = (
+  logger: Logger,
+  config: BashSessionConfig,
+) => BashSessionLike | Promise<BashSessionLike>;
+
 /**
  * BashSession maintains a persistent bash process for executing commands.
  * It provides both streaming and buffered execution modes without any database interactions.
  */
-export class BashSession {
+export class BashSession implements BashSessionLike {
   private ptyProcess?: pty.IPty;
   private readonly config: Required<BashSessionConfig>;
   private readonly logger: Logger;
