@@ -2,7 +2,10 @@ import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import { ConversationService } from "./conversationService";
 import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
-import { createConversationServiceFixture } from "../test/conversationServiceFixture";
+import {
+  createConversationServiceFixture,
+  expectMessagesState,
+} from "../test/conversationServiceFixture";
 import { users } from "../db/schema";
 
 
@@ -50,7 +53,7 @@ describe("ConversationService – createConversation", () => {
     expect(state?.conversation.title).toBe(title);
     expect(new Date(state?.conversation.createdAt ?? 0).getTime()).toBeGreaterThan(0);
     expect(new Date(state?.conversation.updatedAt ?? 0).getTime()).toBeGreaterThan(0);
-    expect(state?.messages).toHaveLength(0);
+    expectMessagesState(state?.messages, []);
   });
 
   it("queues the first user message and starts streaming", async () => {
@@ -111,17 +114,18 @@ describe("ConversationService – createConversation", () => {
     );
 
     expect(state).not.toBeNull();
-    const messagesState = state?.messages ?? [];
-    expect(messagesState).toHaveLength(2);
-
-    const userMessage = messagesState.find((m) => m.role === "user");
-    expect(userMessage?.status).toBe("completed");
-    expect(userMessage?.blocks).toBeDefined();
-    expect(userMessage?.blocks?.[0]?.content).toBe("Hello there");
-
-    const assistantMessage = messagesState.find((m) => m.role === "assistant");
-    expect(assistantMessage?.status).toBe("completed");
-    expect(assistantMessage?.blocks?.[0]?.content).toBe("Hi!");
+    expectMessagesState(state?.messages, [
+      {
+        role: "user",
+        status: "completed",
+        blocks: [{ type: "text", content: "Hello there" }],
+      },
+      {
+        role: "assistant",
+        status: "completed",
+        blocks: [{ type: "text", content: "Hi!" }],
+      },
+    ]);
 
     expect(state?.conversation.activePromptId).toBeNull();
 

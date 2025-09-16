@@ -1,7 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { sql } from "drizzle-orm";
 import type { DB } from "../db";
-import { users } from "../db/schema";
+import { users, type BlockType } from "../db/schema";
+import { expect } from "vitest";
 import { ConversationService } from "../services/conversationService";
 import { PromptService } from "../services/promptService";
 
@@ -56,4 +57,53 @@ export function createConversationServiceFixture(db: DB) {
       db.insert(users).values({ email }).returning(),
     db,
   };
+}
+
+interface ExpectedBlock {
+  type: BlockType;
+  content?: string;
+}
+
+interface ExpectedMessage {
+  role: string;
+  status?: string;
+  blocks?: ExpectedBlock[];
+}
+
+export function expectMessagesState(
+  actual: Array<{
+    role: string;
+    status?: string;
+    blocks?: Array<{ type: BlockType; content: string | null }>;
+  }> | undefined,
+  expected: ExpectedMessage[],
+) {
+  const actualList = actual ?? [];
+  expect(actualList.length).toBe(
+    expected.length,
+  );
+
+  actualList.forEach((message, index) => {
+    const spec = expected[index];
+    expect(spec).toBeDefined();
+    if (!spec) return;
+    expect(message.role).toBe(spec.role);
+    if (spec.status !== undefined) {
+      expect(message.status).toBe(spec.status);
+    }
+
+    if (spec.blocks) {
+      const blocks = message.blocks ?? [];
+      expect(blocks.length).toBe(spec.blocks.length);
+      blocks.forEach((block, blockIndex) => {
+        const blockSpec = spec.blocks?.[blockIndex];
+        expect(blockSpec).toBeDefined();
+        if (!blockSpec) return;
+        expect(block.type).toBe(blockSpec.type);
+        if (blockSpec.content !== undefined) {
+          expect(block.content ?? "").toBe(blockSpec.content);
+        }
+      });
+    }
+  });
 }
