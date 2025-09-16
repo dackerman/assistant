@@ -1,15 +1,9 @@
 import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
-import { sql, eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { ConversationService } from "./conversationService";
 import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
 import { createConversationServiceFixture } from "../test/conversationServiceFixture";
-import {
-  conversations,
-  messages,
-  prompts,
-  blocks,
-  users,
-} from "../db/schema";
+import { users } from "../db/schema";
 
 
 const truncateAll = async () => {
@@ -49,16 +43,14 @@ describe("ConversationService – createConversation", () => {
     const title = "Project Sync";
     const conversationId = await service.createConversation(user.id, title);
 
-    const [row] = await testDb
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-
-    expect(row).toBeDefined();
-    expect(row?.userId).toBe(user.id);
-    expect(row?.title).toBe(title);
-    expect(new Date(row?.createdAt ?? 0).getTime()).toBeGreaterThan(0);
-    expect(new Date(row?.updatedAt ?? 0).getTime()).toBeGreaterThan(0);
+    const state = await service.getConversation(conversationId, user.id);
+    expect(state).not.toBeNull();
+    expect(state?.conversation.id).toBe(conversationId);
+    expect(state?.conversation.userId).toBe(user.id);
+    expect(state?.conversation.title).toBe(title);
+    expect(new Date(state?.conversation.createdAt ?? 0).getTime()).toBeGreaterThan(0);
+    expect(new Date(state?.conversation.updatedAt ?? 0).getTime()).toBeGreaterThan(0);
+    expect(state?.messages).toHaveLength(0);
   });
 
   it("queues the first user message and starts streaming", async () => {
@@ -102,56 +94,40 @@ describe("ConversationService – createConversation", () => {
     const fixture = createConversationServiceFixture(testDb);
     streams.forEach((events) => fixture.enqueueStream(events));
 
-    const [user] = await testDb
-      .insert(users)
-      .values({ email: "queue@example.com" })
-      .returning();
+    const [user] = await fixture.insertUser("queue@example.com");
     const conversationId = await fixture.conversationService.createConversation(
       user.id,
       "Queue Test",
     );
 
-    const messageId = await fixture.conversationService.queueMessage(
+    await fixture.conversationService.queueMessage(
       conversationId,
       "Hello there",
     );
 
-    const [userMessage] = await testDb
-      .select()
-      .from(messages)
-      .where(eq(messages.id, messageId));
-    expect(userMessage.status).toBe("completed");
+    const state = await fixture.conversationService.getConversation(
+      conversationId,
+      user.id,
+    );
 
-    const assistantMessages = await testDb
-      .select()
-      .from(messages)
-      .where(
-        and(
-          eq(messages.conversationId, conversationId),
-          eq(messages.role, "assistant"),
-        ),
-      );
-    expect(assistantMessages).toHaveLength(1);
-    expect(assistantMessages[0].status).toBe("completed");
+    expect(state).not.toBeNull();
+    const messagesState = state?.messages ?? [];
+    expect(messagesState).toHaveLength(2);
 
-    const [conversationRow] = await testDb
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-    expect(conversationRow.activePromptId).toBeNull();
+    const userMessage = messagesState.find((m) => m.role === "user");
+    expect(userMessage?.status).toBe("completed");
+    expect(userMessage?.blocks).toBeDefined();
+    expect(userMessage?.blocks?.[0]?.content).toBe("Hello there");
 
-    const promptRows = await testDb
-      .select()
-      .from(prompts)
-      .where(eq(prompts.conversationId, conversationId));
-    expect(promptRows).toHaveLength(1);
-    expect(promptRows[0].status).toBe("completed");
+    const assistantMessage = messagesState.find((m) => m.role === "assistant");
+    expect(assistantMessage?.status).toBe("completed");
+    expect(assistantMessage?.blocks?.[0]?.content).toBe("Hi!");
 
-    const userBlocks = await testDb
-      .select()
-      .from(blocks)
-      .where(eq(blocks.messageId, userMessage.id));
-    expect(userBlocks).toHaveLength(1);
-    expect(userBlocks[0].content).toBe("Hello there");
+    expect(state?.conversation.activePromptId).toBeNull();
+
+    const activePrompt = await fixture.conversationService.getActivePrompt(
+      conversationId,
+    );
+    expect(activePrompt).toBeNull();
   });
 });

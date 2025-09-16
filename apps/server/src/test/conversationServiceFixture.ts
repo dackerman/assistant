@@ -1,14 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { DB } from "../db";
-import {
-  blocks,
-  conversations,
-  messages,
-  prompts,
-  toolCalls,
-  users,
-} from "../db/schema";
+import { users } from "../db/schema";
 import { ConversationService } from "../services/conversationService";
 import { PromptService } from "../services/promptService";
 
@@ -57,21 +50,6 @@ export function createConversationServiceFixture(db: DB) {
     conversationService,
     enqueueStream(events: StreamEvent[]) {
       streamQueue.push(events);
-    },
-    async getConversationRows() {
-      return await db.select().from(conversations);
-    },
-    async getMessageRows() {
-      return await db.select().from(messages);
-    },
-    async getPromptRows() {
-      return await db.select().from(prompts);
-    },
-    async getBlockRows() {
-      return await db.select().from(blocks);
-    },
-    async getToolCallRows() {
-      return await db.select().from(toolCalls);
     },
     truncateAll,
     insertUser: (email: string) =>
