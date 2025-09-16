@@ -10,7 +10,7 @@ import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import {
   ConversationService,
   type ConversationState,
-  type RestoredStreamEvent,
+  type ConversationStreamEvent,
 } from "./conversationService";
 
 const truncateAll = async () => {
@@ -193,7 +193,6 @@ describe("ConversationService – createConversation", () => {
       {
         role: "assistant",
         status: "processing",
-        blocks: [{ type: "text", content: "" }],
       },
     ]);
 
@@ -218,7 +217,7 @@ describe("ConversationService – createConversation", () => {
     streamController.push({
       type: "content_block_delta",
       index: 0,
-      delta: { type: "text_delta", text: "That's a g" },
+      delta: { type: "text_delta", text: "Partial..." },
     });
 
     await waitFor(async () => {
@@ -254,7 +253,7 @@ describe("ConversationService – createConversation", () => {
     expect(activePrompt?.status).toBe("streaming");
 
     const restored =
-      await fixture.conversationService.restoreActiveStream(conversationId);
+      await fixture.conversationService.streamConversation(conversationId);
 
     expect(restored).not.toBeNull();
     if (!restored) return;
@@ -263,7 +262,7 @@ describe("ConversationService – createConversation", () => {
     expect(restored.prompt.status).toBe("streaming");
 
     const iterator = restored.events[Symbol.asyncIterator]();
-    const initialEvents: RestoredStreamEvent[] = [];
+    const initialEvents: ConversationStreamEvent[] = [];
     for (let i = 0; i < 4; i += 1) {
       const { value, done } = await iterator.next();
       expect(done).toBe(false);

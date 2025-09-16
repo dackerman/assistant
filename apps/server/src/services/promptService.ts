@@ -3,8 +3,10 @@ import type { MessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/m
 import { and, eq, or } from "drizzle-orm";
 import { db as defaultDb } from "../db";
 import type { DB } from "../db";
+import postgres from "postgres";
 import {
   type Block,
+  type BlockType,
   type NewBlock,
   type NewPrompt,
   type NewPromptEvent,
@@ -31,6 +33,60 @@ interface ToolData {
   toolName: string;
   toolUseId: string;
   input: string;
+}
+
+export type PromptStreamEvent =
+  | { type: "prompt-created"; promptId: number }
+  | { type: "block-start"; blockId: number; blockType: BlockType }
+  | { type: "block-delta"; blockId: number; content: string }
+  | { type: "block-end"; blockId: number };
+
+type PromptStreamNotification = {
+  type: "block_start" | "block_delta" | "block_end";
+  prompt_id: number;
+  block_id: number;
+  block_type: BlockType;
+  delta?: string;
+};
+
+class AsyncEventQueue<T> {
+  private backlog: T[] = [];
+  private resolvers: Array<(value: { value: T; done: boolean }) => void> = [];
+  private closed = false;
+
+  push(value: T) {
+    if (this.closed) return;
+    const resolve = this.resolvers.shift();
+    if (resolve) {
+      resolve({ value, done: false });
+      return;
+    }
+    this.backlog.push(value);
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    while (this.resolvers.length > 0) {
+      const resolve = this.resolvers.shift();
+      resolve?.({ value: undefined as T, done: true });
+    }
+  }
+
+  async next(): Promise<{ value: T; done: boolean }> {
+    if (this.backlog.length > 0) {
+      const value = this.backlog.shift()!;
+      return { value, done: false };
+    }
+
+    if (this.closed) {
+      return { value: undefined as T, done: true };
+    }
+
+    return new Promise((resolve) => {
+      this.resolvers.push(resolve);
+    });
+  }
 }
 
 export interface CreatePromptParams {
@@ -176,6 +232,144 @@ export class PromptService {
       await callbacks?.onError?.(promptId, normalizedError);
       throw error;
     }
+  }
+
+  async streamPrompt(promptId: number) {
+    const [prompt] = await this.db
+      .select()
+      .from(prompts)
+      .where(eq(prompts.id, promptId));
+
+    if (!prompt) {
+      return null;
+    }
+
+    const streamingBlocks = await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.messageId, prompt.messageId))
+      .orderBy(blocks.order);
+
+    const queue = new AsyncEventQueue<PromptStreamEvent>();
+    queue.push({ type: "prompt-created", promptId: prompt.id });
+
+    for (const block of streamingBlocks) {
+      queue.push({
+        type: "block-start",
+        blockId: block.id,
+        blockType: block.type,
+      });
+      if (block.type === "text" && block.content) {
+        queue.push({
+          type: "block-delta",
+          blockId: block.id,
+          content: block.content,
+        });
+      }
+      queue.push({ type: "block-end", blockId: block.id });
+    }
+
+    const connectionString = this.getConnectionString();
+    let sqlClient: ReturnType<typeof postgres> | null = null;
+
+    if (!connectionString) {
+      this.logger.warn("No database connection string for prompt streaming", {
+        promptId,
+      });
+      queue.close();
+    } else {
+      try {
+        sqlClient = postgres(connectionString, { max: 1 });
+        await sqlClient.listen("prompt_stream_events", (payload: string) => {
+          try {
+            const data = JSON.parse(payload) as PromptStreamNotification;
+            if (data.prompt_id !== prompt.id) return;
+
+            switch (data.type) {
+              case "block_start": {
+                queue.push({
+                  type: "block-start",
+                  blockId: data.block_id,
+                  blockType: data.block_type,
+                });
+                break;
+              }
+              case "block_delta": {
+                if (data.delta) {
+                  queue.push({
+                    type: "block-delta",
+                    blockId: data.block_id,
+                    content: data.delta,
+                  });
+                }
+                break;
+              }
+              case "block_end": {
+                queue.push({
+                  type: "block-end",
+                  blockId: data.block_id,
+                });
+                break;
+              }
+            }
+          } catch (error) {
+            this.logger.error("Failed to parse prompt stream notification", {
+              error,
+              payload,
+            });
+          }
+        });
+      } catch (error) {
+        this.logger.error("Failed to subscribe to prompt stream events", {
+          error,
+          promptId: prompt.id,
+        });
+        queue.close();
+        if (sqlClient) {
+          try {
+            await sqlClient.end({ timeout: 5 });
+          } catch (closeError) {
+            this.logger.error("Failed to close prompt event client", {
+              error: closeError,
+            });
+          }
+        }
+        sqlClient = null;
+      }
+    }
+
+    const service = this;
+    const events = (async function* (): AsyncGenerator<PromptStreamEvent> {
+      try {
+        while (true) {
+          const { value, done } = await queue.next();
+          if (done) {
+            return;
+          }
+          yield value;
+        }
+      } finally {
+        queue.close();
+        if (sqlClient) {
+          try {
+            await sqlClient.end({ timeout: 5 });
+          } catch (error) {
+            if (error instanceof Error) {
+              service.logger.error("Failed to close prompt event client", {
+                error,
+                promptId: prompt.id,
+              });
+            }
+          }
+        }
+      }
+    })();
+
+    return {
+      prompt,
+      blocks: streamingBlocks,
+      events,
+    };
   }
 
   /**
@@ -554,5 +748,12 @@ export class PromptService {
     }
 
     return history;
+  }
+
+  private getConnectionString(): string | undefined {
+    if (process.env.NODE_ENV === "test") {
+      return process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+    }
+    return process.env.DATABASE_URL;
   }
 }

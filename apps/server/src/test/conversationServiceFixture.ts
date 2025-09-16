@@ -5,7 +5,7 @@ import type { DB } from "../db";
 import { type BlockType, users } from "../db/schema";
 import {
   ConversationService,
-  type RestoredStreamEvent,
+  type ConversationStreamEvent,
 } from "../services/conversationService";
 import { PromptService } from "../services/promptService";
 
@@ -171,7 +171,7 @@ export function expectMessagesState(
 }
 
 export function expectBlockEvents(
-  actual: RestoredStreamEvent[] | undefined,
+  actual: ConversationStreamEvent[] | undefined,
   expected: BlockEventExpectation[],
 ) {
   const list = (actual ?? [])
