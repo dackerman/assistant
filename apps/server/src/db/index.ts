@@ -1,9 +1,12 @@
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 import "dotenv/config";
 
-export type DB = PostgresJsDatabase<typeof schema>;
+export type DB =
+  | PostgresJsDatabase<typeof schema>
+  | NodePgDatabase<typeof schema>;
 
 // Create a PostgreSQL connection
 const connectionString =

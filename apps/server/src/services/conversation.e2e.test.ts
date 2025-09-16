@@ -1,13 +1,12 @@
-import { beforeAll, afterAll, describe, expect, it, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
-import { ConversationService } from "./conversationService";
-import { testDb, setupTestDatabase, teardownTestDatabase } from "../test/setup";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { users } from "../db/schema";
 import {
   createConversationServiceFixture,
   expectMessagesState,
 } from "../test/conversationServiceFixture";
-import { users } from "../db/schema";
-
+import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+import { ConversationService } from "./conversationService";
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -21,7 +20,11 @@ const truncateAll = async () => {
   `);
 };
 
-const waitFor = async (predicate: () => Promise<boolean>, attempts = 20, delayMs = 25) => {
+const waitFor = async (
+  predicate: () => Promise<boolean>,
+  attempts = 20,
+  delayMs = 25,
+) => {
   for (let i = 0; i < attempts; i++) {
     if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -59,8 +62,12 @@ describe("ConversationService – createConversation", () => {
     expect(state?.conversation.id).toBe(conversationId);
     expect(state?.conversation.userId).toBe(user.id);
     expect(state?.conversation.title).toBe(title);
-    expect(new Date(state?.conversation.createdAt ?? 0).getTime()).toBeGreaterThan(0);
-    expect(new Date(state?.conversation.updatedAt ?? 0).getTime()).toBeGreaterThan(0);
+    expect(
+      new Date(state?.conversation.createdAt ?? 0).getTime(),
+    ).toBeGreaterThan(0);
+    expect(
+      new Date(state?.conversation.updatedAt ?? 0).getTime(),
+    ).toBeGreaterThan(0);
     expectMessagesState(state?.messages, []);
   });
 
@@ -103,7 +110,9 @@ describe("ConversationService – createConversation", () => {
     ];
 
     const fixture = createConversationServiceFixture(testDb);
-    streams.forEach((events) => fixture.enqueueStream(events));
+    for (const events of streams) {
+      fixture.enqueueStream(events);
+    }
 
     const [user] = await fixture.insertUser("queue@example.com");
     const conversationId = await fixture.conversationService.createConversation(
@@ -137,9 +146,8 @@ describe("ConversationService – createConversation", () => {
 
     expect(state?.conversation.activePromptId).toBeNull();
 
-    const activePrompt = await fixture.conversationService.getActivePrompt(
-      conversationId,
-    );
+    const activePrompt =
+      await fixture.conversationService.getActivePrompt(conversationId);
     expect(activePrompt).toBeNull();
   });
 
@@ -195,7 +203,9 @@ describe("ConversationService – createConversation", () => {
         user.id,
       );
       const assistant = current?.messages?.find((m) => m.role === "assistant");
-      return assistant?.blocks?.some((b) => b.content === "Partial...") ?? false;
+      return (
+        assistant?.blocks?.some((b) => b.content === "Partial...") ?? false
+      );
     });
 
     const conversationState = await fixture.conversationService.getConversation(
@@ -217,9 +227,8 @@ describe("ConversationService – createConversation", () => {
       },
     ]);
 
-    const activePrompt = await fixture.conversationService.getActivePrompt(
-      conversationId,
-    );
+    const activePrompt =
+      await fixture.conversationService.getActivePrompt(conversationId);
     expect(activePrompt).not.toBeNull();
     expect(activePrompt?.status).toBe("streaming");
 
