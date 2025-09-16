@@ -159,26 +159,22 @@ export function expectMessagesState(
 export function expectBlockEvents(
   actual:
     | Array<
-        | { type: "start"; blockId: number; blockType: string }
+        | { type: "start"; blockId: number; blockType: BlockType }
         | { type: "delta"; blockId: number; content: string }
         | { type: "end"; blockId: number }
       >
     | undefined,
   expected: BlockEventExpectation[],
 ) {
-  const list = actual ?? [];
-  expect(list.length).toBe(expected.length);
-
-  list.forEach((event, index) => {
-    const spec = expected[index];
-    expect(spec).toBeDefined();
-    if (!spec) return;
-    expect(event.type).toBe(spec.type);
-
-    if (spec.type === "start") {
-      expect((event as { blockType: string }).blockType).toBe(spec.blockType);
-    } else if (spec.type === "delta") {
-      expect((event as { content: string }).content).toBe(spec.content);
+  const list = (actual ?? []).map((event) => {
+    if (event.type === "start") {
+      return { type: "start", blockType: event.blockType };
     }
+    if (event.type === "delta") {
+      return { type: "delta", content: event.content };
+    }
+    return { type: "end" };
   });
+
+  expect(list).toEqual(expected);
 }
