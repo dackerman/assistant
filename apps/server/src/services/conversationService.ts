@@ -1,17 +1,17 @@
 import { and, asc, desc, eq } from 'drizzle-orm'
 import postgres from 'postgres'
-import { db as defaultDb } from '../db'
 import type { Conversation, DB, Prompt, ToolCall } from '../db'
+import { db as defaultDb } from '../db'
 import {
   type Block,
   type BlockType,
+  blocks,
+  conversations,
   type Message,
+  messages,
   type NewBlock,
   type NewConversation,
   type NewMessage,
-  blocks,
-  conversations,
-  messages,
   prompts,
   toolCalls,
 } from '../db/schema'

@@ -7,7 +7,7 @@
       "!**/*.mmd",
       "!**/*.sql",
       "!**/dist",
-      "!**/dist/**",
+      "!**/dist",
       "!**/tsconfig*.json"
     ]
   },

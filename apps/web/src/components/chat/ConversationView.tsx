@@ -1,5 +1,14 @@
-import { ConversationTitle } from '@/components/ui/ConversationTitle'
+import {
+  Check,
+  MoreHorizontal,
+  Send,
+  Wifi,
+  WifiOff,
+  X as XIcon,
+} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ConversationTitle } from '@/components/ui/ConversationTitle'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -16,16 +25,6 @@ import {
   conversationService,
 } from '@/services/conversationService'
 import type { Message, ToolCall, ToolResult } from '@/types/conversation'
-
-import {
-  Check,
-  MoreHorizontal,
-  Send,
-  Wifi,
-  WifiOff,
-  X as XIcon,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
 import { MessageBubble } from './MessageBubble'
 
 interface ConversationViewProps {

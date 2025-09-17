@@ -73,7 +73,7 @@ export function SparkleExplosion({
           ...particle,
           x: particle.vx * progress,
           y: particle.vy * progress + 0.5 * 150 * progress * progress, // stronger gravity
-          life: Math.max(0, 1 - Math.pow(progress, 0.7)), // slower fade with easing
+          life: Math.max(0, 1 - progress ** 0.7), // slower fade with easing
         }))
       )
 

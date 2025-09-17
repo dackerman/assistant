@@ -1,6 +1,6 @@
-import type { ToolCall } from '@/types/conversation'
 import { CheckCircle, Clock, Play, XCircle } from 'lucide-react'
 import { useState } from 'react'
+import type { ToolCall } from '@/types/conversation'
 import { AsanaToolCall } from './tool-types/AsanaToolCall'
 import { BashToolCall } from './tool-types/BashToolCall'
 import { DefaultToolCall } from './tool-types/DefaultToolCall'

@@ -1,9 +1,9 @@
-import { ConversationSidebar } from '@/components/chat/ConversationSidebar'
-import { ConversationView } from '@/components/chat/ConversationView'
-import { Button } from '@/components/ui/button'
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { ConversationSidebar } from '@/components/chat/ConversationSidebar'
+import { ConversationView } from '@/components/chat/ConversationView'
+import { Button } from '@/components/ui/button'
 
 // Component for the conversation route
 function ConversationPage() {

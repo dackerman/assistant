@@ -1,7 +1,7 @@
-import { conversationService } from '@/services/conversationService'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { conversationService } from '@/services/conversationService'
 import App from './App'
 
 afterEach(() => {

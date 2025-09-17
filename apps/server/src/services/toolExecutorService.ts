@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { DB } from '../db'
 import {
-  type ToolCall,
-  type ToolState,
   blocks,
   prompts,
+  type ToolCall,
+  type ToolState,
   toolCalls,
 } from '../db/schema'
 import { Logger } from '../utils/logger'

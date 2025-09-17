@@ -1,11 +1,11 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import type { Message } from '@/types/conversation'
 import { Bot, Settings, User } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import type { Message } from '@/types/conversation'
 import { ToolCallDisplay } from './ToolCallDisplay'
 
 interface MessageBubbleProps {

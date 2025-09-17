@@ -2,17 +2,17 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParamsStreaming } from '@anthropic-ai/sdk/resources/messages.js'
 import { and, eq, or } from 'drizzle-orm'
 import postgres from 'postgres'
-import { db as defaultDb } from '../db'
 import type { DB } from '../db'
+import { db as defaultDb } from '../db'
 import {
   type Block,
   type BlockType,
+  blocks,
+  messages,
   type NewBlock,
   type NewPrompt,
   type NewPromptEvent,
   type NewToolCall,
-  blocks,
-  messages,
   promptEvents,
   prompts,
   toolCalls,

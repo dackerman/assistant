@@ -1,11 +1,3 @@
-import { ConversationTitle } from '@/components/ui/ConversationTitle'
-import { Button } from '@/components/ui/button'
-import {
-  type ApiConversation,
-  conversationService,
-} from '@/services/conversationService'
-import type { Conversation } from '@/types/conversation'
-
 import {
   Check,
   MessageCircle,
@@ -16,6 +8,13 @@ import {
   X as XIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ConversationTitle } from '@/components/ui/ConversationTitle'
+import {
+  type ApiConversation,
+  conversationService,
+} from '@/services/conversationService'
+import type { Conversation } from '@/types/conversation'
 
 interface ConversationSidebarProps {
   currentConversationId?: number
