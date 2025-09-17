@@ -135,13 +135,15 @@ Execute the commands and then explain the results in a helpful way.",
   },
   {
     "blockId": 2,
-    "output": "FAKE OUTPUT: weather --city tokyo",
+    "output": "testing tool output.
+this is just a test!",
     "toolCallId": 1,
     "type": "tool-call-progress",
   },
   {
     "blockId": 2,
-    "content": "FAKE OUTPUT: weather --city tokyo",
+    "content": "testing tool output.
+this is just a test!",
     "messageId": 2,
     "promptId": 1,
     "type": "block-delta",
@@ -160,7 +162,8 @@ Execute the commands and then explain the results in a helpful way.",
       "lastHeartbeat": null,
       "maxRetries": 3,
       "name": "bash",
-      "output": "FAKE OUTPUT: weather --city tokyo",
+      "output": "testing tool output.
+this is just a test!",
       "pid": null,
       "promptId": 1,
       "retryCount": 0,
@@ -606,13 +609,15 @@ Execute the commands and then explain the results in a helpful way.",
   },
   {
     "blockId": 5,
-    "output": "FAKE OUTPUT: tell me a joke",
+    "output": "testing tool output.
+this is just a test!",
     "toolCallId": 2,
     "type": "tool-call-progress",
   },
   {
     "blockId": 5,
-    "content": "FAKE OUTPUT: tell me a joke",
+    "content": "testing tool output.
+this is just a test!",
     "messageId": 4,
     "promptId": 2,
     "type": "block-delta",
@@ -631,7 +636,8 @@ Execute the commands and then explain the results in a helpful way.",
       "lastHeartbeat": null,
       "maxRetries": 3,
       "name": "bash",
-      "output": "FAKE OUTPUT: tell me a joke",
+      "output": "testing tool output.
+this is just a test!",
       "pid": null,
       "promptId": 2,
       "retryCount": 0,
@@ -788,7 +794,8 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "FAKE OUTPUT: weather --city tokyo",
+          "content": "testing tool output.
+this is just a test!",
           "createdAt": "Any<Date>",
           "id": 2,
           "messageId": 2,
@@ -810,7 +817,8 @@ exports[`ConversationService – createConversation > streams conversation event
             "lastHeartbeat": null,
             "maxRetries": 3,
             "name": "bash",
-            "output": "FAKE OUTPUT: weather --city tokyo",
+            "output": "testing tool output.
+this is just a test!",
             "pid": null,
             "promptId": 1,
             "retryCount": 0,
@@ -868,7 +876,8 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "FAKE OUTPUT: tell me a joke",
+          "content": "testing tool output.
+this is just a test!",
           "createdAt": "Any<Date>",
           "id": 5,
           "messageId": 4,
@@ -890,7 +899,8 @@ exports[`ConversationService – createConversation > streams conversation event
             "lastHeartbeat": null,
             "maxRetries": 3,
             "name": "bash",
-            "output": "FAKE OUTPUT: tell me a joke",
+            "output": "testing tool output.
+this is just a test!",
             "pid": null,
             "promptId": 2,
             "retryCount": 0,
@@ -963,7 +973,8 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "FAKE OUTPUT: weather --city tokyo",
+          "content": "testing tool output.
+this is just a test!",
           "createdAt": "Any<Date>",
           "id": 2,
           "messageId": 2,
@@ -985,7 +996,8 @@ exports[`ConversationService – createConversation > streams conversation event
             "lastHeartbeat": null,
             "maxRetries": 3,
             "name": "bash",
-            "output": "FAKE OUTPUT: weather --city tokyo",
+            "output": "testing tool output.
+this is just a test!",
             "pid": null,
             "promptId": 1,
             "retryCount": 0,

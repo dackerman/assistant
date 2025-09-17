@@ -14,14 +14,12 @@ type TestToolInput = z.infer<typeof TestToolInputSchema>
 export function createTestTool(): ToolDefinition<TestToolInput> {
   return {
     name: 'bash',
-    description: 'Test tool that echoes FAKE OUTPUT',
+    description: 'Test tool that echoes the input three times',
     inputSchema: TestToolInputSchema,
     async *execute({ input }: ToolExecutionContext<TestToolInput>) {
-      const output = `FAKE OUTPUT: ${input.command}`
-      const events: ToolStreamEvent[] = [
-        { type: 'chunk', chunk: output },
-        { type: 'result', output },
-      ]
+      const chunks = [`testing too`, `l output.\nthi`, `s is just a test!`];
+      const events: ToolStreamEvent[] = [...chunks.map(chunk => ({ type: 'chunk', chunk })) as ToolStreamEvent[]];
+      events.push({ type: 'result', output: chunks.join('') });
       for (const event of events) {
         yield event
       }

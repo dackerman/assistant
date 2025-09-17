@@ -320,17 +320,17 @@ describe('ConversationService – createConversation', () => {
 
       await expectEvent('tool-call-progress', event => {
         expect(event.toolCallId).toBe(firstToolStarted.toolCall.id)
-        expect(event.output).toBe('FAKE OUTPUT: weather --city tokyo')
+        expect(event.output).toBe('testing tool output.\nthis is just a test!')
       })
 
       await expectEvent('block-delta', event => {
         expect(event.blockId).toBe(firstToolStarted.toolCall.blockId)
-        expect(event.content).toBe('FAKE OUTPUT: weather --city tokyo')
+        expect(event.content).toBe('testing tool output.\nthis is just a test!')
       })
 
       await expectEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(firstToolStarted.toolCall.id)
-        expect(event.toolCall.output).toBe('FAKE OUTPUT: weather --city tokyo')
+        expect(event.toolCall.output).toBe('testing tool output.\nthis is just a test!')
       })
 
       await expectEvent('block-end', event => {
@@ -539,17 +539,17 @@ describe('ConversationService – createConversation', () => {
 
       await waitForEvent('tool-call-progress', event => {
         expect(event.toolCallId).toBe(secondToolStarted.toolCall.id)
-        expect(event.output).toBe('FAKE OUTPUT: tell me a joke')
+        expect(event.output).toBe('testing tool output.\nthis is just a test!')
       })
 
       await waitForEvent('block-delta', event => {
         expect(event.blockId).toBe(secondToolStarted.toolCall.blockId)
-        expect(event.content).toBe('FAKE OUTPUT: tell me a joke')
+        expect(event.content).toBe('testing tool output.\nthis is just a test!')
       })
 
       await waitForEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(secondToolStarted.toolCall.id)
-        expect(event.toolCall.output).toBe('FAKE OUTPUT: tell me a joke')
+        expect(event.toolCall.output).toBe('testing tool output.\nthis is just a test!')
       })
 
       await waitForEvent('block-end', event => {
@@ -651,8 +651,8 @@ describe('ConversationService – createConversation', () => {
         'completed',
       ])
       expect(recordedToolCalls.map(call => call.output)).toEqual([
-        'FAKE OUTPUT: weather --city tokyo',
-        'FAKE OUTPUT: tell me a joke',
+        'testing tool output.\nthis is just a test!',
+        'testing tool output.\nthis is just a test!',
       ])
 
       const blockDeltas = events
@@ -661,12 +661,12 @@ describe('ConversationService – createConversation', () => {
 
       expect(blockDeltas).toEqual([
         'Using bash tool...',
-        'FAKE OUTPUT: weather --city tokyo',
+        'testing tool output.\nthis is just a test!',
         'The weather report is above. ',
         'The weather report is above. ',
         'Let me know if you need more details.',
         'Using bash tool...',
-        'FAKE OUTPUT: tell me a joke',
+        'testing tool output.\nthis is just a test!',
         "Here's something funny: Why did the scarecrow win an award? ",
         'Because he was outstanding in his field.',
       ])
