@@ -19,6 +19,7 @@ import {
 } from "../db/schema";
 import { Logger } from "../utils/logger";
 import { ToolExecutorService } from "./toolExecutorService";
+import { AsyncEventQueue } from "../utils/asyncEventQueue";
 
 // Types for tool handling
 type ToolInput = Record<string, unknown>;
@@ -35,6 +36,10 @@ interface ToolData {
   input: string;
 }
 
+export interface StreamPromptOptions {
+  includeExistingBlocks?: boolean;
+}
+
 export type PromptStreamEvent =
   | { type: "prompt-created"; promptId: number }
   | { type: "block-start"; blockId: number; blockType: BlockType }
@@ -43,51 +48,13 @@ export type PromptStreamEvent =
 
 type PromptStreamNotification = {
   type: "block_start" | "block_delta" | "block_end";
-  prompt_id: number;
-  block_id: number;
-  block_type: BlockType;
+  promptId: number;
+  conversationId: number;
+  messageId: number;
+  blockId: number;
+  blockType: BlockType;
   delta?: string;
 };
-
-class AsyncEventQueue<T> {
-  private backlog: T[] = [];
-  private resolvers: Array<(value: { value: T; done: boolean }) => void> = [];
-  private closed = false;
-
-  push(value: T) {
-    if (this.closed) return;
-    const resolve = this.resolvers.shift();
-    if (resolve) {
-      resolve({ value, done: false });
-      return;
-    }
-    this.backlog.push(value);
-  }
-
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    while (this.resolvers.length > 0) {
-      const resolve = this.resolvers.shift();
-      resolve?.({ value: undefined as T, done: true });
-    }
-  }
-
-  async next(): Promise<{ value: T; done: boolean }> {
-    if (this.backlog.length > 0) {
-      const value = this.backlog.shift()!;
-      return { value, done: false };
-    }
-
-    if (this.closed) {
-      return { value: undefined as T, done: true };
-    }
-
-    return new Promise((resolve) => {
-      this.resolvers.push(resolve);
-    });
-  }
-}
 
 export interface CreatePromptParams {
   conversationId: number;
@@ -234,7 +201,12 @@ export class PromptService {
     }
   }
 
-  async streamPrompt(promptId: number) {
+  async streamPrompt(
+    promptId: number,
+    options: StreamPromptOptions = {},
+  ) {
+    const includeExistingBlocks = options.includeExistingBlocks ?? true;
+
     const [prompt] = await this.db
       .select()
       .from(prompts)
@@ -253,22 +225,6 @@ export class PromptService {
     const queue = new AsyncEventQueue<PromptStreamEvent>();
     queue.push({ type: "prompt-created", promptId: prompt.id });
 
-    for (const block of streamingBlocks) {
-      queue.push({
-        type: "block-start",
-        blockId: block.id,
-        blockType: block.type,
-      });
-      if (block.type === "text" && block.content) {
-        queue.push({
-          type: "block-delta",
-          blockId: block.id,
-          content: block.content,
-        });
-      }
-      queue.push({ type: "block-end", blockId: block.id });
-    }
-
     const connectionString = this.getConnectionString();
     let sqlClient: ReturnType<typeof postgres> | null = null;
 
@@ -283,14 +239,14 @@ export class PromptService {
         await sqlClient.listen("prompt_stream_events", (payload: string) => {
           try {
             const data = JSON.parse(payload) as PromptStreamNotification;
-            if (data.prompt_id !== prompt.id) return;
+            if (data.promptId !== prompt.id) return;
 
             switch (data.type) {
               case "block_start": {
                 queue.push({
                   type: "block-start",
-                  blockId: data.block_id,
-                  blockType: data.block_type,
+                  blockId: data.blockId,
+                  blockType: data.blockType,
                 });
                 break;
               }
@@ -298,7 +254,7 @@ export class PromptService {
                 if (data.delta) {
                   queue.push({
                     type: "block-delta",
-                    blockId: data.block_id,
+                    blockId: data.blockId,
                     content: data.delta,
                   });
                 }
@@ -307,7 +263,7 @@ export class PromptService {
               case "block_end": {
                 queue.push({
                   type: "block-end",
-                  blockId: data.block_id,
+                  blockId: data.blockId,
                 });
                 break;
               }
@@ -335,6 +291,24 @@ export class PromptService {
           }
         }
         sqlClient = null;
+      }
+    }
+
+    if (includeExistingBlocks) {
+      for (const block of streamingBlocks) {
+        queue.push({
+          type: "block-start",
+          blockId: block.id,
+          blockType: block.type,
+        });
+        if (block.type === "text" && block.content) {
+          queue.push({
+            type: "block-delta",
+            blockId: block.id,
+            content: block.content,
+          });
+        }
+        queue.push({ type: "block-end", blockId: block.id });
       }
     }
 

@@ -3,7 +3,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { users } from "../db/schema";
 import {
   createConversationServiceFixture,
-  expectBlockEvents,
   expectMessagesState,
 } from "../test/conversationServiceFixture";
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
@@ -252,33 +251,43 @@ describe("ConversationService – createConversation", () => {
     expect(activePrompt).not.toBeNull();
     expect(activePrompt?.status).toBe("streaming");
 
-    const restored =
-      await fixture.conversationService.streamConversation(conversationId);
+    const stream = await fixture.conversationService.streamConversation(
+      conversationId,
+      user.id,
+    );
 
-    expect(restored).not.toBeNull();
-    if (!restored) return;
+    expect(stream).not.toBeNull();
+    if (!stream) return;
 
-    expect(restored.prompt.id).toBe(activePrompt?.id);
-    expect(restored.prompt.status).toBe("streaming");
+    expect(stream.snapshot.conversation.id).toBe(conversationId);
+    expect(stream.snapshot.conversation.activePromptId).toBe(activePrompt?.id);
 
-    const iterator = restored.events[Symbol.asyncIterator]();
-    const initialEvents: ConversationStreamEvent[] = [];
-    for (let i = 0; i < 4; i += 1) {
-      const { value, done } = await iterator.next();
-      expect(done).toBe(false);
-      expect(value).toBeDefined();
-      if (value) {
-        initialEvents.push(value);
+    const iterator = stream.events[Symbol.asyncIterator]();
+    const collectEvents = (async () => {
+      const events: ConversationStreamEvent[] = [];
+      while (true) {
+        const { value, done } = await iterator.next();
+        expect(done).toBe(false);
+        expect(value).toBeDefined();
+        if (value) {
+          events.push(value);
+          if (value.type === "prompt-completed") {
+            break;
+          }
+        }
       }
-    }
+      return events;
+    })();
 
-    expectBlockEvents(initialEvents, [
-      { type: "start", blockType: "text" },
-      { type: "delta", content: "Partial..." },
-      { type: "end" },
-    ]);
+    let allEvents: ConversationStreamEvent[] = [];
 
+    let streamFinalized = false;
     try {
+      streamController.push({
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "Follow-up" },
+      });
       streamController.push({ type: "content_block_stop", index: 0 });
       streamController.push({
         type: "message_delta",
@@ -286,12 +295,21 @@ describe("ConversationService – createConversation", () => {
         usage: { output_tokens: 1 },
       });
       streamController.push({ type: "message_stop" });
-    } finally {
+
       streamController.finish();
+      streamFinalized = true;
       await queuePromise;
-      if (iterator?.return) {
-        await iterator.return(undefined);
+      allEvents = await collectEvents;
+
+      expect(
+        allEvents.some((event) => event.type === "prompt-completed"),
+      ).toBe(true);
+    } finally {
+      if (!streamFinalized) {
+        streamController.finish();
+        await queuePromise.catch(() => undefined);
       }
+      await iterator.return?.();
     }
   });
 });

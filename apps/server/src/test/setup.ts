@@ -141,22 +141,24 @@ export async function setupTestDatabase() {
     CREATE OR REPLACE FUNCTION notify_block_created()
     RETURNS TRIGGER AS $$
     DECLARE
-      prompt_id INTEGER;
+      prompt_record prompts%ROWTYPE;
     BEGIN
-      SELECT p.id INTO prompt_id
-      FROM prompts p
-      WHERE p.message_id = NEW.message_id
-      ORDER BY p.created_at DESC
+      SELECT * INTO prompt_record
+      FROM prompts
+      WHERE message_id = NEW.message_id
+      ORDER BY created_at DESC
       LIMIT 1;
 
-      IF prompt_id IS NOT NULL THEN
+      IF prompt_record IS NOT NULL THEN
         PERFORM pg_notify(
           'prompt_stream_events',
           json_build_object(
             'type', 'block_start',
-            'prompt_id', prompt_id,
-            'block_id', NEW.id,
-            'block_type', NEW.type
+            'promptId', prompt_record.id,
+            'conversationId', prompt_record.conversation_id,
+            'messageId', prompt_record.message_id,
+            'blockId', NEW.id,
+            'blockType', NEW.type
           )::text
         );
       END IF;
@@ -174,7 +176,7 @@ export async function setupTestDatabase() {
     CREATE OR REPLACE FUNCTION notify_block_updated()
     RETURNS TRIGGER AS $$
     DECLARE
-      prompt_id INTEGER;
+      prompt_record prompts%ROWTYPE;
       delta TEXT;
       previous_length INTEGER;
       new_length INTEGER;
@@ -193,20 +195,22 @@ export async function setupTestDatabase() {
         RETURN NEW;
       END IF;
 
-      SELECT p.id INTO prompt_id
-      FROM prompts p
-      WHERE p.message_id = NEW.message_id
-      ORDER BY p.created_at DESC
+      SELECT * INTO prompt_record
+      FROM prompts
+      WHERE message_id = NEW.message_id
+      ORDER BY created_at DESC
       LIMIT 1;
 
-      IF prompt_id IS NOT NULL THEN
+      IF prompt_record IS NOT NULL THEN
         PERFORM pg_notify(
           'prompt_stream_events',
           json_build_object(
             'type', 'block_delta',
-            'prompt_id', prompt_id,
-            'block_id', NEW.id,
-            'block_type', NEW.type,
+            'promptId', prompt_record.id,
+            'conversationId', prompt_record.conversation_id,
+            'messageId', prompt_record.message_id,
+            'blockId', NEW.id,
+            'blockType', NEW.type,
             'delta', delta
           )::text
         );
@@ -226,30 +230,38 @@ export async function setupTestDatabase() {
     CREATE OR REPLACE FUNCTION notify_block_completed()
     RETURNS TRIGGER AS $$
     DECLARE
-      block_index INTEGER;
-      block_record RECORD;
+      prompt_record prompts%ROWTYPE;
+      block_record blocks%ROWTYPE;
     BEGIN
       IF NEW.type <> 'content_block_stop' THEN
         RETURN NEW;
       END IF;
 
-      block_index := (NEW.data->>'index')::INTEGER;
-
-      SELECT b.id, b.type INTO block_record
-      FROM prompts p
-      JOIN blocks b ON b.message_id = p.message_id AND b."order" = block_index
-      WHERE p.id = NEW.prompt_id
-      ORDER BY b.id DESC
+      SELECT * INTO prompt_record
+      FROM prompts
+      WHERE id = NEW.prompt_id
       LIMIT 1;
 
-      IF block_record.id IS NOT NULL THEN
+      IF prompt_record IS NULL THEN
+        RETURN NEW;
+      END IF;
+
+      SELECT * INTO block_record
+      FROM blocks
+      WHERE message_id = prompt_record.message_id
+        AND "order" = (NEW.data->>'index')::INTEGER
+      ORDER BY id DESC
+      LIMIT 1;
+
+      IF block_record IS NOT NULL THEN
         PERFORM pg_notify(
           'prompt_stream_events',
           json_build_object(
             'type', 'block_end',
-            'prompt_id', NEW.prompt_id,
-            'block_id', block_record.id,
-            'block_type', block_record.type
+            'promptId', prompt_record.id,
+            'conversationId', prompt_record.conversation_id,
+            'messageId', prompt_record.message_id,
+            'blockId', block_record.id
           )::text
         );
       END IF;
@@ -264,6 +276,106 @@ export async function setupTestDatabase() {
       FOR EACH ROW
       WHEN (NEW.type = 'content_block_stop')
       EXECUTE FUNCTION notify_block_completed();
+
+    CREATE OR REPLACE FUNCTION notify_message_event()
+    RETURNS TRIGGER AS $$
+    DECLARE
+      event_type TEXT;
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        event_type := 'message_created';
+      ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.status IS DISTINCT FROM OLD.status
+          OR NEW.content IS DISTINCT FROM OLD.content
+          OR COALESCE(NEW.queue_order, -1) IS DISTINCT FROM COALESCE(OLD.queue_order, -1)
+        THEN
+          event_type := 'message_updated';
+        ELSE
+          RETURN NEW;
+        END IF;
+      ELSE
+        RETURN NEW;
+      END IF;
+
+      PERFORM pg_notify(
+        'conversation_events',
+        json_build_object(
+          'type', event_type,
+          'conversationId', NEW.conversation_id,
+          'message', json_build_object(
+            'id', NEW.id,
+            'conversationId', NEW.conversation_id,
+            'role', NEW.role,
+            'content', NEW.content,
+            'status', NEW.status,
+            'queueOrder', NEW.queue_order,
+            'createdAt', NEW.created_at,
+            'updatedAt', NEW.updated_at
+          )
+        )::text
+      );
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS message_events_notify ON messages;
+    CREATE TRIGGER message_events_notify
+      AFTER INSERT OR UPDATE ON messages
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_message_event();
+
+    CREATE OR REPLACE FUNCTION notify_prompt_event()
+    RETURNS TRIGGER AS $$
+    DECLARE
+      event_type TEXT;
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        IF NEW.status = 'streaming' THEN
+          event_type := 'prompt_started';
+        ELSE
+          RETURN NEW;
+        END IF;
+      ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.status = 'completed' AND NEW.status IS DISTINCT FROM OLD.status THEN
+          event_type := 'prompt_completed';
+        ELSIF NEW.status = 'error' AND NEW.status IS DISTINCT FROM OLD.status THEN
+          event_type := 'prompt_failed';
+        ELSE
+          RETURN NEW;
+        END IF;
+      ELSE
+        RETURN NEW;
+      END IF;
+
+      PERFORM pg_notify(
+        'conversation_events',
+        json_build_object(
+          'type', event_type,
+          'conversationId', NEW.conversation_id,
+          'prompt', json_build_object(
+            'id', NEW.id,
+            'conversationId', NEW.conversation_id,
+            'messageId', NEW.message_id,
+            'status', NEW.status,
+            'model', NEW.model,
+            'systemMessage', NEW.system_message,
+            'createdAt', NEW.created_at,
+            'completedAt', NEW.completed_at,
+            'error', NEW.error
+          )
+        )::text
+      );
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS prompt_events_notify ON prompts;
+    CREATE TRIGGER prompt_events_notify
+      AFTER INSERT OR UPDATE ON prompts
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_prompt_event();
   `);
 
   testDb = drizzle(pool, { schema });
