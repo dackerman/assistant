@@ -95,7 +95,7 @@ export function createConversationServiceFixture(db: DB) {
 
   const promptService = new PromptService(db, {
     anthropicClient,
-    toolExecutor: new ToolExecutorService(db, [createTestTool()]),
+    toolExecutor: new ToolExecutorService([createTestTool()], db),
   });
   const conversationService = new ConversationService(db, { promptService });
 

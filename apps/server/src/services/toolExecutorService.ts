@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
-import { db as defaultDb } from "../db";
+import type { z } from "zod";
 import type { DB } from "../db";
 import {
   type ToolCall,
@@ -43,8 +42,8 @@ export class ToolExecutorService {
   private tools: Map<string, ToolDefinition<unknown>>;
 
   constructor(
-    dbInstance: DB = defaultDb,
     tools: ToolDefinition<unknown>[],
+    dbInstance: DB,
     config: ToolExecutorConfig = {},
   ) {
     const timeout = config.timeout || 300000;
@@ -176,7 +175,10 @@ export class ToolExecutorService {
         .where(eq(toolCalls.id, toolCallId));
 
       if (toolCall.blockId) {
-        await this.replaceToolResultBlock(toolCall.blockId, `Error: ${message}`);
+        await this.replaceToolResultBlock(
+          toolCall.blockId,
+          `Error: ${message}`,
+        );
       }
 
       this.logger.error("Tool call failed", {

@@ -77,10 +77,7 @@ export interface StreamingCallbacks {
     name: string,
     input: ToolInput,
   ) => Promise<void> | void;
-  onToolProgress?: (
-    toolCallId: number,
-    output: string,
-  ) => Promise<void> | void;
+  onToolProgress?: (toolCallId: number, output: string) => Promise<void> | void;
   onToolEnd?: (
     toolCallId: number,
     output: string,
@@ -115,7 +112,7 @@ export class PromptService {
       this.toolExecutor = options.toolExecutor;
     } else {
       const tools = options.tools ?? [];
-      this.toolExecutor = new ToolExecutorService(dbInstance, tools);
+      this.toolExecutor = new ToolExecutorService(tools, dbInstance);
     }
     this.client = options.anthropicClient;
   }
@@ -220,10 +217,7 @@ export class PromptService {
     }
   }
 
-  async streamPrompt(
-    promptId: number,
-    options: StreamPromptOptions = {},
-  ) {
+  async streamPrompt(promptId: number, options: StreamPromptOptions = {}) {
     const includeExistingBlocks = options.includeExistingBlocks ?? true;
 
     const [prompt] = await this.db
@@ -553,7 +547,11 @@ export class PromptService {
                       failedTool?.error ||
                       (error instanceof Error ? error.message : String(error));
 
-                    await callbacks?.onToolEnd?.(toolCall.id, failureOutput, false);
+                    await callbacks?.onToolEnd?.(
+                      toolCall.id,
+                      failureOutput,
+                      false,
+                    );
                     throw error;
                   }
 

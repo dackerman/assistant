@@ -6,10 +6,11 @@ import { WebSocketServer } from "ws";
 import type { RawData, WebSocket } from "ws";
 import "dotenv/config";
 
+import { db as defaultDb } from "./src/db";
+import { BashSessionManager } from "./src/services/bashSessionManager";
 import { ConversationService } from "./src/services/conversationService";
 import { PromptService } from "./src/services/promptService";
 import { ToolExecutorService } from "./src/services/toolExecutorService";
-import { BashSessionManager } from "./src/services/bashSessionManager";
 import { createBashTool } from "./src/services/tools/bashTool";
 import { logger } from "./src/utils/logger";
 
@@ -26,9 +27,10 @@ const anthropic = new Anthropic({
 });
 
 const bashSessionManager = new BashSessionManager();
-const toolExecutorService = new ToolExecutorService(undefined, [
-  createBashTool(bashSessionManager),
-]);
+const toolExecutorService = new ToolExecutorService(
+  [createBashTool(bashSessionManager)],
+  defaultDb,
+);
 toolExecutorService.initialize();
 
 const promptService = new PromptService(undefined, {
@@ -202,7 +204,12 @@ const port = process.env.PORT || 4001;
 
 // Create HTTP server that serves both HTTP and WebSocket
 const server = createServer(async (req, res) => {
-  const url = new URL(req.url!, `http://${req.headers.host}`);
+  if (!req.url) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Bad Request: Missing URL");
+    return;
+  }
+  const url = new URL(req.url, `http://${req.headers.host}`);
   const request = new Request(url.toString(), {
     method: req.method,
     headers: req.headers as Record<string, string>,
@@ -262,12 +269,12 @@ const wss = new WebSocketServer({ server });
 // Simple in-memory subscription registry
 type OutgoingMessage =
   | { type: "subscribed"; conversationId: number }
-  | { type: "conversation_updated"; conversationId: number; data: any }
-  | { type: "message_created"; conversationId: number; message: any }
+  | { type: "conversation_updated"; conversationId: number; data: unknown }
+  | { type: "message_created"; conversationId: number; message: unknown }
   | {
       type: "snapshot";
       conversationId: number;
-      activeStream: any;
+      activeStream: unknown;
     }
   | { type: "stream_started"; conversationId: number; promptId: number }
   | {
