@@ -23,6 +23,18 @@
   "[jsonc]": {
     "editor.defaultFormatter": "biomejs.biome"
   },
+  "[css]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
   "typescript.preferences.importModuleSpecifier": "relative",
-  "typescript.suggest.autoImports": true
+  "typescript.suggest.autoImports": true,
+  "biome.enabled": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnType": false
 }
