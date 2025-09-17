@@ -155,101 +155,18 @@ describe("ConversationService – createConversation", () => {
     expect(activePrompt).toBeNull();
   });
 
-  it("exposes active prompt state while streaming", async () => {
+  it("streams conversation events across prompts", async () => {
     const fixture = createConversationServiceFixture(testDb);
-    const streamController = fixture.enqueueStream([], { autoFinish: false });
+    const firstStreamController = fixture.enqueueStream([], { autoFinish: false });
+    let secondStreamController: ReturnType<
+      typeof fixture.enqueueStream
+    > | null = null;
 
-    // Create conversation and queue user prompt
     const [user] = await fixture.insertUser("stream@example.com");
     const conversationId = await fixture.conversationService.createConversation(
       user.id,
       "Streaming",
     );
-
-    // Initial user prompt
-    const queuePromise = fixture.conversationService.queueMessage(
-      conversationId,
-      "What's the weather in Tokyo?",
-    );
-
-    const convoContainer: { convo: ConversationState | null } = { convo: null };
-
-    await waitFor(async () => {
-      convoContainer.convo = await fixture.conversationService.getConversation(
-        conversationId,
-        user.id,
-      );
-      return (convoContainer.convo?.messages?.length ?? 0) === 2;
-    });
-
-    // User prompt and empty assistant response exists before streaming starts
-    expectMessagesState(convoContainer.convo?.messages, [
-      {
-        role: "user",
-        status: "completed",
-        blocks: [{ type: "text", content: "What's the weather in Tokyo?" }],
-      },
-      {
-        role: "assistant",
-        status: "processing",
-      },
-    ]);
-
-    // Start streaming assistant response
-    streamController.push({
-      type: "message_start",
-      message: {
-        id: "msg_stream",
-        role: "assistant",
-        content: [],
-        model: "claude-sonnet-4-20250514",
-        stop_reason: null,
-        stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 0 },
-      },
-    });
-    streamController.push({
-      type: "content_block_start",
-      index: 0,
-      content_block: { type: "text", text: "" },
-    });
-    streamController.push({
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text: "Partial..." },
-    });
-
-    await waitFor(async () => {
-      convoContainer.convo = await fixture.conversationService.getConversation(
-        conversationId,
-        user.id,
-      );
-      const assistant = convoContainer.convo?.messages?.find(
-        (m) => m.role === "assistant",
-      );
-      return (
-        assistant?.blocks?.some((b) => b.content === "Partial...") ?? false
-      );
-    });
-
-    expect(convoContainer.convo).not.toBeNull();
-    expectMessagesState(convoContainer.convo?.messages, [
-      {
-        role: "user",
-        status: "completed",
-        blocks: [{ type: "text", content: "What's the weather in Tokyo?" }],
-      },
-      {
-        role: "assistant",
-        status: "processing",
-        blocks: [{ type: "text", content: "Partial..." }],
-      },
-    ]);
-
-    const activePrompt =
-      await fixture.conversationService.getActivePrompt(conversationId);
-    expect(activePrompt).not.toBeNull();
-    expect(activePrompt?.status).toBe("streaming");
 
     const stream = await fixture.conversationService.streamConversation(
       conversationId,
@@ -260,55 +177,221 @@ describe("ConversationService – createConversation", () => {
     if (!stream) return;
 
     expect(stream.snapshot.conversation.id).toBe(conversationId);
-    expect(stream.snapshot.conversation.activePromptId).toBe(activePrompt?.id);
+    expect(stream.snapshot.messages).toHaveLength(0);
 
     const iterator = stream.events[Symbol.asyncIterator]();
-    const collectEvents = (async () => {
-      const events: ConversationStreamEvent[] = [];
-      while (true) {
-        const { value, done } = await iterator.next();
-        expect(done).toBe(false);
-        expect(value).toBeDefined();
-        if (value) {
-          events.push(value);
-          if (value.type === "prompt-completed") {
-            break;
-          }
-        }
-      }
-      return events;
-    })();
+    const events: ConversationStreamEvent[] = [];
 
-    let allEvents: ConversationStreamEvent[] = [];
+    const expectEvent = async <
+      T extends ConversationStreamEvent["type"],
+    >(
+      type: T,
+      assert?: (event: Extract<ConversationStreamEvent, { type: T }>) => void,
+    ) => {
+      const { value, done } = await iterator.next();
+      expect(done).toBe(false);
+      expect(value).toBeDefined();
+      const typed = value as ConversationStreamEvent;
+      events.push(typed);
+      expect(typed.type).toBe(type);
+      assert?.(typed as Extract<ConversationStreamEvent, { type: T }>);
+      return typed as Extract<ConversationStreamEvent, { type: T }>;
+    };
 
-    let streamFinalized = false;
+    let firstQueuePromise: Promise<number> | null = null;
+    let secondQueuePromise: Promise<number> | null = null;
+
     try {
-      streamController.push({
+      // First prompt
+      firstQueuePromise = fixture.conversationService.queueMessage(
+        conversationId,
+        "What's the weather in Tokyo?",
+      );
+
+      await expectEvent("message-created", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.content).toBe("What's the weather in Tokyo?");
+      });
+
+      await expectEvent("message-updated", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.status).toBe("processing");
+      });
+
+      await expectEvent("message-created", (event) => {
+        expect(event.message.role).toBe("assistant");
+        expect(event.message.status).toBe("processing");
+      });
+
+      await expectEvent("message-updated", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.status).toBe("completed");
+      });
+
+      const firstPromptStarted = await expectEvent("prompt-started");
+
+      firstStreamController.push({
+        type: "message_start",
+        message: {
+          id: "prompt-1",
+          role: "assistant",
+          content: [],
+          model: "claude-sonnet-4-20250514",
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      });
+      firstStreamController.push({
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      });
+      firstStreamController.push({
         type: "content_block_delta",
         index: 0,
-        delta: { type: "text_delta", text: "Follow-up" },
+        delta: { type: "text_delta", text: "Partial..." },
       });
-      streamController.push({ type: "content_block_stop", index: 0 });
-      streamController.push({
+      firstStreamController.push({
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "More details on weather." },
+      });
+
+      firstStreamController.push({ type: "content_block_stop", index: 0 });
+      firstStreamController.push({
         type: "message_delta",
         delta: { stop_reason: "end_turn", stop_sequence: null },
-        usage: { output_tokens: 1 },
+        usage: { output_tokens: 2 },
       });
-      streamController.push({ type: "message_stop" });
+      firstStreamController.push({ type: "message_stop" });
+      firstStreamController.finish();
 
-      streamController.finish();
-      streamFinalized = true;
-      await queuePromise;
-      allEvents = await collectEvents;
+      await expectEvent("block-start", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+      });
+      await expectEvent("block-delta", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+        expect(event.content).toBe("Partial...");
+      });
+      await expectEvent("block-delta", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+        expect(event.content).toBe("More details on weather.");
+      });
+      await expectEvent("block-end", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+      });
+      await expectEvent("prompt-completed", (event) => {
+        expect(event.prompt.id).toBe(firstPromptStarted.prompt.id);
+      });
+      await expectEvent("message-updated", (event) => {
+        expect(event.message.role).toBe("assistant");
+        expect(event.message.status).toBe("completed");
+      });
+      await firstQueuePromise;
+
+      // Second prompt
+      secondStreamController = fixture.enqueueStream([], { autoFinish: false });
+      secondQueuePromise = fixture.conversationService.queueMessage(
+        conversationId,
+        "Tell me a quick joke",
+      );
+
+      await expectEvent("message-created", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.content).toBe("Tell me a quick joke");
+      });
+      await expectEvent("message-updated", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.status).toBe("processing");
+      });
+      await expectEvent("message-created", (event) => {
+        expect(event.message.role).toBe("assistant");
+        expect(event.message.status).toBe("processing");
+      });
+      await expectEvent("message-updated", (event) => {
+        expect(event.message.role).toBe("user");
+        expect(event.message.status).toBe("completed");
+      });
+
+      const secondPromptStarted = await expectEvent("prompt-started");
+
+      secondStreamController.push({
+        type: "message_start",
+        message: {
+          id: "prompt-2",
+          role: "assistant",
+          content: [],
+          model: "claude-sonnet-4-20250514",
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      });
+      secondStreamController.push({
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      });
+      secondStreamController.push({
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "Here is a joke." },
+      });
+
+      secondStreamController.push({ type: "content_block_stop", index: 0 });
+      secondStreamController.push({
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: 2 },
+      });
+      secondStreamController.push({ type: "message_stop" });
+      secondStreamController.finish();
+
+      await expectEvent("block-start", (event) => {
+        expect(event.promptId).toBe(secondPromptStarted.prompt.id);
+      });
+      await expectEvent("block-delta", (event) => {
+        expect(event.promptId).toBe(secondPromptStarted.prompt.id);
+        expect(event.content).toBe("Here is a joke.");
+      });
+      await expectEvent("block-end", (event) => {
+        expect(event.promptId).toBe(secondPromptStarted.prompt.id);
+      });
+      await expectEvent("prompt-completed", (event) => {
+        expect(event.prompt.id).toBe(secondPromptStarted.prompt.id);
+      });
+      await secondQueuePromise;
+
+      const blockDeltas = events
+        .filter((event) => event.type === "block-delta")
+        .map((event) => event.content);
+
+      expect(blockDeltas).toEqual([
+        "Partial...",
+        "More details on weather.",
+        "Here is a joke.",
+      ]);
 
       expect(
-        allEvents.some((event) => event.type === "prompt-completed"),
-      ).toBe(true);
+        events.filter((event) => event.type === "prompt-completed").length,
+      ).toBe(2);
+
+      expect(
+        events.filter(
+          (event) => event.type === "message-created" && event.message.role === "user",
+        ).length,
+      ).toBe(2);
+      expect(
+        events.filter(
+          (event) => event.type === "message-created" && event.message.role === "assistant",
+        ).length,
+      ).toBe(2);
     } finally {
-      if (!streamFinalized) {
-        streamController.finish();
-        await queuePromise.catch(() => undefined);
-      }
+      firstStreamController.finish();
+      secondStreamController?.finish();
+      await firstQueuePromise?.catch(() => undefined);
+      await secondQueuePromise?.catch(() => undefined);
       await iterator.return?.();
     }
   });

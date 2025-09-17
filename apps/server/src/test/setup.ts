@@ -155,13 +155,24 @@ export async function setupTestDatabase() {
           json_build_object(
             'type', 'block_start',
             'promptId', prompt_record.id,
-            'conversationId', prompt_record.conversation_id,
-            'messageId', prompt_record.message_id,
-            'blockId', NEW.id,
-            'blockType', NEW.type
-          )::text
-        );
-      END IF;
+          'conversationId', prompt_record.conversation_id,
+          'messageId', prompt_record.message_id,
+          'blockId', NEW.id,
+          'blockType', NEW.type
+        )::text
+      );
+      PERFORM pg_notify(
+        'conversation_events',
+        json_build_object(
+          'type', 'block_start',
+          'conversationId', prompt_record.conversation_id,
+          'promptId', prompt_record.id,
+          'messageId', prompt_record.message_id,
+          'blockId', NEW.id,
+          'blockType', NEW.type
+        )::text
+      );
+    END IF;
 
       RETURN NEW;
     END;
@@ -207,14 +218,26 @@ export async function setupTestDatabase() {
           json_build_object(
             'type', 'block_delta',
             'promptId', prompt_record.id,
-            'conversationId', prompt_record.conversation_id,
-            'messageId', prompt_record.message_id,
-            'blockId', NEW.id,
-            'blockType', NEW.type,
-            'delta', delta
-          )::text
-        );
-      END IF;
+          'conversationId', prompt_record.conversation_id,
+          'messageId', prompt_record.message_id,
+          'blockId', NEW.id,
+          'blockType', NEW.type,
+          'delta', delta
+        )::text
+      );
+      PERFORM pg_notify(
+        'conversation_events',
+        json_build_object(
+          'type', 'block_delta',
+          'conversationId', prompt_record.conversation_id,
+          'promptId', prompt_record.id,
+          'messageId', prompt_record.message_id,
+          'blockId', NEW.id,
+          'blockType', NEW.type,
+          'delta', delta
+        )::text
+      );
+    END IF;
 
       RETURN NEW;
     END;
@@ -259,12 +282,22 @@ export async function setupTestDatabase() {
           json_build_object(
             'type', 'block_end',
             'promptId', prompt_record.id,
-            'conversationId', prompt_record.conversation_id,
-            'messageId', prompt_record.message_id,
-            'blockId', block_record.id
-          )::text
-        );
-      END IF;
+          'conversationId', prompt_record.conversation_id,
+          'messageId', prompt_record.message_id,
+          'blockId', block_record.id
+        )::text
+      );
+      PERFORM pg_notify(
+        'conversation_events',
+        json_build_object(
+          'type', 'block_end',
+          'conversationId', prompt_record.conversation_id,
+          'promptId', prompt_record.id,
+          'messageId', prompt_record.message_id,
+          'blockId', block_record.id
+        )::text
+      );
+    END IF;
 
       RETURN NEW;
     END;

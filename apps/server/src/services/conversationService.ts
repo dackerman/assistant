@@ -17,10 +17,7 @@ import {
 } from "../db/schema";
 import { Logger } from "../utils/logger";
 import { AsyncEventQueue } from "../utils/asyncEventQueue";
-import {
-  PromptService,
-  type PromptStreamEvent,
-} from "./promptService";
+import { PromptService } from "./promptService";
 
 export interface ConversationState {
   conversation: Conversation;
@@ -61,6 +58,15 @@ type ConversationNotification =
       conversationId: number;
       prompt: PromptNotificationPayload;
       error?: string | null;
+    }
+  | {
+      type: "block_start" | "block_delta" | "block_end";
+      conversationId: number;
+      promptId: number;
+      messageId: number;
+      blockId: number;
+      blockType?: BlockType;
+      delta?: string;
     };
 
 export type ConversationStreamEvent =
@@ -94,11 +100,47 @@ export class ConversationService {
   private db: DB;
   private logger: Logger;
   private promptService: PromptService;
+  private conversationStreams = new Map<
+    number,
+    Set<AsyncEventQueue<ConversationStreamEvent>>
+  >();
 
   constructor(dbInstance: DB = defaultDb) {
     this.db = dbInstance;
     this.logger = new Logger({ service: "ConversationService" });
     this.promptService = new PromptService(dbInstance);
+  }
+
+  private addConversationStream(
+    conversationId: number,
+    queue: AsyncEventQueue<ConversationStreamEvent>,
+  ) {
+    const listeners = this.conversationStreams.get(conversationId) ?? new Set();
+    listeners.add(queue);
+    this.conversationStreams.set(conversationId, listeners);
+  }
+
+  private removeConversationStream(
+    conversationId: number,
+    queue: AsyncEventQueue<ConversationStreamEvent>,
+  ) {
+    const listeners = this.conversationStreams.get(conversationId);
+    if (!listeners) return;
+    listeners.delete(queue);
+    if (listeners.size === 0) {
+      this.conversationStreams.delete(conversationId);
+    }
+  }
+
+  private broadcastConversationEvent(
+    conversationId: number,
+    event: ConversationStreamEvent,
+  ) {
+    const listeners = this.conversationStreams.get(conversationId);
+    if (!listeners) return;
+    for (const queue of listeners) {
+      queue.push(event);
+    }
   }
 
   /**
@@ -402,6 +444,8 @@ export class ConversationService {
     }
 
     try {
+      let currentPromptId: number | null = null;
+
       await this.promptService.createAndStreamPrompt(
         {
           conversationId,
@@ -411,7 +455,67 @@ export class ConversationService {
         },
         {
           onPromptCreated: async (promptId) => {
+            currentPromptId = promptId;
             await this.handlePromptCreated(conversationId, promptId);
+          },
+          onBlockStart: async (blockId, blockType) => {
+            const [blockRecord] = await this.db
+              .select({ messageId: blocks.messageId })
+              .from(blocks)
+              .where(eq(blocks.id, blockId));
+
+            const promptId =
+              currentPromptId ??
+              (await this.findPromptIdForMessage(blockRecord?.messageId ?? null));
+
+            if (!promptId || !blockRecord) return;
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "block-start",
+              promptId,
+              messageId: blockRecord.messageId,
+              blockId,
+              blockType: blockType as BlockType,
+            });
+          },
+          onBlockDelta: async (blockId, content) => {
+            const [blockRecord] = await this.db
+              .select({ messageId: blocks.messageId })
+              .from(blocks)
+              .where(eq(blocks.id, blockId));
+
+            const promptId =
+              currentPromptId ??
+              (await this.findPromptIdForMessage(blockRecord?.messageId ?? null));
+
+            if (!promptId || !blockRecord) return;
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "block-delta",
+              promptId,
+              messageId: blockRecord.messageId,
+              blockId,
+              content,
+            });
+          },
+          onBlockEnd: async (blockId) => {
+            const [blockRecord] = await this.db
+              .select({ messageId: blocks.messageId })
+              .from(blocks)
+              .where(eq(blocks.id, blockId));
+
+            const promptId =
+              currentPromptId ??
+              (await this.findPromptIdForMessage(blockRecord?.messageId ?? null));
+
+            if (!promptId || !blockRecord) return;
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "block-end",
+              promptId,
+              messageId: blockRecord.messageId,
+              blockId,
+            });
           },
           onComplete: async (promptId) => {
             await this.handlePromptComplete(
@@ -669,32 +773,16 @@ export class ConversationService {
     events: AsyncGenerator<ConversationStreamEvent>;
   } | null> {
     const queue = new AsyncEventQueue<ConversationStreamEvent>();
-    const promptSubscriptions = new Map<
-      number,
-      { cancel: () => Promise<void> }
-    >();
     let sqlClient: ReturnType<typeof postgres> | null = null;
     let cleanedUp = false;
+
+    this.addConversationStream(conversationId, queue);
 
     const cleanup = async () => {
       if (cleanedUp) return;
       cleanedUp = true;
+      this.removeConversationStream(conversationId, queue);
       queue.close();
-      const cancellations = Array.from(promptSubscriptions.values()).map(
-        async ({ cancel }) => {
-          try {
-            await cancel();
-          } catch (error) {
-            if (error instanceof Error) {
-              this.logger.error("Failed to cancel prompt stream", { error });
-            }
-          }
-        },
-      );
-      promptSubscriptions.clear();
-      if (cancellations.length > 0) {
-        await Promise.all(cancellations);
-      }
       if (sqlClient) {
         try {
           await sqlClient.end({ timeout: 5 });
@@ -708,105 +796,6 @@ export class ConversationService {
         }
         sqlClient = null;
       }
-    };
-
-    const startPromptStream = async (
-      promptId: number,
-      includeExistingBlocks: boolean,
-    ) => {
-      if (promptSubscriptions.has(promptId)) {
-        return;
-      }
-
-      const promptStream = await this.promptService.streamPrompt(promptId, {
-        includeExistingBlocks,
-      });
-
-      if (!promptStream) {
-        return;
-      }
-
-      const promptRecord = promptStream.prompt;
-      const iterator = promptStream.events[Symbol.asyncIterator]();
-      let cancelled = false;
-
-      const pump = (async () => {
-        try {
-          while (true) {
-            const { value, done } = await iterator.next();
-            if (done) {
-              break;
-            }
-            if (!value) continue;
-            switch (value.type) {
-              case "prompt-created":
-                // Already handled via conversation events
-                break;
-              case "block-start":
-                queue.push({
-                  type: "block-start",
-                  promptId: promptRecord.id,
-                  messageId: promptRecord.messageId,
-                  blockId: value.blockId,
-                  blockType: value.blockType,
-                });
-                break;
-              case "block-delta":
-                queue.push({
-                  type: "block-delta",
-                  promptId: promptRecord.id,
-                  messageId: promptRecord.messageId,
-                  blockId: value.blockId,
-                  content: value.content,
-                });
-                break;
-              case "block-end":
-                queue.push({
-                  type: "block-end",
-                  promptId: promptRecord.id,
-                  messageId: promptRecord.messageId,
-                  blockId: value.blockId,
-                });
-                break;
-            }
-          }
-        } catch (error) {
-          if (error instanceof Error && !cancelled) {
-            this.logger.error("Prompt stream pump failed", {
-              error,
-              promptId,
-            });
-          }
-        } finally {
-          promptSubscriptions.delete(promptId);
-        }
-      })();
-
-      pump.catch((error) => {
-        if (error instanceof Error && !cancelled) {
-          this.logger.error("Prompt stream pump rejected", {
-            error,
-            promptId,
-          });
-        }
-      });
-
-      const cancel = async () => {
-        if (cancelled) return;
-        cancelled = true;
-        if (iterator.return) {
-          iterator.return().catch((error) => {
-            if (error instanceof Error) {
-              this.logger.error("Failed to stop prompt stream iterator", {
-                error,
-                promptId,
-              });
-            }
-          });
-        }
-      };
-
-      promptSubscriptions.set(promptId, { cancel });
     };
 
     const connectionString = this.getConnectionString();
@@ -826,43 +815,78 @@ export class ConversationService {
               const data = JSON.parse(payload) as ConversationNotification;
               if (data.conversationId !== conversationId) return;
 
-              if (data.type === "message_created") {
-                const message = this.normalizeMessageNotification(data.message);
-                queue.push({ type: "message-created", message });
-              } else if (data.type === "message_updated") {
-                const message = this.normalizeMessageNotification(data.message);
-                queue.push({ type: "message-updated", message });
-              } else {
-                const prompt = this.normalizePromptNotification(data.prompt);
-                switch (data.type) {
-                  case "prompt_started": {
-                    queue.push({ type: "prompt-started", prompt });
-                    startPromptStream(prompt.id, false).catch((error) => {
-                      if (error instanceof Error) {
-                        this.logger.error(
-                          "Failed to start prompt stream for conversation",
-                          {
-                            error,
-                            conversationId,
-                            promptId: prompt.id,
-                          },
-                        );
-                      }
+              switch (data.type) {
+                case "message_created": {
+                  const message = this.normalizeMessageNotification(data.message);
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "message-created",
+                    message,
+                  });
+                  break;
+                }
+                case "message_updated": {
+                  const message = this.normalizeMessageNotification(data.message);
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "message-updated",
+                    message,
+                  });
+                  break;
+                }
+                case "prompt_started": {
+                  const prompt = this.normalizePromptNotification(data.prompt);
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "prompt-started",
+                    prompt,
+                  });
+                  break;
+                }
+                case "prompt_completed": {
+                  const prompt = this.normalizePromptNotification(data.prompt);
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "prompt-completed",
+                    prompt,
+                  });
+                  break;
+                }
+                case "prompt_failed": {
+                  const prompt = this.normalizePromptNotification(data.prompt);
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "prompt-failed",
+                    prompt,
+                    error: data.error ?? prompt.error,
+                  });
+                  break;
+                }
+                case "block_start": {
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "block-start",
+                    promptId: data.promptId,
+                    messageId: data.messageId,
+                    blockId: data.blockId,
+                    blockType: data.blockType ?? "text",
+                  });
+                  break;
+                }
+                case "block_delta": {
+                  if (data.delta) {
+                    this.broadcastConversationEvent(conversationId, {
+                      type: "block-delta",
+                      promptId: data.promptId,
+                      messageId: data.messageId,
+                      blockId: data.blockId,
+                      content: data.delta,
                     });
-                    break;
                   }
-                  case "prompt_completed": {
-                    queue.push({ type: "prompt-completed", prompt });
-                    break;
-                  }
-                  case "prompt_failed": {
-                    queue.push({
-                      type: "prompt-failed",
-                      prompt,
-                      error: data.error ?? prompt.error,
-                    });
-                    break;
-                  }
+                  break;
+                }
+                case "block_end": {
+                  this.broadcastConversationEvent(conversationId, {
+                    type: "block-end",
+                    promptId: data.promptId,
+                    messageId: data.messageId,
+                    blockId: data.blockId,
+                  });
+                  break;
                 }
               }
             } catch (error) {
@@ -887,19 +911,39 @@ export class ConversationService {
       }
     }
 
-    const activePrompt = await this.getActivePrompt(conversationId);
-    if (activePrompt?.status === "streaming") {
-      await startPromptStream(activePrompt.id, false);
-      queue.push({ type: "prompt-started", prompt: activePrompt });
-    }
-
     const snapshot = await this.getConversation(conversationId, userId);
     if (!snapshot) {
       await cleanup();
       return null;
     }
 
-    const events = (async function* (service: ConversationService) {
+    const activeStream = await this.getActiveStream(conversationId);
+    if (activeStream) {
+      this.broadcastConversationEvent(conversationId, {
+        type: "prompt-started",
+        prompt: activeStream.prompt,
+      });
+      for (const block of activeStream.blocks) {
+        this.broadcastConversationEvent(conversationId, {
+          type: "block-start",
+          promptId: activeStream.prompt.id,
+          messageId: block.messageId,
+          blockId: block.id,
+          blockType: block.type,
+        });
+        if (block.type === "text" && block.content) {
+          this.broadcastConversationEvent(conversationId, {
+            type: "block-delta",
+            promptId: activeStream.prompt.id,
+            messageId: block.messageId,
+            blockId: block.id,
+            content: block.content,
+          });
+        }
+      }
+    }
+
+    const events = (async function* () {
       try {
         while (true) {
           const { value, done } = await queue.next();
@@ -911,7 +955,7 @@ export class ConversationService {
       } finally {
         await cleanup();
       }
-    })(this);
+    })();
 
     return {
       snapshot,
@@ -1006,6 +1050,21 @@ Execute the commands and then explain the results in a helpful way.`;
       return process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
     }
     return process.env.DATABASE_URL;
+  }
+
+  private async findPromptIdForMessage(
+    messageId: number | null,
+  ): Promise<number | null> {
+    if (!messageId) return null;
+
+    const [prompt] = await this.db
+      .select({ id: prompts.id })
+      .from(prompts)
+      .where(eq(prompts.messageId, messageId))
+      .orderBy(desc(prompts.createdAt))
+      .limit(1);
+
+    return prompt?.id ?? null;
   }
 
   private async handlePromptCreated(
