@@ -8,7 +8,6 @@ import {
 import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
 import {
   ConversationService,
-  type ConversationState,
   type ConversationStreamEvent,
 } from "./conversationService";
 
@@ -157,7 +156,9 @@ describe("ConversationService – createConversation", () => {
 
   it("streams conversation events across prompts", async () => {
     const fixture = createConversationServiceFixture(testDb);
-    const firstStreamController = fixture.enqueueStream([], { autoFinish: false });
+    const firstStreamController = fixture.enqueueStream([], {
+      autoFinish: false,
+    });
     let secondStreamController: ReturnType<
       typeof fixture.enqueueStream
     > | null = null;
@@ -182,19 +183,28 @@ describe("ConversationService – createConversation", () => {
     const iterator = stream.events[Symbol.asyncIterator]();
     const events: ConversationStreamEvent[] = [];
 
-    const expectEvent = async <
-      T extends ConversationStreamEvent["type"],
-    >(
-      type: T,
-      assert?: (event: Extract<ConversationStreamEvent, { type: T }>) => void,
-    ) => {
+    const nextEvent = async () => {
       const { value, done } = await iterator.next();
       expect(done).toBe(false);
       expect(value).toBeDefined();
-      const typed = value as ConversationStreamEvent;
-      events.push(typed);
+      events.push(value);
+      return value as ConversationStreamEvent;
+    };
+
+    const expectEvent = async <T extends ConversationStreamEvent["type"]>(
+      type: T,
+      assert?:
+        | Extract<ConversationStreamEvent, { type: T }>
+        | ((event: Extract<ConversationStreamEvent, { type: T }>) => void),
+    ) => {
+      const typed = await nextEvent();
+      console.log("event:", typed);
       expect(typed.type).toBe(type);
-      assert?.(typed as Extract<ConversationStreamEvent, { type: T }>);
+      if (typeof assert === "function") {
+        assert(typed as Extract<ConversationStreamEvent, { type: T }>);
+      } else if (assert) {
+        expect(assert).toEqual(typed);
+      }
       return typed as Extract<ConversationStreamEvent, { type: T }>;
     };
 
@@ -379,12 +389,15 @@ describe("ConversationService – createConversation", () => {
 
       expect(
         events.filter(
-          (event) => event.type === "message-created" && event.message.role === "user",
+          (event) =>
+            event.type === "message-created" && event.message.role === "user",
         ).length,
       ).toBe(2);
       expect(
         events.filter(
-          (event) => event.type === "message-created" && event.message.role === "assistant",
+          (event) =>
+            event.type === "message-created" &&
+            event.message.role === "assistant",
         ).length,
       ).toBe(2);
     } finally {
