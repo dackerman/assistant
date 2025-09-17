@@ -80,6 +80,11 @@ class StubAnthropic {
   };
 }
 
+/**
+ * Bootstrap helper for ConversationService tests. It wires a deterministic
+ * Anthropic stub, exposes controls for enqueuing provider events, and returns
+ * helpers for common DB setup tasks (users, truncation, etc.).
+ */
 export function createConversationServiceFixture(db: DB) {
   const streamQueue: ControlledStream[] = [];
   const anthropicClient = new StubAnthropic(
@@ -144,6 +149,11 @@ type BlockEventExpectation =
   | { type: "delta"; content: string }
   | { type: "end" };
 
+/**
+ * Assertion helper that validates message state against a compact spec.
+ * It compares role, status, and block contents in order, providing clear
+ * failures when the DB representation diverges from expectations.
+ */
 export function expectMessagesState(
   actual:
     | Array<{
@@ -182,6 +192,11 @@ export function expectMessagesState(
   });
 }
 
+/**
+ * Assertion helper to verify block start/delta/end events while ignoring
+ * ephemeral IDs. It normalizes the events before comparing to the expected
+ * shape, making the tests concise yet robust.
+ */
 export function expectBlockEvents(
   actual: ConversationStreamEvent[] | undefined,
   expected: BlockEventExpectation[],
