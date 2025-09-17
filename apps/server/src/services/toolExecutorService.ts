@@ -9,7 +9,7 @@ import {
   toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
-import { SessionManager } from "./sessionManager";
+import { BashSessionManager } from "./bashSessionManager";
 
 export interface ToolExecutorConfig {
   timeout?: number;
@@ -22,20 +22,19 @@ export interface ToolExecutorConfig {
 export class ToolExecutorService {
   private db: DB;
   private logger: Logger;
-  private sessionManager: SessionManager;
+  private sessionManager: BashSessionManager;
   private config: Required<ToolExecutorConfig>;
 
   constructor(
     dbInstance: DB = defaultDb,
     config: ToolExecutorConfig = {},
-    sessionManager?: SessionManager,
+    sessionManager?: BashSessionManager,
   ) {
     const timeout = config.timeout || 300000;
 
     this.db = dbInstance;
     this.logger = new Logger({ service: "ToolExecutorService" });
-    this.sessionManager =
-      sessionManager || new SessionManager({ timeout });
+    this.sessionManager = sessionManager || new BashSessionManager({ timeout });
     this.config = {
       timeout,
     };

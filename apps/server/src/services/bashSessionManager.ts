@@ -1,5 +1,5 @@
-import { Logger } from "../utils/logger";
-import type { BashSessionFactory, BashSessionLike } from "./bashSession";
+import { Logger } from "../utils/logger.js";
+import type { BashSessionFactory, BashSessionLike } from "./bashSession.js";
 
 export interface SessionConfig {
   workingDirectory?: string;
@@ -11,7 +11,7 @@ export interface SessionConfig {
  * SessionManager manages BashSession instances per conversation.
  * Each conversation gets its own persistent bash session.
  */
-export class SessionManager {
+export class BashSessionManager {
   private sessions = new Map<number, BashSessionLike>();
   private logger: Logger;
   private defaultConfig: SessionConfig;
@@ -20,10 +20,7 @@ export class SessionManager {
     config: SessionConfig,
   ) => Promise<BashSessionLike>;
 
-  constructor(
-    config: SessionConfig = {},
-    sessionFactory?: BashSessionFactory,
-  ) {
+  constructor(config: SessionConfig = {}, sessionFactory?: BashSessionFactory) {
     this.logger = new Logger({ service: "SessionManager" });
     this.defaultConfig = {
       workingDirectory: config.workingDirectory || process.cwd(),
