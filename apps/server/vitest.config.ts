@@ -1,20 +1,20 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config'
 
-const runDbTests = process.env.RUN_DB_TESTS === "1";
+const runDbTests = process.env.RUN_DB_TESTS === '1'
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: "node",
+    environment: 'node',
     setupFiles: runDbTests
-      ? ["./src/test/mockNodePty.ts", "./src/test/setup.ts"]
-      : ["./src/test/mockNodePty.ts"],
-    include: ["src/**/*.test.ts"],
+      ? ['./src/test/mockNodePty.ts', './src/test/setup.ts']
+      : ['./src/test/mockNodePty.ts'],
+    include: ['src/**/*.test.ts'],
     passWithNoTests: true,
     testTimeout: 30000,
     hookTimeout: 30000,
     // Disable parallel execution for database tests to avoid conflicts
-    pool: runDbTests ? "forks" : "threads",
+    pool: runDbTests ? 'forks' : 'threads',
     poolOptions: runDbTests
       ? {
           forks: {
@@ -23,4 +23,4 @@ export default defineConfig({
         }
       : {},
   },
-});
+})

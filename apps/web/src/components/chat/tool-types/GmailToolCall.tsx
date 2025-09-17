@@ -1,13 +1,13 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import type { ToolCall } from "@/types/conversation";
-import { ChevronDown, ChevronRight, Mail } from "lucide-react";
-import { formatInlineValue, formatMultilineValue } from "./utils";
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import type { ToolCall } from '@/types/conversation'
+import { ChevronDown, ChevronRight, Mail } from 'lucide-react'
+import { formatInlineValue, formatMultilineValue } from './utils'
 
 interface GmailToolCallProps {
-  toolCall: ToolCall;
-  isExpanded: boolean;
-  onToggle: () => void;
-  statusIcon: React.ReactNode;
+  toolCall: ToolCall
+  isExpanded: boolean
+  onToggle: () => void
+  statusIcon: React.ReactNode
 }
 
 export function GmailToolCall({
@@ -16,21 +16,21 @@ export function GmailToolCall({
   onToggle,
   statusIcon,
 }: GmailToolCallProps) {
-  const params = toolCall.parameters;
-  const action = typeof params.action === "string" ? params.action : "";
+  const params = toolCall.parameters
+  const action = typeof params.action === 'string' ? params.action : ''
 
   const getActionDescription = () => {
-    if (action === "send_email") {
-      return `Sending email to: ${formatInlineValue(params.to)}`;
+    if (action === 'send_email') {
+      return `Sending email to: ${formatInlineValue(params.to)}`
     }
-    if (action === "get_emails") {
-      return `Fetching emails from inbox`;
+    if (action === 'get_emails') {
+      return `Fetching emails from inbox`
     }
-    if (action === "reply_to_email") {
-      return `Replying to email: "${formatInlineValue(params.subject)}"`;
+    if (action === 'reply_to_email') {
+      return `Replying to email: "${formatInlineValue(params.subject)}"`
     }
-    return "Gmail operation";
-  };
+    return 'Gmail operation'
+  }
 
   return (
     <Card className="border-l-4 border-l-red-400">
@@ -69,13 +69,13 @@ export function GmailToolCall({
                 <div className="space-y-2 text-xs">
                   {params.to !== undefined && params.to !== null && (
                     <div>
-                      <span className="font-medium">To:</span>{" "}
+                      <span className="font-medium">To:</span>{' '}
                       {formatInlineValue(params.to)}
                     </div>
                   )}
                   {params.subject !== undefined && params.subject !== null && (
                     <div>
-                      <span className="font-medium">Subject:</span>{" "}
+                      <span className="font-medium">Subject:</span>{' '}
                       {formatInlineValue(params.subject)}
                     </div>
                   )}
@@ -89,7 +89,7 @@ export function GmailToolCall({
                   )}
                   {params.cc !== undefined && params.cc !== null && (
                     <div>
-                      <span className="font-medium">CC:</span>{" "}
+                      <span className="font-medium">CC:</span>{' '}
                       {formatInlineValue(params.cc)}
                     </div>
                   )}
@@ -122,5 +122,5 @@ export function GmailToolCall({
         </CardContent>
       )}
     </Card>
-  );
+  )
 }

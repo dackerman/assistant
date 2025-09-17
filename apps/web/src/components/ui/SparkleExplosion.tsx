@@ -1,46 +1,46 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react'
 
 interface SparkleParticle {
-  id: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  startX: number;
-  startY: number;
+  id: number
+  x: number
+  y: number
+  vx: number
+  vy: number
+  life: number
+  startX: number
+  startY: number
 }
 
 interface SparkleExplosionProps {
-  trigger: number;
-  className?: string;
-  children: React.ReactNode;
+  trigger: number
+  className?: string
+  children: React.ReactNode
 }
 
 export function SparkleExplosion({
   trigger,
-  className = "",
+  className = '',
   children,
 }: SparkleExplosionProps) {
-  const [particles, setParticles] = useState<SparkleParticle[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [particles, setParticles] = useState<SparkleParticle[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (trigger === 0) return;
+    if (trigger === 0) return
 
     // Get the element's position on the screen
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
 
-    const titleWidth = rect.width;
-    const centerY = rect.top + rect.height / 2;
+    const titleWidth = rect.width
+    const centerY = rect.top + rect.height / 2
 
     // Create 5 sparkle particles spread across the title width
-    const newParticles: SparkleParticle[] = [];
+    const newParticles: SparkleParticle[] = []
     for (let i = 0; i < 5; i++) {
       // Distribute sparkles across the width of the title
-      const widthProgress = i / 4; // 0, 0.25, 0.5, 0.75, 1
-      const startX = rect.left + titleWidth * widthProgress;
+      const widthProgress = i / 4 // 0, 0.25, 0.5, 0.75, 1
+      const startX = rect.left + titleWidth * widthProgress
 
       newParticles.push({
         id: i,
@@ -51,37 +51,37 @@ export function SparkleExplosion({
         life: 1,
         startX: startX,
         startY: centerY,
-      });
+      })
     }
-    setParticles(newParticles);
+    setParticles(newParticles)
 
     // Animate particles for 800ms (slower fade)
-    const animationDuration = 800;
-    const startTime = Date.now();
+    const animationDuration = 800
+    const startTime = Date.now()
 
     const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = elapsed / animationDuration;
+      const elapsed = Date.now() - startTime
+      const progress = elapsed / animationDuration
 
       if (progress >= 1) {
-        setParticles([]);
-        return;
+        setParticles([])
+        return
       }
 
-      setParticles((prev) =>
-        prev.map((particle) => ({
+      setParticles(prev =>
+        prev.map(particle => ({
           ...particle,
           x: particle.vx * progress,
           y: particle.vy * progress + 0.5 * 150 * progress * progress, // stronger gravity
           life: Math.max(0, 1 - Math.pow(progress, 0.7)), // slower fade with easing
-        })),
-      );
+        }))
+      )
 
-      requestAnimationFrame(animate);
-    };
+      requestAnimationFrame(animate)
+    }
 
-    requestAnimationFrame(animate);
-  }, [trigger]);
+    requestAnimationFrame(animate)
+  }, [trigger])
 
   return (
     <>
@@ -89,17 +89,17 @@ export function SparkleExplosion({
         {children}
       </div>
       {/* Render sparkles at document level to avoid clipping */}
-      {particles.map((particle) => (
+      {particles.map(particle => (
         <div
           key={`${trigger}-${particle.id}`}
           className="pointer-events-none select-none"
           style={{
-            position: "fixed",
+            position: 'fixed',
             left: particle.startX + particle.x,
             top: particle.startY + particle.y,
-            transform: "translate(-50%, -50%)",
+            transform: 'translate(-50%, -50%)',
             opacity: particle.life,
-            fontSize: "18px",
+            fontSize: '18px',
             zIndex: 9999,
           }}
         >
@@ -107,5 +107,5 @@ export function SparkleExplosion({
         </div>
       ))}
     </>
-  );
+  )
 }

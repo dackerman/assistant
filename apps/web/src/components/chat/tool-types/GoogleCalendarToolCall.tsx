@@ -1,13 +1,13 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import type { ToolCall } from "@/types/conversation";
-import { Calendar, ChevronDown, ChevronRight } from "lucide-react";
-import { formatInlineValue, formatMultilineValue } from "./utils";
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import type { ToolCall } from '@/types/conversation'
+import { Calendar, ChevronDown, ChevronRight } from 'lucide-react'
+import { formatInlineValue, formatMultilineValue } from './utils'
 
 interface GoogleCalendarToolCallProps {
-  toolCall: ToolCall;
-  isExpanded: boolean;
-  onToggle: () => void;
-  statusIcon: React.ReactNode;
+  toolCall: ToolCall
+  isExpanded: boolean
+  onToggle: () => void
+  statusIcon: React.ReactNode
 }
 
 export function GoogleCalendarToolCall({
@@ -16,25 +16,25 @@ export function GoogleCalendarToolCall({
   onToggle,
   statusIcon,
 }: GoogleCalendarToolCallProps) {
-  const params = toolCall.parameters;
-  const action = typeof params.action === "string" ? params.action : "";
+  const params = toolCall.parameters
+  const action = typeof params.action === 'string' ? params.action : ''
 
   const getActionDescription = () => {
-    if (action === "create_event") {
-      return `Creating event: "${formatInlineValue(params.title)}"`;
+    if (action === 'create_event') {
+      return `Creating event: "${formatInlineValue(params.title)}"`
     }
-    if (action === "get_events") {
+    if (action === 'get_events') {
       const targetDate =
         params.date !== undefined && params.date !== null
           ? formatInlineValue(params.date)
-          : "today";
-      return `Fetching events for ${targetDate}`;
+          : 'today'
+      return `Fetching events for ${targetDate}`
     }
-    if (action === "update_event") {
-      return `Updating event: "${formatInlineValue(params.title)}"`;
+    if (action === 'update_event') {
+      return `Updating event: "${formatInlineValue(params.title)}"`
     }
-    return "Calendar operation";
-  };
+    return 'Calendar operation'
+  }
 
   return (
     <Card className="border-l-4 border-l-blue-400">
@@ -73,40 +73,42 @@ export function GoogleCalendarToolCall({
                 <div className="space-y-2 text-xs">
                   {params.title !== undefined && params.title !== null && (
                     <div>
-                      <span className="font-medium">Title:</span>{" "}
+                      <span className="font-medium">Title:</span>{' '}
                       {formatInlineValue(params.title)}
                     </div>
                   )}
                   {params.start_time !== undefined &&
                     params.start_time !== null && (
-                    <div>
-                      <span className="font-medium">Start:</span>{" "}
-                      {formatInlineValue(params.start_time)}
-                    </div>
-                  )}
-                  {params.end_time !== undefined && params.end_time !== null && (
-                    <div>
-                      <span className="font-medium">End:</span>{" "}
-                      {formatInlineValue(params.end_time)}
-                    </div>
-                  )}
-                  {params.location !== undefined && params.location !== null && (
-                    <div>
-                      <span className="font-medium">Location:</span>{" "}
-                      {formatInlineValue(params.location)}
-                    </div>
-                  )}
+                      <div>
+                        <span className="font-medium">Start:</span>{' '}
+                        {formatInlineValue(params.start_time)}
+                      </div>
+                    )}
+                  {params.end_time !== undefined &&
+                    params.end_time !== null && (
+                      <div>
+                        <span className="font-medium">End:</span>{' '}
+                        {formatInlineValue(params.end_time)}
+                      </div>
+                    )}
+                  {params.location !== undefined &&
+                    params.location !== null && (
+                      <div>
+                        <span className="font-medium">Location:</span>{' '}
+                        {formatInlineValue(params.location)}
+                      </div>
+                    )}
                   {params.attendees !== undefined &&
                     params.attendees !== null && (
-                    <div>
-                      <span className="font-medium">Attendees:</span>{" "}
-                      {Array.isArray(params.attendees)
-                        ? params.attendees
-                            .map((attendee) => formatInlineValue(attendee))
-                            .join(", ")
-                        : formatInlineValue(params.attendees)}
-                    </div>
-                  )}
+                      <div>
+                        <span className="font-medium">Attendees:</span>{' '}
+                        {Array.isArray(params.attendees)
+                          ? params.attendees
+                              .map(attendee => formatInlineValue(attendee))
+                              .join(', ')
+                          : formatInlineValue(params.attendees)}
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
@@ -136,5 +138,5 @@ export function GoogleCalendarToolCall({
         </CardContent>
       )}
     </Card>
-  );
+  )
 }

@@ -1,18 +1,18 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { sql } from "drizzle-orm";
-import { expect } from "vitest";
-import type { DB } from "../db";
-import { type BlockType, users } from "../db/schema";
+import type Anthropic from '@anthropic-ai/sdk'
+import { sql } from 'drizzle-orm'
+import { expect } from 'vitest'
+import type { DB } from '../db'
+import { type BlockType, users } from '../db/schema'
 import {
   ConversationService,
   type ConversationStreamEvent,
-} from "../services/conversationService";
-import { PromptService } from "../services/promptService";
-import { ToolExecutorService } from "../services/toolExecutorService";
-import { createTestTool } from "./tools/testTool";
+} from '../services/conversationService'
+import { PromptService } from '../services/promptService'
+import { ToolExecutorService } from '../services/toolExecutorService'
+import { createTestTool } from './tools/testTool'
 
 interface StreamEvent {
-  [key: string]: unknown;
+  [key: string]: unknown
 }
 
 /**
@@ -28,28 +28,28 @@ interface StreamEvent {
  * the service reacts correctly.
  */
 class ControlledStream {
-  private events: StreamEvent[] = [];
-  private resolvers: ((result: IteratorResult<StreamEvent>) => void)[] = [];
-  private done = false;
+  private events: StreamEvent[] = []
+  private resolvers: ((result: IteratorResult<StreamEvent>) => void)[] = []
+  private done = false
 
   push(event: StreamEvent) {
     if (this.done) {
-      throw new Error("Stream already finished");
+      throw new Error('Stream already finished')
     }
-    const resolver = this.resolvers.shift();
+    const resolver = this.resolvers.shift()
     if (resolver) {
-      resolver({ value: event, done: false });
+      resolver({ value: event, done: false })
     } else {
-      this.events.push(event);
+      this.events.push(event)
     }
   }
 
   finish() {
-    if (this.done) return;
-    this.done = true;
+    if (this.done) return
+    this.done = true
     while (this.resolvers.length > 0) {
-      const resolver = this.resolvers.shift();
-      resolver?.({ value: undefined as unknown as StreamEvent, done: true });
+      const resolver = this.resolvers.shift()
+      resolver?.({ value: undefined as unknown as StreamEvent, done: true })
     }
   }
 
@@ -57,20 +57,20 @@ class ControlledStream {
     return {
       next: (): Promise<IteratorResult<StreamEvent>> => {
         if (this.events.length > 0) {
-          const value = this.events.shift()!;
-          return Promise.resolve({ value, done: false });
+          const value = this.events.shift()!
+          return Promise.resolve({ value, done: false })
         }
         if (this.done) {
           return Promise.resolve({
             value: undefined as unknown as StreamEvent,
             done: true,
-          });
+          })
         }
-        return new Promise((resolve) => {
-          this.resolvers.push(resolve);
-        });
+        return new Promise(resolve => {
+          this.resolvers.push(resolve)
+        })
       },
-    };
+    }
   }
 }
 
@@ -79,7 +79,7 @@ class StubAnthropic {
 
   messages = {
     create: async () => this.queue.shift() ?? new ControlledStream(),
-  };
+  }
 }
 
 /**
@@ -88,16 +88,14 @@ class StubAnthropic {
  * helpers for common DB setup tasks (users, truncation, etc.).
  */
 export function createConversationServiceFixture(db: DB) {
-  const streamQueue: ControlledStream[] = [];
-  const anthropicClient = new StubAnthropic(
-    streamQueue,
-  ) as unknown as Anthropic;
+  const streamQueue: ControlledStream[] = []
+  const anthropicClient = new StubAnthropic(streamQueue) as unknown as Anthropic
 
   const promptService = new PromptService(db, {
     anthropicClient,
     toolExecutor: new ToolExecutorService([createTestTool()], db),
-  });
-  const conversationService = new ConversationService(db, { promptService });
+  })
+  const conversationService = new ConversationService(db, { promptService })
 
   const truncateAll = async () => {
     await db.execute(sql`
@@ -108,50 +106,50 @@ export function createConversationServiceFixture(db: DB) {
       TRUNCATE TABLE messages RESTART IDENTITY CASCADE;
       TRUNCATE TABLE conversations RESTART IDENTITY CASCADE;
       TRUNCATE TABLE users RESTART IDENTITY CASCADE;
-    `);
-  };
+    `)
+  }
 
   return {
     conversationService,
     enqueueStream(
       initialEvents: StreamEvent[] = [],
-      options?: { autoFinish?: boolean },
+      options?: { autoFinish?: boolean }
     ) {
-      const controller = new ControlledStream();
+      const controller = new ControlledStream()
       for (const event of initialEvents) {
-        controller.push(event);
+        controller.push(event)
       }
       if (options?.autoFinish !== false) {
-        controller.finish();
+        controller.finish()
       }
-      streamQueue.push(controller);
+      streamQueue.push(controller)
       return {
         push: (event: StreamEvent) => controller.push(event),
         finish: () => controller.finish(),
-      };
+      }
     },
     truncateAll,
     insertUser: (email: string) =>
       db.insert(users).values({ email }).returning(),
     db,
-  };
+  }
 }
 
 interface ExpectedBlock {
-  type: BlockType;
-  content?: string;
+  type: BlockType
+  content?: string
 }
 
 interface ExpectedMessage {
-  role: string;
-  status?: string;
-  blocks?: ExpectedBlock[];
+  role: string
+  status?: string
+  blocks?: ExpectedBlock[]
 }
 
 type BlockEventExpectation =
-  | { type: "start"; blockType: BlockType }
-  | { type: "delta"; content: string }
-  | { type: "end" };
+  | { type: 'start'; blockType: BlockType }
+  | { type: 'delta'; content: string }
+  | { type: 'end' }
 
 /**
  * Assertion helper that validates message state against a compact spec.
@@ -161,39 +159,39 @@ type BlockEventExpectation =
 export function expectMessagesState(
   actual:
     | Array<{
-        role: string;
-        status?: string;
-        blocks?: Array<{ type: BlockType; content: string | null }>;
+        role: string
+        status?: string
+        blocks?: Array<{ type: BlockType; content: string | null }>
       }>
     | undefined,
-  expected: ExpectedMessage[],
+  expected: ExpectedMessage[]
 ) {
-  const actualList = actual ?? [];
-  expect(actualList.length).toBe(expected.length);
+  const actualList = actual ?? []
+  expect(actualList.length).toBe(expected.length)
 
   actualList.forEach((message, index) => {
-    const spec = expected[index];
-    expect(spec).toBeDefined();
-    if (!spec) return;
-    expect(message.role).toBe(spec.role);
+    const spec = expected[index]
+    expect(spec).toBeDefined()
+    if (!spec) return
+    expect(message.role).toBe(spec.role)
     if (spec.status !== undefined) {
-      expect(message.status).toBe(spec.status);
+      expect(message.status).toBe(spec.status)
     }
 
     if (spec.blocks) {
-      const blocks = message.blocks ?? [];
-      expect(blocks.length).toBe(spec.blocks.length);
+      const blocks = message.blocks ?? []
+      expect(blocks.length).toBe(spec.blocks.length)
       blocks.forEach((block, blockIndex) => {
-        const blockSpec = spec.blocks?.[blockIndex];
-        expect(blockSpec).toBeDefined();
-        if (!blockSpec) return;
-        expect(block.type).toBe(blockSpec.type);
+        const blockSpec = spec.blocks?.[blockIndex]
+        expect(blockSpec).toBeDefined()
+        if (!blockSpec) return
+        expect(block.type).toBe(blockSpec.type)
         if (blockSpec.content !== undefined) {
-          expect(block.content ?? "").toBe(blockSpec.content);
+          expect(block.content ?? '').toBe(blockSpec.content)
         }
-      });
+      })
     }
-  });
+  })
 }
 
 /**
@@ -203,24 +201,24 @@ export function expectMessagesState(
  */
 export function expectBlockEvents(
   actual: ConversationStreamEvent[] | undefined,
-  expected: BlockEventExpectation[],
+  expected: BlockEventExpectation[]
 ) {
   const list = (actual ?? [])
     .filter(
-      (event) =>
-        event.type === "block-start" ||
-        event.type === "block-delta" ||
-        event.type === "block-end",
+      event =>
+        event.type === 'block-start' ||
+        event.type === 'block-delta' ||
+        event.type === 'block-end'
     )
-    .map((event) => {
-      if (event.type === "block-start") {
-        return { type: "start", blockType: event.blockType };
+    .map(event => {
+      if (event.type === 'block-start') {
+        return { type: 'start', blockType: event.blockType }
       }
-      if (event.type === "block-delta") {
-        return { type: "delta", content: event.content };
+      if (event.type === 'block-delta') {
+        return { type: 'delta', content: event.content }
       }
-      return { type: "end" };
-    });
+      return { type: 'end' }
+    })
 
-  expect(list).toEqual(expected);
+  expect(list).toEqual(expected)
 }

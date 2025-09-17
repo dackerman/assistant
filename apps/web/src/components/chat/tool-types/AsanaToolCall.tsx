@@ -1,13 +1,13 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import type { ToolCall } from "@/types/conversation";
-import { CheckSquare, ChevronDown, ChevronRight } from "lucide-react";
-import { formatInlineValue, formatMultilineValue } from "./utils";
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import type { ToolCall } from '@/types/conversation'
+import { CheckSquare, ChevronDown, ChevronRight } from 'lucide-react'
+import { formatInlineValue, formatMultilineValue } from './utils'
 
 interface AsanaToolCallProps {
-  toolCall: ToolCall;
-  isExpanded: boolean;
-  onToggle: () => void;
-  statusIcon: React.ReactNode;
+  toolCall: ToolCall
+  isExpanded: boolean
+  onToggle: () => void
+  statusIcon: React.ReactNode
 }
 
 export function AsanaToolCall({
@@ -16,23 +16,21 @@ export function AsanaToolCall({
   onToggle,
   statusIcon,
 }: AsanaToolCallProps) {
-  const params = toolCall.parameters;
-  const action = typeof params.action === "string" ? params.action : "";
+  const params = toolCall.parameters
+  const action = typeof params.action === 'string' ? params.action : ''
 
   const getActionDescription = () => {
-    if (action === "create_task") {
-      return `Creating task: "${formatInlineValue(params.name)}"`;
+    if (action === 'create_task') {
+      return `Creating task: "${formatInlineValue(params.name)}"`
     }
-    if (action === "update_task") {
-      return `Updating task: "${formatInlineValue(params.name)}"`;
+    if (action === 'update_task') {
+      return `Updating task: "${formatInlineValue(params.name)}"`
     }
-    if (action === "get_tasks") {
-      return `Fetching tasks from project: ${formatInlineValue(
-        params.project,
-      )}`;
+    if (action === 'get_tasks') {
+      return `Fetching tasks from project: ${formatInlineValue(params.project)}`
     }
-    return "Asana operation";
-  };
+    return 'Asana operation'
+  }
 
   return (
     <Card className="border-l-4 border-l-orange-400">
@@ -71,28 +69,30 @@ export function AsanaToolCall({
                 <div className="space-y-2 text-xs">
                   {params.name !== undefined && params.name !== null && (
                     <div>
-                      <span className="font-medium">Task:</span>{" "}
+                      <span className="font-medium">Task:</span>{' '}
                       {formatInlineValue(params.name)}
                     </div>
                   )}
                   {params.project !== undefined && params.project !== null && (
                     <div>
-                      <span className="font-medium">Project:</span>{" "}
+                      <span className="font-medium">Project:</span>{' '}
                       {formatInlineValue(params.project)}
                     </div>
                   )}
-                  {params.assignee !== undefined && params.assignee !== null && (
-                    <div>
-                      <span className="font-medium">Assignee:</span>{" "}
-                      {formatInlineValue(params.assignee)}
-                    </div>
-                  )}
-                  {params.due_date !== undefined && params.due_date !== null && (
-                    <div>
-                      <span className="font-medium">Due:</span>{" "}
-                      {formatInlineValue(params.due_date)}
-                    </div>
-                  )}
+                  {params.assignee !== undefined &&
+                    params.assignee !== null && (
+                      <div>
+                        <span className="font-medium">Assignee:</span>{' '}
+                        {formatInlineValue(params.assignee)}
+                      </div>
+                    )}
+                  {params.due_date !== undefined &&
+                    params.due_date !== null && (
+                      <div>
+                        <span className="font-medium">Due:</span>{' '}
+                        {formatInlineValue(params.due_date)}
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
@@ -122,5 +122,5 @@ export function AsanaToolCall({
         </CardContent>
       )}
     </Card>
-  );
+  )
 }

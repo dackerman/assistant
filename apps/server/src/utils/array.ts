@@ -1,7 +1,7 @@
 export function firstOrThrow<T>(array: T[]): T {
-  const first = array[0];
+  const first = array[0]
   if (!first) {
-    throw new Error("Expected array to have at least one element");
+    throw new Error('Expected array to have at least one element')
   }
-  return first;
+  return first
 }

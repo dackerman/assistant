@@ -1,21 +1,21 @@
-import { ConversationTitle } from "@/components/ui/ConversationTitle";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import { ConversationTitle } from '@/components/ui/ConversationTitle'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import {
   DEFAULT_MODEL,
   MODEL_DISPLAY_NAMES,
   SUPPORTED_MODELS,
   type SupportedModel,
-} from "@/constants/models";
-import { useWebSocket } from "@/hooks/useWebSocket";
+} from '@/constants/models'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import {
   type ActiveStream,
   type ApiBlock,
   type ApiMessage,
   conversationService,
-} from "@/services/conversationService";
-import type { Message, ToolCall, ToolResult } from "@/types/conversation";
+} from '@/services/conversationService'
+import type { Message, ToolCall, ToolResult } from '@/types/conversation'
 
 import {
   Check,
@@ -24,14 +24,14 @@ import {
   Wifi,
   WifiOff,
   X as XIcon,
-} from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { MessageBubble } from "./MessageBubble";
+} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { MessageBubble } from './MessageBubble'
 
 interface ConversationViewProps {
-  conversationId?: number;
-  onConversationCreate?: (conversationId: number) => void;
-  onTitleUpdate?: () => void;
+  conversationId?: number
+  onConversationCreate?: (conversationId: number) => void
+  onTitleUpdate?: () => void
 }
 
 export function ConversationView({
@@ -39,118 +39,117 @@ export function ConversationView({
   onConversationCreate,
   onTitleUpdate,
 }: ConversationViewProps) {
-  const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
   const [selectedModel, setSelectedModel] =
-    useState<SupportedModel>(DEFAULT_MODEL);
+    useState<SupportedModel>(DEFAULT_MODEL)
   const [currentConversationId, setCurrentConversationId] = useState<
     number | null
-  >(conversationId || null);
-  const [conversationTitle, setConversationTitle] =
-    useState("New Conversation");
-  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  >(conversationId || null)
+  const [conversationTitle, setConversationTitle] = useState('New Conversation')
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false)
   const [conversationError, setConversationError] = useState<string | null>(
-    null,
-  );
-  const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editingTitle, setEditingTitle] = useState("");
+    null
+  )
+  const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingTitle, setEditingTitle] = useState('')
 
   // WebSocket handlers
   const handleTextDelta = useCallback((promptId: number, delta: string) => {
-    setMessages((prev) => {
+    setMessages(prev => {
       const existingIndex = prev.findIndex(
-        (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-      );
+        m => m.metadata?.promptId === promptId && m.type === 'assistant'
+      )
 
       if (existingIndex >= 0) {
         // Update existing message
-        const updated = [...prev];
+        const updated = [...prev]
         updated[existingIndex] = {
           ...updated[existingIndex],
           content: updated[existingIndex].content + delta,
-        };
-        return updated;
+        }
+        return updated
       } else {
         // Create new assistant message
         return [
           ...prev,
           {
             id: `assistant-${promptId}`,
-            type: "assistant" as const,
+            type: 'assistant' as const,
             content: delta,
             timestamp: new Date().toISOString(),
             metadata: { promptId },
           },
-        ];
+        ]
       }
-    });
-  }, []);
+    })
+  }, [])
 
   const handleStreamComplete = useCallback((promptId: number) => {
-    console.log("Stream completed for prompt:", promptId);
+    console.log('Stream completed for prompt:', promptId)
     // TODO: Refresh conversation to get final state
-  }, []);
+  }, [])
 
   const handleStreamError = useCallback((promptId: number, error: string) => {
-    console.error("Stream error for prompt:", promptId, error);
-  }, []);
+    console.error('Stream error for prompt:', promptId, error)
+  }, [])
 
   const handleSnapshot = useCallback(
     (promptId: number, content: string, state: string) => {
-      console.log("Received snapshot for prompt:", promptId, "state:", state, {
+      console.log('Received snapshot for prompt:', promptId, 'state:', state, {
         contentLength: content?.length || 0,
-        isStreaming: state === "IN_PROGRESS" || state === "WAITING_FOR_TOOLS",
-      });
+        isStreaming: state === 'IN_PROGRESS' || state === 'WAITING_FOR_TOOLS',
+      })
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const existingIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === promptId && m.type === 'assistant'
+        )
 
         const snapshotMessage = {
           id: `assistant-${promptId}`,
-          type: "assistant" as const,
-          content: content || "",
+          type: 'assistant' as const,
+          content: content || '',
           timestamp: new Date().toISOString(),
           metadata: {
             promptId,
             streamState: state,
           },
-        };
+        }
 
         if (existingIndex >= 0) {
           // Update existing message with snapshot content
-          const updated = [...prev];
+          const updated = [...prev]
           updated[existingIndex] = {
             ...updated[existingIndex],
             ...snapshotMessage,
             // Preserve original timestamp if it exists
             timestamp:
               updated[existingIndex].timestamp || snapshotMessage.timestamp,
-          };
-          return updated;
+          }
+          return updated
         } else {
           // Create new assistant message from snapshot
-          return [...prev, snapshotMessage];
+          return [...prev, snapshotMessage]
         }
-      });
+      })
     },
-    [],
-  );
+    []
+  )
 
   const handleTitleGenerated = useCallback(
     (title: string) => {
-      console.log("Title generated:", title);
-      setShouldAnimateTitle(true); // Mark that this title change should animate
-      setConversationTitle(title);
+      console.log('Title generated:', title)
+      setShouldAnimateTitle(true) // Mark that this title change should animate
+      setConversationTitle(title)
       // Notify parent component to refresh sidebar
-      onTitleUpdate?.();
+      onTitleUpdate?.()
       // Reset animation flag after the component has had a chance to use it
-      setTimeout(() => setShouldAnimateTitle(false), 100);
+      setTimeout(() => setShouldAnimateTitle(false), 100)
     },
-    [onTitleUpdate],
-  );
+    [onTitleUpdate]
+  )
 
   // Tool call handlers for streaming
   const handleToolCallStarted = useCallback(
@@ -158,175 +157,175 @@ export function ConversationView({
       promptId: number,
       toolCallId: number,
       toolName: string,
-      parameters: Record<string, unknown>,
+      parameters: Record<string, unknown>
     ) => {
-      console.log("Tool call started:", toolName, toolCallId);
+      console.log('Tool call started:', toolName, toolCallId)
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const messageIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === promptId && m.type === 'assistant'
+        )
 
         if (messageIndex >= 0) {
-          const updated = [...prev];
-          const message = updated[messageIndex];
+          const updated = [...prev]
+          const message = updated[messageIndex]
 
           // Initialize toolCalls array if it doesn't exist
           if (!message.toolCalls) {
-            message.toolCalls = [];
+            message.toolCalls = []
           }
 
           // Add or update tool call
           const existingToolCallIndex = message.toolCalls.findIndex(
-            (tc) => tc.id === toolCallId.toString(),
-          );
+            tc => tc.id === toolCallId.toString()
+          )
           const toolCall = {
             id: toolCallId.toString(),
             name: toolName,
             parameters: parameters,
-            status: "running" as const,
+            status: 'running' as const,
             startTime: new Date().toISOString(),
-          };
-
-          if (existingToolCallIndex >= 0) {
-            message.toolCalls[existingToolCallIndex] = toolCall;
-          } else {
-            message.toolCalls.push(toolCall);
           }
 
-          updated[messageIndex] = { ...message };
-          return updated;
+          if (existingToolCallIndex >= 0) {
+            message.toolCalls[existingToolCallIndex] = toolCall
+          } else {
+            message.toolCalls.push(toolCall)
+          }
+
+          updated[messageIndex] = { ...message }
+          return updated
         }
 
-        return prev;
-      });
+        return prev
+      })
     },
-    [],
-  );
+    []
+  )
 
   const handleToolCallOutputDelta = useCallback(
     (
       promptId: number,
       toolCallId: number,
-      stream: "stdout" | "stderr",
-      delta: string,
+      stream: 'stdout' | 'stderr',
+      delta: string
     ) => {
-      console.log("Tool call output delta:", toolCallId, stream, delta.length);
+      console.log('Tool call output delta:', toolCallId, stream, delta.length)
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const messageIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === promptId && m.type === 'assistant'
+        )
 
         if (messageIndex >= 0) {
-          const updated = [...prev];
-          const message = updated[messageIndex];
+          const updated = [...prev]
+          const message = updated[messageIndex]
 
           if (message.toolCalls) {
             const toolCallIndex = message.toolCalls.findIndex(
-              (tc) => tc.id === toolCallId.toString(),
-            );
+              tc => tc.id === toolCallId.toString()
+            )
             if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] };
+              const toolCall = { ...message.toolCalls[toolCallIndex] }
 
               // Initialize result if it doesn't exist
               if (!toolCall.result) {
-                toolCall.result = "";
+                toolCall.result = ''
               }
 
               // Append delta to result
-              if (typeof toolCall.result === "string") {
-                toolCall.result += delta;
+              if (typeof toolCall.result === 'string') {
+                toolCall.result += delta
               } else {
-                toolCall.result = delta;
+                toolCall.result = delta
               }
 
-              message.toolCalls[toolCallIndex] = toolCall;
+              message.toolCalls[toolCallIndex] = toolCall
             }
           }
 
-          updated[messageIndex] = { ...message };
-          return updated;
+          updated[messageIndex] = { ...message }
+          return updated
         }
 
-        return prev;
-      });
+        return prev
+      })
     },
-    [],
-  );
+    []
+  )
 
   const handleToolCallCompleted = useCallback(
     (promptId: number, toolCallId: number, exitCode: number) => {
-      console.log("Tool call completed:", toolCallId, "exit code:", exitCode);
+      console.log('Tool call completed:', toolCallId, 'exit code:', exitCode)
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const messageIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === promptId && m.type === 'assistant'
+        )
 
         if (messageIndex >= 0) {
-          const updated = [...prev];
-          const message = updated[messageIndex];
+          const updated = [...prev]
+          const message = updated[messageIndex]
 
           if (message.toolCalls) {
             const toolCallIndex = message.toolCalls.findIndex(
-              (tc) => tc.id === toolCallId.toString(),
-            );
+              tc => tc.id === toolCallId.toString()
+            )
             if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] };
-              toolCall.status = "completed";
-              toolCall.endTime = new Date().toISOString();
+              const toolCall = { ...message.toolCalls[toolCallIndex] }
+              toolCall.status = 'completed'
+              toolCall.endTime = new Date().toISOString()
 
-              message.toolCalls[toolCallIndex] = toolCall;
+              message.toolCalls[toolCallIndex] = toolCall
             }
           }
 
-          updated[messageIndex] = { ...message };
-          return updated;
+          updated[messageIndex] = { ...message }
+          return updated
         }
 
-        return prev;
-      });
+        return prev
+      })
     },
-    [],
-  );
+    []
+  )
 
   const handleToolCallError = useCallback(
     (promptId: number, toolCallId: number, error: string) => {
-      console.log("Tool call error:", toolCallId, error);
+      console.log('Tool call error:', toolCallId, error)
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const messageIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === promptId && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === promptId && m.type === 'assistant'
+        )
 
         if (messageIndex >= 0) {
-          const updated = [...prev];
-          const message = updated[messageIndex];
+          const updated = [...prev]
+          const message = updated[messageIndex]
 
           if (message.toolCalls) {
             const toolCallIndex = message.toolCalls.findIndex(
-              (tc) => tc.id === toolCallId.toString(),
-            );
+              tc => tc.id === toolCallId.toString()
+            )
             if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] };
-              toolCall.status = "error";
-              toolCall.error = error;
-              toolCall.endTime = new Date().toISOString();
+              const toolCall = { ...message.toolCalls[toolCallIndex] }
+              toolCall.status = 'error'
+              toolCall.error = error
+              toolCall.endTime = new Date().toISOString()
 
-              message.toolCalls[toolCallIndex] = toolCall;
+              message.toolCalls[toolCallIndex] = toolCall
             }
           }
 
-          updated[messageIndex] = { ...message };
-          return updated;
+          updated[messageIndex] = { ...message }
+          return updated
         }
 
-        return prev;
-      });
+        return prev
+      })
     },
-    [],
-  );
+    []
+  )
 
   const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
     handleTextDelta,
@@ -337,113 +336,109 @@ export function ConversationView({
     handleToolCallStarted,
     handleToolCallOutputDelta,
     handleToolCallCompleted,
-    handleToolCallError,
-  );
+    handleToolCallError
+  )
 
   // Sync internal state with conversation ID prop
   useEffect(() => {
-    console.log(
-      "ConversationView prop conversationId changed:",
-      conversationId,
-    );
-    setCurrentConversationId(conversationId || null);
-  }, [conversationId]);
+    console.log('ConversationView prop conversationId changed:', conversationId)
+    setCurrentConversationId(conversationId || null)
+  }, [conversationId])
 
   // Load conversation on mount or when ID changes
   useEffect(() => {
     console.log(
-      "ConversationView currentConversationId changed:",
-      currentConversationId,
-    );
+      'ConversationView currentConversationId changed:',
+      currentConversationId
+    )
     if (currentConversationId) {
       // Clear any existing error when switching conversations
-      setConversationError(null);
-      loadConversation(currentConversationId);
-      subscribe(currentConversationId);
+      setConversationError(null)
+      loadConversation(currentConversationId)
+      subscribe(currentConversationId)
     } else {
       // Clear messages and error when no conversation selected
-      setMessages([]);
-      setConversationError(null);
-      setConversationTitle("New Conversation");
+      setMessages([])
+      setConversationError(null)
+      setConversationTitle('New Conversation')
     }
-  }, [currentConversationId, subscribe]);
+  }, [currentConversationId, subscribe])
 
   const loadConversation = async (id: number) => {
     try {
-      setIsLoadingConversation(true);
-      setConversationError(null);
+      setIsLoadingConversation(true)
+      setConversationError(null)
 
-      console.log("Loading conversation:", id);
-      const result = await conversationService.getConversation(id);
+      console.log('Loading conversation:', id)
+      const result = await conversationService.getConversation(id)
 
       if (!result) {
-        throw new Error("Conversation not found");
+        throw new Error('Conversation not found')
       }
 
-      console.log("Backend messages raw data:", result.messages);
-      const formattedMessages = formatMessagesFromAPI(result.messages);
-      console.log("Formatted messages for UI:", formattedMessages);
-      setMessages(formattedMessages);
-      setConversationTitle(result.conversation.title || "Conversation");
+      console.log('Backend messages raw data:', result.messages)
+      const formattedMessages = formatMessagesFromAPI(result.messages)
+      console.log('Formatted messages for UI:', formattedMessages)
+      setMessages(formattedMessages)
+      setConversationTitle(result.conversation.title || 'Conversation')
 
       // Check for active streaming and restore streaming state
       if (!isStreaming) {
-        const activeStreamResult =
-          await conversationService.getActiveStream(id);
+        const activeStreamResult = await conversationService.getActiveStream(id)
         if (activeStreamResult.activeStream) {
           console.log(
-            "Active stream detected:",
-            activeStreamResult.activeStream,
-          );
-          await restoreActiveStream(activeStreamResult.activeStream);
+            'Active stream detected:',
+            activeStreamResult.activeStream
+          )
+          await restoreActiveStream(activeStreamResult.activeStream)
         }
       }
     } catch (error) {
-      console.error("Failed to load conversation:", error);
+      console.error('Failed to load conversation:', error)
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to load conversation";
-      setConversationError(errorMessage);
+        error instanceof Error ? error.message : 'Failed to load conversation'
+      setConversationError(errorMessage)
       // Don't clear messages on error - keep existing state
     } finally {
-      setIsLoadingConversation(false);
+      setIsLoadingConversation(false)
     }
-  };
+  }
 
   const retryLoadConversation = () => {
     if (currentConversationId) {
-      loadConversation(currentConversationId);
+      loadConversation(currentConversationId)
     }
-  };
+  }
 
   const formatUnknownValue = (value: unknown): string => {
-    if (value == null) return "";
-    if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "boolean") {
-      return value.toString();
+    if (value == null) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return value.toString()
     }
     try {
-      return JSON.stringify(value, null, 2);
+      return JSON.stringify(value, null, 2)
     } catch (error) {
-      console.warn("Failed to stringify value", error);
-      return String(value);
+      console.warn('Failed to stringify value', error)
+      return String(value)
     }
-  };
+  }
 
   const formatMessagesFromAPI = (apiMessages: ApiMessage[]): Message[] => {
-    return apiMessages.map((msg) => {
+    return apiMessages.map(msg => {
       // Combine text blocks for content
       const textContent =
         msg.blocks
-          ?.filter((b) => b.type === "text")
-          .map((b) => b.content || "")
-          .join("") || "";
+          ?.filter(b => b.type === 'text')
+          .map(b => b.content || '')
+          .join('') || ''
 
       // Process tool calls from blocks
-      const toolCalls: ToolCall[] = [];
-      const toolResults: ToolResult[] = [];
+      const toolCalls: ToolCall[] = []
+      const toolResults: ToolResult[] = []
 
       msg.blocks?.forEach((block: ApiBlock) => {
-        if (block.type === "tool_call" && block.toolCall) {
+        if (block.type === 'tool_call' && block.toolCall) {
           const toolCall: ToolCall = {
             id: block.toolCall.apiToolCallId || block.id.toString(),
             name: block.toolCall.toolName,
@@ -454,29 +449,29 @@ export function ConversationView({
             endTime: block.toolCall.completedAt,
             providerExecuted: block.toolCall.providerExecuted,
             dynamic: block.toolCall.dynamic,
-          };
+          }
 
-          if (toolCall.status === "completed") {
-            const resultString = formatUnknownValue(block.toolCall.response);
+          if (toolCall.status === 'completed') {
+            const resultString = formatUnknownValue(block.toolCall.response)
             const toolResult: ToolResult = {
               id: toolCall.id,
               name: toolCall.name,
               parameters: toolCall.parameters,
               output: toolCall.result,
-              status: "completed",
+              status: 'completed',
               startTime: toolCall.startTime,
               endTime: toolCall.endTime || toolCall.startTime,
               result: resultString,
               providerExecuted: toolCall.providerExecuted,
               dynamic: toolCall.dynamic,
-            };
+            }
 
-            toolResults.push(toolResult);
+            toolResults.push(toolResult)
           } else {
-            toolCalls.push(toolCall);
+            toolCalls.push(toolCall)
           }
         }
-      });
+      })
 
       return {
         id: msg.id.toString(),
@@ -489,166 +484,166 @@ export function ConversationView({
           promptId: msg.promptId,
           model: msg.model,
         },
-      };
-    });
-  };
+      }
+    })
+  }
 
   const mapToolCallState = (dbState: string) => {
     switch (dbState) {
-      case "created":
-        return "pending";
-      case "running":
-        return "running";
-      case "completed":
-        return "completed";
-      case "failed":
-      case "canceled":
-        return "error";
+      case 'created':
+        return 'pending'
+      case 'running':
+        return 'running'
+      case 'completed':
+        return 'completed'
+      case 'failed':
+      case 'canceled':
+        return 'error'
       default:
-        return "pending";
+        return 'pending'
     }
-  };
+  }
 
   const restoreActiveStream = async (activeStream: ActiveStream) => {
-    const { prompt, blocks } = activeStream;
+    const { prompt, blocks } = activeStream
 
-    console.log("Restoring active stream:", {
+    console.log('Restoring active stream:', {
       promptId: prompt.id,
       blockCount: blocks.length,
-    });
+    })
 
     // Build current content from streaming blocks
     const streamingContent = blocks
-      .filter((b) => b.type === "text")
-      .map((b) => b.content || "")
-      .join("");
+      .filter(b => b.type === 'text')
+      .map(b => b.content || '')
+      .join('')
 
     if (streamingContent) {
       // Add or update the assistant message with current streaming content
       const assistantMessage: Message = {
         id: `assistant-${prompt.id}`,
-        type: "assistant",
+        type: 'assistant',
         content: streamingContent,
         timestamp: prompt.createdAt,
         metadata: {
           promptId: prompt.id,
           model: prompt.model,
         },
-      };
+      }
 
-      setMessages((prev) => {
+      setMessages(prev => {
         // Check if we already have this assistant message
         const existingIndex = prev.findIndex(
-          (m) => m.metadata?.promptId === prompt.id && m.type === "assistant",
-        );
+          m => m.metadata?.promptId === prompt.id && m.type === 'assistant'
+        )
 
         if (existingIndex >= 0) {
           // Update existing message
-          const updated = [...prev];
-          updated[existingIndex] = assistantMessage;
-          return updated;
+          const updated = [...prev]
+          updated[existingIndex] = assistantMessage
+          return updated
         } else {
           // Add new assistant message
-          return [...prev, assistantMessage];
+          return [...prev, assistantMessage]
         }
-      });
+      })
     }
 
     // Set streaming state based on prompt state
-    if (prompt.state === "IN_PROGRESS") {
+    if (prompt.state === 'IN_PROGRESS') {
       // WebSocket should handle continued streaming
       console.log(
-        "Stream is actively IN_PROGRESS - WebSocket will handle updates",
-      );
-    } else if (prompt.state === "WAITING_FOR_TOOLS") {
-      console.log("Stream is waiting for tools - monitoring for completion");
+        'Stream is actively IN_PROGRESS - WebSocket will handle updates'
+      )
+    } else if (prompt.state === 'WAITING_FOR_TOOLS') {
+      console.log('Stream is waiting for tools - monitoring for completion')
       // Could add UI indicator for tool execution status
     } else {
       console.log(
-        `Stream in ${prompt.state} state - may need manual intervention`,
-      );
+        `Stream in ${prompt.state} state - may need manual intervention`
+      )
     }
-  };
+  }
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isStreaming) return;
+    if (!inputValue.trim() || isStreaming) return
 
     try {
-      let conversationIdToUse = currentConversationId;
+      let conversationIdToUse = currentConversationId
 
       // Create conversation if none exists
       if (!conversationIdToUse) {
-        const newConv = await conversationService.createConversation();
-        conversationIdToUse = newConv.id;
-        setCurrentConversationId(conversationIdToUse);
+        const newConv = await conversationService.createConversation()
+        conversationIdToUse = newConv.id
+        setCurrentConversationId(conversationIdToUse)
         // No need to call subscribe here - useEffect will handle it
-        onConversationCreate?.(conversationIdToUse);
+        onConversationCreate?.(conversationIdToUse)
       }
 
       // Add user message to UI
       const userMessage: Message = {
         id: `user-${Date.now()}`,
-        type: "user",
+        type: 'user',
         content: inputValue,
         timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
+      }
+      setMessages(prev => [...prev, userMessage])
 
       // Send message via WebSocket
-      sendMessage(conversationIdToUse, inputValue, selectedModel);
-      setInputValue("");
+      sendMessage(conversationIdToUse, inputValue, selectedModel)
+      setInputValue('')
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error('Failed to send message:', error)
     }
-  };
+  }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
     }
-  };
+  }
 
   const handleTitleEditStart = () => {
-    setIsEditingTitle(true);
-    setEditingTitle(conversationTitle);
-  };
+    setIsEditingTitle(true)
+    setEditingTitle(conversationTitle)
+  }
 
   const handleTitleEditSave = async () => {
-    if (!currentConversationId || editingTitle.trim() === "") {
-      return;
+    if (!currentConversationId || editingTitle.trim() === '') {
+      return
     }
 
     try {
       await conversationService.updateTitle(
         currentConversationId,
-        editingTitle.trim(),
-      );
-      setConversationTitle(editingTitle.trim());
-      setIsEditingTitle(false);
-      setEditingTitle("");
+        editingTitle.trim()
+      )
+      setConversationTitle(editingTitle.trim())
+      setIsEditingTitle(false)
+      setEditingTitle('')
       // Notify parent to refresh sidebar
-      onTitleUpdate?.();
+      onTitleUpdate?.()
     } catch (error) {
-      console.error("Failed to update conversation title:", error);
-      alert("Failed to update title. Please try again.");
+      console.error('Failed to update conversation title:', error)
+      alert('Failed to update title. Please try again.')
     }
-  };
+  }
 
   const handleTitleEditCancel = () => {
-    setIsEditingTitle(false);
-    setEditingTitle("");
-  };
+    setIsEditingTitle(false)
+    setEditingTitle('')
+  }
 
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleTitleEditSave();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      handleTitleEditCancel();
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleTitleEditSave()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleTitleEditCancel()
     }
-  };
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -661,7 +656,7 @@ export function ConversationView({
                   <input
                     type="text"
                     value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onChange={e => setEditingTitle(e.target.value)}
                     onKeyDown={handleTitleKeyDown}
                     className="font-semibold text-sm sm:text-base bg-transparent border-b border-accent focus:outline-none focus:border-primary min-w-0 flex-1"
                     autoFocus
@@ -687,15 +682,15 @@ export function ConversationView({
                 <div
                   onClick={
                     currentConversationId &&
-                    conversationTitle !== "New Conversation"
+                    conversationTitle !== 'New Conversation'
                       ? handleTitleEditStart
                       : undefined
                   }
                   className={`${
                     currentConversationId &&
-                    conversationTitle !== "New Conversation"
-                      ? "cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors"
-                      : ""
+                    conversationTitle !== 'New Conversation'
+                      ? 'cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors'
+                      : ''
                   }`}
                 >
                   <ConversationTitle
@@ -716,17 +711,15 @@ export function ConversationView({
               )}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              {messages.length} messages •{" "}
-              {isStreaming ? "AI is typing..." : "Ready"}
+              {messages.length} messages •{' '}
+              {isStreaming ? 'AI is typing...' : 'Ready'}
             </p>
             <select
               value={selectedModel}
-              onChange={(e) =>
-                setSelectedModel(e.target.value as SupportedModel)
-              }
+              onChange={e => setSelectedModel(e.target.value as SupportedModel)}
               className="text-xs bg-transparent border-none focus:outline-none text-muted-foreground"
             >
-              {Object.values(SUPPORTED_MODELS).map((model) => (
+              {Object.values(SUPPORTED_MODELS).map(model => (
                 <option key={model} value={model}>
                   {MODEL_DISPLAY_NAMES[model]}
                 </option>
@@ -767,7 +760,7 @@ export function ConversationView({
           {/* Messages */}
           {!isLoadingConversation &&
             !conversationError &&
-            messages.map((message) => (
+            messages.map(message => (
               <MessageBubble key={message.id} message={message} />
             ))}
         </div>
@@ -780,7 +773,7 @@ export function ConversationView({
           <Input
             placeholder="Type your message..."
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyPress}
             className="flex-1 text-sm"
             disabled={!isConnected || isStreaming}
@@ -796,5 +789,5 @@ export function ConversationView({
         </div>
       </div>
     </div>
-  );
+  )
 }

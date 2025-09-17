@@ -1,67 +1,67 @@
-import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
-import { ConversationView } from "@/components/chat/ConversationView";
-import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { ConversationSidebar } from '@/components/chat/ConversationSidebar'
+import { ConversationView } from '@/components/chat/ConversationView'
+import { Button } from '@/components/ui/button'
+import { Menu } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
 // Component for the conversation route
 function ConversationPage() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const conversationId = id ? Number.parseInt(id, 10) : undefined;
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const conversationId = id ? Number.parseInt(id, 10) : undefined
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Handle responsive behavior
   useEffect(() => {
     const checkIsDesktop = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
+      setIsDesktop(window.innerWidth >= 768)
+    }
 
-    checkIsDesktop();
-    window.addEventListener("resize", checkIsDesktop);
-    return () => window.removeEventListener("resize", checkIsDesktop);
-  }, []);
+    checkIsDesktop()
+    window.addEventListener('resize', checkIsDesktop)
+    return () => window.removeEventListener('resize', checkIsDesktop)
+  }, [])
 
   const handleConversationSelect = (conversationId: number) => {
-    console.log("App: Conversation selected:", conversationId);
-    navigate(`/conversation/${conversationId}`);
+    console.log('App: Conversation selected:', conversationId)
+    navigate(`/conversation/${conversationId}`)
     // Close sidebar on mobile after selection
     if (!isDesktop) {
-      setIsSidebarOpen(false);
+      setIsSidebarOpen(false)
     }
-  };
+  }
 
   const handleNewConversation = () => {
-    navigate("/");
+    navigate('/')
     // Close sidebar on mobile after creating new conversation
     if (!isDesktop) {
-      setIsSidebarOpen(false);
+      setIsSidebarOpen(false)
     }
-  };
+  }
 
   const handleConversationCreate = (conversationId: number) => {
-    navigate(`/conversation/${conversationId}`);
+    navigate(`/conversation/${conversationId}`)
     // Trigger sidebar refresh to show the new conversation
-    setRefreshTrigger((prev) => prev + 1);
-  };
+    setRefreshTrigger(prev => prev + 1)
+  }
 
   const handleConversationDelete = (deletedConversationId: number) => {
     // If we're currently viewing the deleted conversation, navigate to home
     if (conversationId === deletedConversationId) {
-      navigate("/");
+      navigate('/')
     }
     // Trigger sidebar refresh to remove the deleted conversation from the list
-    setRefreshTrigger((prev) => prev + 1);
-  };
+    setRefreshTrigger(prev => prev + 1)
+  }
 
   const handleTitleUpdate = () => {
     // Trigger sidebar refresh to show the updated title
-    setRefreshTrigger((prev) => prev + 1);
-  };
+    setRefreshTrigger(prev => prev + 1)
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -79,7 +79,7 @@ function ConversationPage() {
 
       {/* Sidebar */}
       <div
-        className={`${isSidebarOpen ? "fixed inset-0 z-50" : "hidden"} sm:relative sm:block sm:z-auto`}
+        className={`${isSidebarOpen ? 'fixed inset-0 z-50' : 'hidden'} sm:relative sm:block sm:z-auto`}
       >
         {/* Mobile backdrop */}
         {isSidebarOpen && (
@@ -112,7 +112,7 @@ function ConversationPage() {
         />
       </div>
     </div>
-  );
+  )
 }
 
 function App() {
@@ -121,7 +121,7 @@ function App() {
       <Route path="/" element={<ConversationPage />} />
       <Route path="/conversation/:id" element={<ConversationPage />} />
     </Routes>
-  );
+  )
 }
 
-export default App;
+export default App

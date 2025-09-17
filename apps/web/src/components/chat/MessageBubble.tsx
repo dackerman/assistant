@@ -1,37 +1,37 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import type { Message } from "@/types/conversation";
-import { Bot, Settings, User } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
-import rehypeRaw from "rehype-raw";
-import remarkGfm from "remark-gfm";
-import { ToolCallDisplay } from "./ToolCallDisplay";
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import type { Message } from '@/types/conversation'
+import { Bot, Settings, User } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import rehypeRaw from 'rehype-raw'
+import remarkGfm from 'remark-gfm'
+import { ToolCallDisplay } from './ToolCallDisplay'
 
 interface MessageBubbleProps {
-  message: Message;
+  message: Message
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
-  const isUser = message.type === "user";
-  const isSystem = message.type === "system";
+  const isUser = message.type === 'user'
+  const isSystem = message.type === 'system'
 
   const getAvatar = () => {
-    if (isUser) return <User className="w-3 h-3 sm:w-4 sm:h-4" />;
-    if (isSystem) return <Settings className="w-3 h-3 sm:w-4 sm:h-4" />;
-    return <Bot className="w-3 h-3 sm:w-4 sm:h-4" />;
-  };
+    if (isUser) return <User className="w-3 h-3 sm:w-4 sm:h-4" />
+    if (isSystem) return <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+    return <Bot className="w-3 h-3 sm:w-4 sm:h-4" />
+  }
 
   return (
     <div
-      className={`flex gap-2 sm:gap-3 ${isUser ? "flex-row-reverse" : "flex-row"} mb-4 sm:mb-6`}
+      className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} mb-4 sm:mb-6`}
     >
       <Avatar className="w-6 h-6 sm:w-8 sm:h-8 mt-1">
         <AvatarFallback
           className={`
-          ${isUser ? "bg-blue-500 text-white" : ""}
-          ${isSystem ? "bg-gray-500 text-white" : ""}
-          ${!isUser && !isSystem ? "bg-green-500 text-white" : ""}
+          ${isUser ? 'bg-blue-500 text-white' : ''}
+          ${isSystem ? 'bg-gray-500 text-white' : ''}
+          ${!isUser && !isSystem ? 'bg-green-500 text-white' : ''}
         `}
         >
           {getAvatar()}
@@ -39,11 +39,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       </Avatar>
 
       <div
-        className={`flex-1 max-w-[85%] sm:max-w-[80%] ${isUser ? "text-right" : "text-left"}`}
+        className={`flex-1 max-w-[85%] sm:max-w-[80%] ${isUser ? 'text-right' : 'text-left'}`}
       >
         <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
           <span className="text-xs sm:text-sm font-medium">
-            {isUser ? "You" : isSystem ? "System" : "Assistant"}
+            {isUser ? 'You' : isSystem ? 'System' : 'Assistant'}
           </span>
           <span className="text-xs text-muted-foreground">
             {new Date(message.timestamp).toLocaleTimeString()}
@@ -60,10 +60,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           message-content rounded-lg p-2 sm:p-3 text-sm leading-relaxed
           ${
             isUser
-              ? "bg-blue-500 text-white ml-auto"
+              ? 'bg-blue-500 text-white ml-auto'
               : isSystem
-                ? "bg-gray-100 text-gray-900"
-                : "bg-muted"
+                ? 'bg-gray-100 text-gray-900'
+                : 'bg-muted'
           }
         `}
         >
@@ -73,8 +73,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             components={{
               // Code blocks
               code: ({ className, children, ...props }) => {
-                const match = /language-(\w+)/.exec(className || "");
-                const isInline = !match;
+                const match = /language-(\w+)/.exec(className || '')
+                const isInline = !match
 
                 if (isInline) {
                   return (
@@ -84,17 +84,17 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     >
                       {children}
                     </code>
-                  );
+                  )
                 }
 
                 return (
                   <code
-                    className={`${className || ""} block overflow-x-auto text-xs font-mono`}
+                    className={`${className || ''} block overflow-x-auto text-xs font-mono`}
                     {...props}
                   >
                     {children}
                   </code>
-                );
+                )
               },
               // Pre blocks (for code)
               pre: ({ children }) => (
@@ -196,7 +196,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Tool Calls Display */}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-1 sm:mt-1.5 space-y-1 sm:space-y-1">
-            {message.toolCalls.map((toolCall) => (
+            {message.toolCalls.map(toolCall => (
               <ToolCallDisplay key={toolCall.id} toolCall={toolCall} />
             ))}
           </div>
@@ -205,7 +205,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Tool Results Display */}
         {message.toolResults && message.toolResults.length > 0 && (
           <div className="mt-2 space-y-2">
-            {message.toolResults.map((result) => (
+            {message.toolResults.map(result => (
               <div
                 key={result.id}
                 className="p-2 rounded border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
@@ -224,7 +224,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Tool Errors Display */}
         {message.toolErrors && message.toolErrors.length > 0 && (
           <div className="mt-2 space-y-2">
-            {message.toolErrors.map((error) => (
+            {message.toolErrors.map(error => (
               <div
                 key={error.id}
                 className="p-2 rounded border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
@@ -233,7 +233,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   Tool Error: {error.name}
                 </div>
                 <div className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
-                  {typeof error.error === "string"
+                  {typeof error.error === 'string'
                     ? error.error
                     : JSON.stringify(error.error)}
                 </div>
@@ -251,7 +251,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 className="p-2 rounded border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
               >
                 <div className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-1">
-                  Source: {source.sourceType || "Unknown"}
+                  Source: {source.sourceType || 'Unknown'}
                 </div>
                 {source.url && (
                   <a
@@ -287,7 +287,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 <div className="text-xs text-purple-700 dark:text-purple-300 mb-2">
                   Type: {file.mediaType}
                 </div>
-                {file.mediaType.startsWith("image/") ? (
+                {file.mediaType.startsWith('image/') ? (
                   <img
                     src={`data:${file.mediaType};base64,${file.base64}`}
                     alt="Generated image"
@@ -296,7 +296,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 ) : (
                   <a
                     href={`data:${file.mediaType};base64,${file.base64}`}
-                    download={`generated-file.${file.mediaType.split("/")[1] || "bin"}`}
+                    download={`generated-file.${file.mediaType.split('/')[1] || 'bin'}`}
                     className="text-xs text-purple-600 dark:text-purple-400 underline hover:no-underline"
                   >
                     Download File
@@ -327,5 +327,5 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
       </div>
     </div>
-  );
+  )
 }

@@ -1,28 +1,28 @@
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import { Pool } from "pg";
-import * as schema from "../db/schema";
+} from '@testcontainers/postgresql'
+import { type NodePgDatabase, drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
+import * as schema from '../db/schema'
 
-let container: StartedPostgreSqlContainer | null = null;
-let pool: Pool | null = null;
-export let testDb: NodePgDatabase<typeof schema>;
+let container: StartedPostgreSqlContainer | null = null
+let pool: Pool | null = null
+export let testDb: NodePgDatabase<typeof schema>
 
 export async function setupTestDatabase() {
   if (!container) {
-    container = await new PostgreSqlContainer("postgres:16-alpine")
-      .withDatabase("test_db")
-      .withUsername("test_user")
-      .withPassword("test_pass")
-      .start();
+    container = await new PostgreSqlContainer('postgres:16-alpine')
+      .withDatabase('test_db')
+      .withUsername('test_user')
+      .withPassword('test_pass')
+      .start()
   }
 
   pool = new Pool({
     connectionString: container.getConnectionUri(),
-  });
-  process.env.TEST_DATABASE_URL = container.getConnectionUri();
+  })
+  process.env.TEST_DATABASE_URL = container.getConnectionUri()
   await pool.query(`
     DROP TABLE IF EXISTS tool_calls CASCADE;
     DROP TABLE IF EXISTS prompt_events CASCADE;
@@ -409,19 +409,19 @@ export async function setupTestDatabase() {
       AFTER INSERT OR UPDATE ON prompts
       FOR EACH ROW
       EXECUTE FUNCTION notify_prompt_event();
-  `);
+  `)
 
-  testDb = drizzle(pool, { schema });
+  testDb = drizzle(pool, { schema })
 }
 
 export async function teardownTestDatabase() {
   if (pool) {
-    await pool.end();
-    pool = null;
+    await pool.end()
+    pool = null
   }
 
   if (container) {
-    await container.stop();
-    container = null;
+    await container.stop()
+    container = null
   }
 }

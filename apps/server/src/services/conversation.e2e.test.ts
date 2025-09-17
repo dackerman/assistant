@@ -1,15 +1,15 @@
-import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { toolCalls, users } from "../db/schema";
+import { sql } from 'drizzle-orm'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { toolCalls, users } from '../db/schema'
 import {
   createConversationServiceFixture,
   expectMessagesState,
-} from "../test/conversationServiceFixture";
-import { setupTestDatabase, teardownTestDatabase, testDb } from "../test/setup";
+} from '../test/conversationServiceFixture'
+import { setupTestDatabase, teardownTestDatabase, testDb } from '../test/setup'
 import {
   ConversationService,
   type ConversationStreamEvent,
-} from "./conversationService";
+} from './conversationService'
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -20,707 +20,709 @@ const truncateAll = async () => {
     TRUNCATE TABLE messages RESTART IDENTITY CASCADE;
     TRUNCATE TABLE conversations RESTART IDENTITY CASCADE;
     TRUNCATE TABLE users RESTART IDENTITY CASCADE;
-  `);
-};
+  `)
+}
 
 const waitFor = async (
   predicate: () => Promise<boolean>,
   attempts = 20,
-  delayMs = 25,
+  delayMs = 25
 ) => {
   for (let i = 0; i < attempts; i++) {
-    if (await predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (await predicate()) return
+    await new Promise(resolve => setTimeout(resolve, delayMs))
   }
-  throw new Error("Condition not met within timeout");
-};
+  throw new Error('Condition not met within timeout')
+}
 
-describe("ConversationService – createConversation", () => {
+describe('ConversationService – createConversation', () => {
   beforeAll(async () => {
-    await setupTestDatabase();
-  });
+    await setupTestDatabase()
+  })
 
   afterAll(async () => {
-    await teardownTestDatabase();
-  });
+    await teardownTestDatabase()
+  })
 
   beforeEach(async () => {
-    await truncateAll();
-  });
+    await truncateAll()
+  })
 
-  it("creates a conversation row for the provided user", async () => {
-    const service = new ConversationService(testDb);
+  it('creates a conversation row for the provided user', async () => {
+    const service = new ConversationService(testDb)
     const [user] = await testDb
       .insert(users)
-      .values({ email: "creator@example.com" })
-      .returning();
+      .values({ email: 'creator@example.com' })
+      .returning()
 
-    expect(user).toBeDefined();
+    expect(user).toBeDefined()
 
-    const title = "Project Sync";
-    const conversationId = await service.createConversation(user.id, title);
+    const title = 'Project Sync'
+    const conversationId = await service.createConversation(user.id, title)
 
-    const state = await service.getConversation(conversationId, user.id);
-    expect(state).not.toBeNull();
-    expect(state?.conversation.id).toBe(conversationId);
-    expect(state?.conversation.userId).toBe(user.id);
-    expect(state?.conversation.title).toBe(title);
+    const state = await service.getConversation(conversationId, user.id)
+    expect(state).not.toBeNull()
+    expect(state?.conversation.id).toBe(conversationId)
+    expect(state?.conversation.userId).toBe(user.id)
+    expect(state?.conversation.title).toBe(title)
     expect(
-      new Date(state?.conversation.createdAt ?? 0).getTime(),
-    ).toBeGreaterThan(0);
+      new Date(state?.conversation.createdAt ?? 0).getTime()
+    ).toBeGreaterThan(0)
     expect(
-      new Date(state?.conversation.updatedAt ?? 0).getTime(),
-    ).toBeGreaterThan(0);
-    expectMessagesState(state?.messages, []);
-  });
+      new Date(state?.conversation.updatedAt ?? 0).getTime()
+    ).toBeGreaterThan(0)
+    expectMessagesState(state?.messages, [])
+  })
 
-  it("queues the first user message and starts streaming", async () => {
+  it('queues the first user message and starts streaming', async () => {
     const streams = [
       [
         {
-          type: "message_start",
+          type: 'message_start',
           message: {
-            id: "msg_test",
-            role: "assistant",
+            id: 'msg_test',
+            role: 'assistant',
             content: [],
-            model: "claude-sonnet-4-20250514",
+            model: 'claude-sonnet-4-20250514',
             stop_reason: null,
             stop_sequence: null,
             usage: { input_tokens: 1, output_tokens: 0 },
           },
         },
         {
-          type: "content_block_start",
+          type: 'content_block_start',
           index: 0,
-          content_block: { type: "text", text: "" },
+          content_block: { type: 'text', text: '' },
         },
         {
-          type: "content_block_delta",
+          type: 'content_block_delta',
           index: 0,
-          delta: { type: "text_delta", text: "Hi!" },
+          delta: { type: 'text_delta', text: 'Hi!' },
         },
         {
-          type: "content_block_stop",
+          type: 'content_block_stop',
           index: 0,
         },
         {
-          type: "message_delta",
-          delta: { stop_reason: "end_turn", stop_sequence: null },
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn', stop_sequence: null },
           usage: { output_tokens: 1 },
         },
-        { type: "message_stop" },
+        { type: 'message_stop' },
       ],
-    ];
+    ]
 
-    const fixture = createConversationServiceFixture(testDb);
+    const fixture = createConversationServiceFixture(testDb)
     for (const events of streams) {
-      fixture.enqueueStream(events);
+      fixture.enqueueStream(events)
     }
 
-    const [user] = await fixture.insertUser("queue@example.com");
+    const [user] = await fixture.insertUser('queue@example.com')
     const conversationId = await fixture.conversationService.createConversation(
       user.id,
-      "Queue Test",
-    );
+      'Queue Test'
+    )
 
     await fixture.conversationService.queueMessage(
       conversationId,
-      "Hello there",
-    );
+      'Hello there'
+    )
 
     const state = await fixture.conversationService.getConversation(
       conversationId,
-      user.id,
-    );
+      user.id
+    )
 
-    expect(state).not.toBeNull();
+    expect(state).not.toBeNull()
     expectMessagesState(state?.messages, [
       {
-        role: "user",
-        status: "completed",
-        blocks: [{ type: "text", content: "Hello there" }],
+        role: 'user',
+        status: 'completed',
+        blocks: [{ type: 'text', content: 'Hello there' }],
       },
       {
-        role: "assistant",
-        status: "completed",
-        blocks: [{ type: "text", content: "Hi!" }],
+        role: 'assistant',
+        status: 'completed',
+        blocks: [{ type: 'text', content: 'Hi!' }],
       },
-    ]);
+    ])
 
-    expect(state?.conversation.activePromptId).toBeNull();
+    expect(state?.conversation.activePromptId).toBeNull()
 
     const activePrompt =
-      await fixture.conversationService.getActivePrompt(conversationId);
-    expect(activePrompt).toBeNull();
-  });
+      await fixture.conversationService.getActivePrompt(conversationId)
+    expect(activePrompt).toBeNull()
+  })
 
-  it("streams conversation events across prompts", async () => {
-    const fixture = createConversationServiceFixture(testDb);
+  it('streams conversation events across prompts', async () => {
+    const fixture = createConversationServiceFixture(testDb)
     const firstToolStream = fixture.enqueueStream([], {
       autoFinish: false,
-    });
+    })
     const firstTextStream = fixture.enqueueStream([], {
       autoFinish: false,
-    });
-    let secondToolStream: ReturnType<
-      typeof fixture.enqueueStream
-    > | null = null;
-    let secondTextStream: ReturnType<
-      typeof fixture.enqueueStream
-    > | null = null;
+    })
+    let secondToolStream: ReturnType<typeof fixture.enqueueStream> | null = null
+    let secondTextStream: ReturnType<typeof fixture.enqueueStream> | null = null
 
-    const [user] = await fixture.insertUser("stream@example.com");
+    const [user] = await fixture.insertUser('stream@example.com')
     const conversationId = await fixture.conversationService.createConversation(
       user.id,
-      "Streaming",
-    );
+      'Streaming'
+    )
 
     const stream = await fixture.conversationService.streamConversation(
       conversationId,
-      user.id,
-    );
+      user.id
+    )
 
-    expect(stream).not.toBeNull();
-    if (!stream) return;
+    expect(stream).not.toBeNull()
+    if (!stream) return
 
-    expect(stream.snapshot.conversation.id).toBe(conversationId);
-    expect(stream.snapshot.messages).toHaveLength(0);
+    expect(stream.snapshot.conversation.id).toBe(conversationId)
+    expect(stream.snapshot.messages).toHaveLength(0)
 
-    const iterator = stream.events[Symbol.asyncIterator]();
-    const events: ConversationStreamEvent[] = [];
+    const iterator = stream.events[Symbol.asyncIterator]()
+    const events: ConversationStreamEvent[] = []
 
     const nextEvent = async () => {
-      const { value, done } = await iterator.next();
-      expect(done).toBe(false);
-      expect(value).toBeDefined();
-      events.push(value);
-      return value as ConversationStreamEvent;
-    };
+      const { value, done } = await iterator.next()
+      expect(done).toBe(false)
+      expect(value).toBeDefined()
+      events.push(value)
+      return value as ConversationStreamEvent
+    }
 
-    const expectEvent = async <T extends ConversationStreamEvent["type"]>(
+    const expectEvent = async <T extends ConversationStreamEvent['type']>(
       type: T,
       assert?:
         | Extract<ConversationStreamEvent, { type: T }>
-        | ((event: Extract<ConversationStreamEvent, { type: T }>) => void),
+        | ((event: Extract<ConversationStreamEvent, { type: T }>) => void)
     ) => {
-      const typed = await nextEvent();
-      expect(typed.type).toBe(type);
-      if (typeof assert === "function") {
-        assert(typed as Extract<ConversationStreamEvent, { type: T }>);
+      const typed = await nextEvent()
+      expect(typed.type).toBe(type)
+      if (typeof assert === 'function') {
+        assert(typed as Extract<ConversationStreamEvent, { type: T }>)
       } else if (assert) {
-        expect(assert).toEqual(typed);
+        expect(assert).toEqual(typed)
       }
-      return typed as Extract<ConversationStreamEvent, { type: T }>;
-    };
+      return typed as Extract<ConversationStreamEvent, { type: T }>
+    }
 
-    const waitForEvent = async <T extends ConversationStreamEvent["type"]>(
+    const waitForEvent = async <T extends ConversationStreamEvent['type']>(
       type: T,
       assert?:
         | Extract<ConversationStreamEvent, { type: T }>
-        | ((event: Extract<ConversationStreamEvent, { type: T }>) => void),
+        | ((event: Extract<ConversationStreamEvent, { type: T }>) => void)
     ) => {
       while (true) {
-        const event = await nextEvent();
+        const event = await nextEvent()
         if (event.type !== type) {
-          continue;
+          continue
         }
-        if (typeof assert === "function") {
-          assert(event as Extract<ConversationStreamEvent, { type: T }>);
+        if (typeof assert === 'function') {
+          assert(event as Extract<ConversationStreamEvent, { type: T }>)
         } else if (assert) {
-          expect(assert).toEqual(event);
+          expect(assert).toEqual(event)
         }
-        return event as Extract<ConversationStreamEvent, { type: T }>;
+        return event as Extract<ConversationStreamEvent, { type: T }>
       }
-    };
+    }
 
-    let firstQueuePromise: Promise<number> | null = null;
-    let secondQueuePromise: Promise<number> | null = null;
+    let firstQueuePromise: Promise<number> | null = null
+    let secondQueuePromise: Promise<number> | null = null
 
     try {
       // First prompt
       firstQueuePromise = fixture.conversationService.queueMessage(
         conversationId,
-        "What's the weather in Tokyo?",
-      );
+        "What's the weather in Tokyo?"
+      )
 
-      await expectEvent("message-created", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.content).toBe("What's the weather in Tokyo?");
-      });
+      await expectEvent('message-created', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.content).toBe("What's the weather in Tokyo?")
+      })
 
-      await expectEvent("message-updated", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.status).toBe("processing");
-      });
+      await expectEvent('message-updated', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.status).toBe('processing')
+      })
 
-      await expectEvent("message-created", (event) => {
-        expect(event.message.role).toBe("assistant");
-        expect(event.message.status).toBe("processing");
-      });
+      await expectEvent('message-created', event => {
+        expect(event.message.role).toBe('assistant')
+        expect(event.message.status).toBe('processing')
+      })
 
-      await expectEvent("message-updated", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.status).toBe("completed");
-      });
+      await expectEvent('message-updated', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.status).toBe('completed')
+      })
 
-      const firstPromptStarted = await expectEvent("prompt-started");
+      const firstPromptStarted = await expectEvent('prompt-started')
 
       firstToolStream.push({
-        type: "message_start",
+        type: 'message_start',
         message: {
-          id: "prompt-1",
-          role: "assistant",
+          id: 'prompt-1',
+          role: 'assistant',
           content: [],
-          model: "claude-sonnet-4-20250514",
+          model: 'claude-sonnet-4-20250514',
           stop_reason: null,
           stop_sequence: null,
           usage: { input_tokens: 1, output_tokens: 0 },
         },
-      });
+      })
       firstToolStream.push({
-        type: "content_block_start",
+        type: 'content_block_start',
         index: 0,
         content_block: {
-          type: "tool_use",
-          id: "fake-tool-call-1",
-          name: "bash",
+          type: 'tool_use',
+          id: 'fake-tool-call-1',
+          name: 'bash',
         },
-      });
+      })
 
-      const firstToolBlockStart = await expectEvent("block-start", (event) => {
-        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.blockType).toBe("tool_use");
-      });
+      const firstToolBlockStart = await expectEvent('block-start', event => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id)
+        expect(event.blockType).toBe('tool_use')
+      })
 
-      await expectEvent("block-delta", (event) => {
-        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.blockId).toBe(firstToolBlockStart.blockId);
-        expect(event.content).toBe("Using bash tool...");
-      });
+      await expectEvent('block-delta', event => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id)
+        expect(event.blockId).toBe(firstToolBlockStart.blockId)
+        expect(event.content).toBe('Using bash tool...')
+      })
 
       firstToolStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
         delta: {
-          type: "input_json_delta",
+          type: 'input_json_delta',
           partial_json: '{"command":"weather --city tokyo',
         },
-      });
+      })
       firstToolStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
-        delta: { type: "input_json_delta", partial_json: '"}' },
-      });
-      firstToolStream.push({ type: "content_block_stop", index: 0 });
+        delta: { type: 'input_json_delta', partial_json: '"}' },
+      })
+      firstToolStream.push({ type: 'content_block_stop', index: 0 })
 
-      await expectEvent("block-end", (event) => {
-        expect(event.blockId).toBe(firstToolBlockStart.blockId);
-      });
+      await expectEvent('block-end', event => {
+        expect(event.blockId).toBe(firstToolBlockStart.blockId)
+      })
 
-      const firstToolStarted = await expectEvent("tool-call-started", (event) => {
-        expect(event.toolCall.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.input.command).toBe("weather --city tokyo");
-      });
+      const firstToolStarted = await expectEvent('tool-call-started', event => {
+        expect(event.toolCall.promptId).toBe(firstPromptStarted.prompt.id)
+        expect(event.input.command).toBe('weather --city tokyo')
+      })
 
-      await expectEvent("tool-call-progress", (event) => {
-        expect(event.toolCallId).toBe(firstToolStarted.toolCall.id);
-        expect(event.output).toBe("FAKE OUTPUT: weather --city tokyo");
-      });
+      await expectEvent('tool-call-progress', event => {
+        expect(event.toolCallId).toBe(firstToolStarted.toolCall.id)
+        expect(event.output).toBe('FAKE OUTPUT: weather --city tokyo')
+      })
 
-      await expectEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(firstToolStarted.toolCall.blockId);
-        expect(event.content).toBe("FAKE OUTPUT: weather --city tokyo");
-      });
+      await expectEvent('block-delta', event => {
+        expect(event.blockId).toBe(firstToolStarted.toolCall.blockId)
+        expect(event.content).toBe('FAKE OUTPUT: weather --city tokyo')
+      })
 
-      await expectEvent("tool-call-completed", (event) => {
-        expect(event.toolCall.id).toBe(firstToolStarted.toolCall.id);
-        expect(event.toolCall.output).toBe("FAKE OUTPUT: weather --city tokyo");
-      });
+      await expectEvent('tool-call-completed', event => {
+        expect(event.toolCall.id).toBe(firstToolStarted.toolCall.id)
+        expect(event.toolCall.output).toBe('FAKE OUTPUT: weather --city tokyo')
+      })
 
-      await expectEvent("block-end", (event) => {
-        expect(event.blockId).toBe(firstToolStarted.toolCall.blockId);
-      });
+      await expectEvent('block-end', event => {
+        expect(event.blockId).toBe(firstToolStarted.toolCall.blockId)
+      })
 
       firstToolStream.push({
-        type: "message_delta",
-        delta: { stop_reason: "tool_use", stop_sequence: null },
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use', stop_sequence: null },
         usage: { output_tokens: 0 },
-      });
-      firstToolStream.push({ type: "message_stop" });
-      firstToolStream.finish();
+      })
+      firstToolStream.push({ type: 'message_stop' })
+      firstToolStream.finish()
 
       firstTextStream.push({
-        type: "message_start",
+        type: 'message_start',
         message: {
-          id: "prompt-1-cont",
-          role: "assistant",
+          id: 'prompt-1-cont',
+          role: 'assistant',
           content: [],
-          model: "claude-sonnet-4-20250514",
+          model: 'claude-sonnet-4-20250514',
           stop_reason: null,
           stop_sequence: null,
           usage: { input_tokens: 1, output_tokens: 0 },
         },
-      });
+      })
       firstTextStream.push({
-        type: "content_block_start",
+        type: 'content_block_start',
         index: 0,
-        content_block: { type: "text", text: "" },
-      });
+        content_block: { type: 'text', text: '' },
+      })
 
-      const firstTextBlockStart = await expectEvent("block-start", (event) => {
-        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.blockType).toBe("text");
-      });
+      const firstTextBlockStart = await expectEvent('block-start', event => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id)
+        expect(event.blockType).toBe('text')
+      })
 
       firstTextStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
         delta: {
-          type: "text_delta",
-          text: "The weather report is above. ",
+          type: 'text_delta',
+          text: 'The weather report is above. ',
         },
-      });
+      })
 
-      await expectEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(firstTextBlockStart.blockId);
-        expect(event.content).toBe("The weather report is above. ");
-      });
+      await expectEvent('block-delta', event => {
+        expect(event.blockId).toBe(firstTextBlockStart.blockId)
+        expect(event.content).toBe('The weather report is above. ')
+      })
 
       const midConnectingStream =
         await fixture.conversationService.streamConversation(
           conversationId,
-          user.id,
-        );
+          user.id
+        )
       expect(normalizeData(midConnectingStream?.snapshot)).toMatchSnapshot(
-        "mid connecting snapshot",
-      );
-      midConnectingStream?.events.return?.(undefined);
+        'mid connecting snapshot'
+      )
+      midConnectingStream?.events.return?.(undefined)
 
-      const replayPrompt = await nextEvent();
-      expect(replayPrompt.type).toBe("prompt-started");
-      expect(replayPrompt.prompt.id).toBe(firstPromptStarted.prompt.id);
+      const replayPrompt = await nextEvent()
+      expect(replayPrompt.type).toBe('prompt-started')
+      expect(replayPrompt.prompt.id).toBe(firstPromptStarted.prompt.id)
 
-      let replayDeltaReceived = false;
+      let replayDeltaReceived = false
       while (!replayDeltaReceived) {
-        const replayEvent = await nextEvent();
-        if (replayEvent.type === "block-delta") {
-          expect(replayEvent.blockId).toBe(firstTextBlockStart.blockId);
-          expect(replayEvent.content).toBe("The weather report is above. ");
-          replayDeltaReceived = true;
+        const replayEvent = await nextEvent()
+        if (replayEvent.type === 'block-delta') {
+          expect(replayEvent.blockId).toBe(firstTextBlockStart.blockId)
+          expect(replayEvent.content).toBe('The weather report is above. ')
+          replayDeltaReceived = true
         }
       }
 
       firstTextStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
         delta: {
-          type: "text_delta",
-          text: "Let me know if you need more details.",
+          type: 'text_delta',
+          text: 'Let me know if you need more details.',
         },
-      });
+      })
 
-      await expectEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(firstTextBlockStart.blockId);
-        expect(event.content).toBe("Let me know if you need more details.");
-      });
+      await expectEvent('block-delta', event => {
+        expect(event.blockId).toBe(firstTextBlockStart.blockId)
+        expect(event.content).toBe('Let me know if you need more details.')
+      })
 
-      firstTextStream.push({ type: "content_block_stop", index: 0 });
+      firstTextStream.push({ type: 'content_block_stop', index: 0 })
 
-      await expectEvent("block-end", (event) => {
-        expect(event.blockId).toBe(firstTextBlockStart.blockId);
-      });
+      await expectEvent('block-end', event => {
+        expect(event.blockId).toBe(firstTextBlockStart.blockId)
+      })
 
       firstTextStream.push({
-        type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn', stop_sequence: null },
         usage: { output_tokens: 2 },
-      });
-      firstTextStream.push({ type: "message_stop" });
-      firstTextStream.finish();
+      })
+      firstTextStream.push({ type: 'message_stop' })
+      firstTextStream.finish()
 
-      await expectEvent("prompt-completed", (event) => {
-        expect(event.prompt.id).toBe(firstPromptStarted.prompt.id);
-      });
-      const postPromptEvent = await nextEvent();
-      if (postPromptEvent.type === "prompt-completed") {
-        expect(postPromptEvent.prompt.id).toBe(firstPromptStarted.prompt.id);
-        const afterReplay = await nextEvent();
-        expect(afterReplay.type).toBe("message-updated");
-        expect(afterReplay.message.role).toBe("assistant");
-        expect(afterReplay.message.status).toBe("completed");
+      await expectEvent('prompt-completed', event => {
+        expect(event.prompt.id).toBe(firstPromptStarted.prompt.id)
+      })
+      const postPromptEvent = await nextEvent()
+      if (postPromptEvent.type === 'prompt-completed') {
+        expect(postPromptEvent.prompt.id).toBe(firstPromptStarted.prompt.id)
+        const afterReplay = await nextEvent()
+        expect(afterReplay.type).toBe('message-updated')
+        expect(afterReplay.message.role).toBe('assistant')
+        expect(afterReplay.message.status).toBe('completed')
       } else {
-        expect(postPromptEvent.type).toBe("message-updated");
-        expect(postPromptEvent.message.role).toBe("assistant");
-        expect(postPromptEvent.message.status).toBe("completed");
+        expect(postPromptEvent.type).toBe('message-updated')
+        expect(postPromptEvent.message.role).toBe('assistant')
+        expect(postPromptEvent.message.status).toBe('completed')
       }
-      await firstQueuePromise;
+      await firstQueuePromise
 
       // Second prompt
-      secondToolStream = fixture.enqueueStream([], { autoFinish: false });
-      secondTextStream = fixture.enqueueStream([], { autoFinish: false });
+      secondToolStream = fixture.enqueueStream([], { autoFinish: false })
+      secondTextStream = fixture.enqueueStream([], { autoFinish: false })
       secondQueuePromise = fixture.conversationService.queueMessage(
         conversationId,
-        "Tell me a quick joke",
-      );
+        'Tell me a quick joke'
+      )
 
-      await waitForEvent("message-created", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.content).toBe("Tell me a quick joke");
-      });
-      await waitForEvent("message-updated", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.status).toBe("processing");
-      });
-      await waitForEvent("message-created", (event) => {
-        expect(event.message.role).toBe("assistant");
-        expect(event.message.status).toBe("processing");
-      });
-      await waitForEvent("message-updated", (event) => {
-        expect(event.message.role).toBe("user");
-        expect(event.message.status).toBe("completed");
-      });
+      await waitForEvent('message-created', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.content).toBe('Tell me a quick joke')
+      })
+      await waitForEvent('message-updated', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.status).toBe('processing')
+      })
+      await waitForEvent('message-created', event => {
+        expect(event.message.role).toBe('assistant')
+        expect(event.message.status).toBe('processing')
+      })
+      await waitForEvent('message-updated', event => {
+        expect(event.message.role).toBe('user')
+        expect(event.message.status).toBe('completed')
+      })
 
-      const secondPromptStarted = await waitForEvent("prompt-started");
+      const secondPromptStarted = await waitForEvent('prompt-started')
 
       secondToolStream.push({
-        type: "message_start",
+        type: 'message_start',
         message: {
-          id: "prompt-2",
-          role: "assistant",
+          id: 'prompt-2',
+          role: 'assistant',
           content: [],
-          model: "claude-sonnet-4-20250514",
+          model: 'claude-sonnet-4-20250514',
           stop_reason: null,
           stop_sequence: null,
           usage: { input_tokens: 1, output_tokens: 0 },
         },
-      });
+      })
       secondToolStream.push({
-        type: "content_block_start",
+        type: 'content_block_start',
         index: 0,
         content_block: {
-          type: "tool_use",
-          id: "fake-tool-call-2",
-          name: "bash",
+          type: 'tool_use',
+          id: 'fake-tool-call-2',
+          name: 'bash',
         },
-      });
+      })
 
-      const secondToolBlockStart = await waitForEvent("block-start", (event) => {
-        expect(event.promptId).toBe(secondPromptStarted.prompt.id);
-        expect(event.blockType).toBe("tool_use");
-      });
+      const secondToolBlockStart = await waitForEvent('block-start', event => {
+        expect(event.promptId).toBe(secondPromptStarted.prompt.id)
+        expect(event.blockType).toBe('tool_use')
+      })
 
-      await waitForEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(secondToolBlockStart.blockId);
-        expect(event.content).toBe("Using bash tool...");
-      });
+      await waitForEvent('block-delta', event => {
+        expect(event.blockId).toBe(secondToolBlockStart.blockId)
+        expect(event.content).toBe('Using bash tool...')
+      })
 
       secondToolStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
-        delta: { type: "input_json_delta", partial_json: '{"command":"tell me a joke' },
-      });
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"command":"tell me a joke',
+        },
+      })
       secondToolStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
-        delta: { type: "input_json_delta", partial_json: '"}' },
-      });
-      secondToolStream.push({ type: "content_block_stop", index: 0 });
+        delta: { type: 'input_json_delta', partial_json: '"}' },
+      })
+      secondToolStream.push({ type: 'content_block_stop', index: 0 })
 
-      await waitForEvent("block-end", (event) => {
-        expect(event.blockId).toBe(secondToolBlockStart.blockId);
-      });
+      await waitForEvent('block-end', event => {
+        expect(event.blockId).toBe(secondToolBlockStart.blockId)
+      })
 
-      const secondToolStarted = await waitForEvent("tool-call-started", (event) => {
-        expect(event.toolCall.promptId).toBe(secondPromptStarted.prompt.id);
-        expect(event.input.command).toBe("tell me a joke");
-      });
+      const secondToolStarted = await waitForEvent(
+        'tool-call-started',
+        event => {
+          expect(event.toolCall.promptId).toBe(secondPromptStarted.prompt.id)
+          expect(event.input.command).toBe('tell me a joke')
+        }
+      )
 
-      await waitForEvent("tool-call-progress", (event) => {
-        expect(event.toolCallId).toBe(secondToolStarted.toolCall.id);
-        expect(event.output).toBe("FAKE OUTPUT: tell me a joke");
-      });
+      await waitForEvent('tool-call-progress', event => {
+        expect(event.toolCallId).toBe(secondToolStarted.toolCall.id)
+        expect(event.output).toBe('FAKE OUTPUT: tell me a joke')
+      })
 
-      await waitForEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(secondToolStarted.toolCall.blockId);
-        expect(event.content).toBe("FAKE OUTPUT: tell me a joke");
-      });
+      await waitForEvent('block-delta', event => {
+        expect(event.blockId).toBe(secondToolStarted.toolCall.blockId)
+        expect(event.content).toBe('FAKE OUTPUT: tell me a joke')
+      })
 
-      await waitForEvent("tool-call-completed", (event) => {
-        expect(event.toolCall.id).toBe(secondToolStarted.toolCall.id);
-        expect(event.toolCall.output).toBe("FAKE OUTPUT: tell me a joke");
-      });
+      await waitForEvent('tool-call-completed', event => {
+        expect(event.toolCall.id).toBe(secondToolStarted.toolCall.id)
+        expect(event.toolCall.output).toBe('FAKE OUTPUT: tell me a joke')
+      })
 
-      await waitForEvent("block-end", (event) => {
-        expect(event.blockId).toBe(secondToolStarted.toolCall.blockId);
-      });
+      await waitForEvent('block-end', event => {
+        expect(event.blockId).toBe(secondToolStarted.toolCall.blockId)
+      })
 
       secondToolStream.push({
-        type: "message_delta",
-        delta: { stop_reason: "tool_use", stop_sequence: null },
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use', stop_sequence: null },
         usage: { output_tokens: 0 },
-      });
-      secondToolStream.push({ type: "message_stop" });
-      secondToolStream.finish();
+      })
+      secondToolStream.push({ type: 'message_stop' })
+      secondToolStream.finish()
 
       secondTextStream.push({
-        type: "message_start",
+        type: 'message_start',
         message: {
-          id: "prompt-2-cont",
-          role: "assistant",
+          id: 'prompt-2-cont',
+          role: 'assistant',
           content: [],
-          model: "claude-sonnet-4-20250514",
+          model: 'claude-sonnet-4-20250514',
           stop_reason: null,
           stop_sequence: null,
           usage: { input_tokens: 1, output_tokens: 0 },
         },
-      });
+      })
       secondTextStream.push({
-        type: "content_block_start",
+        type: 'content_block_start',
         index: 0,
-        content_block: { type: "text", text: "" },
-      });
+        content_block: { type: 'text', text: '' },
+      })
 
-      const secondTextBlockStart = await waitForEvent("block-start", (event) => {
-        expect(event.promptId).toBe(secondPromptStarted.prompt.id);
-        expect(event.blockType).toBe("text");
-      });
+      const secondTextBlockStart = await waitForEvent('block-start', event => {
+        expect(event.promptId).toBe(secondPromptStarted.prompt.id)
+        expect(event.blockType).toBe('text')
+      })
 
       secondTextStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
         delta: {
-          type: "text_delta",
+          type: 'text_delta',
           text: "Here's something funny: Why did the scarecrow win an award? ",
         },
-      });
+      })
 
-      await waitForEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(secondTextBlockStart.blockId);
+      await waitForEvent('block-delta', event => {
+        expect(event.blockId).toBe(secondTextBlockStart.blockId)
         expect(event.content).toBe(
-          "Here's something funny: Why did the scarecrow win an award? ",
-        );
-      });
+          "Here's something funny: Why did the scarecrow win an award? "
+        )
+      })
 
       secondTextStream.push({
-        type: "content_block_delta",
+        type: 'content_block_delta',
         index: 0,
         delta: {
-          type: "text_delta",
-          text: "Because he was outstanding in his field.",
+          type: 'text_delta',
+          text: 'Because he was outstanding in his field.',
         },
-      });
+      })
 
-      await waitForEvent("block-delta", (event) => {
-        expect(event.blockId).toBe(secondTextBlockStart.blockId);
-        expect(event.content).toBe("Because he was outstanding in his field.");
-      });
+      await waitForEvent('block-delta', event => {
+        expect(event.blockId).toBe(secondTextBlockStart.blockId)
+        expect(event.content).toBe('Because he was outstanding in his field.')
+      })
 
-      secondTextStream.push({ type: "content_block_stop", index: 0 });
+      secondTextStream.push({ type: 'content_block_stop', index: 0 })
 
-      await waitForEvent("block-end", (event) => {
-        expect(event.blockId).toBe(secondTextBlockStart.blockId);
-      });
+      await waitForEvent('block-end', event => {
+        expect(event.blockId).toBe(secondTextBlockStart.blockId)
+      })
 
       secondTextStream.push({
-        type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn', stop_sequence: null },
         usage: { output_tokens: 2 },
-      });
-      secondTextStream.push({ type: "message_stop" });
-      secondTextStream.finish();
+      })
+      secondTextStream.push({ type: 'message_stop' })
+      secondTextStream.finish()
 
-      await waitForEvent("prompt-completed", (event) => {
-        expect(event.prompt.id).toBe(secondPromptStarted.prompt.id);
-      });
-      await waitForEvent("message-updated", (event) => {
-        expect(event.message.role).toBe("assistant");
-        expect(event.message.status).toBe("completed");
-      });
-      await secondQueuePromise;
+      await waitForEvent('prompt-completed', event => {
+        expect(event.prompt.id).toBe(secondPromptStarted.prompt.id)
+      })
+      await waitForEvent('message-updated', event => {
+        expect(event.message.role).toBe('assistant')
+        expect(event.message.status).toBe('completed')
+      })
+      await secondQueuePromise
 
       const recordedToolCalls = await fixture.db
         .select()
         .from(toolCalls)
-        .orderBy(toolCalls.id);
+        .orderBy(toolCalls.id)
 
-      expect(recordedToolCalls).toHaveLength(2);
-      expect(recordedToolCalls.map((call) => call.state)).toEqual([
-        "completed",
-        "completed",
-      ]);
-      expect(recordedToolCalls.map((call) => call.output)).toEqual([
-        "FAKE OUTPUT: weather --city tokyo",
-        "FAKE OUTPUT: tell me a joke",
-      ]);
+      expect(recordedToolCalls).toHaveLength(2)
+      expect(recordedToolCalls.map(call => call.state)).toEqual([
+        'completed',
+        'completed',
+      ])
+      expect(recordedToolCalls.map(call => call.output)).toEqual([
+        'FAKE OUTPUT: weather --city tokyo',
+        'FAKE OUTPUT: tell me a joke',
+      ])
 
       const blockDeltas = events
-        .filter((event) => event.type === "block-delta")
-        .map((event) => "content" in event && event.content);
+        .filter(event => event.type === 'block-delta')
+        .map(event => 'content' in event && event.content)
 
       expect(blockDeltas).toEqual([
-        "Using bash tool...",
-        "FAKE OUTPUT: weather --city tokyo",
-        "The weather report is above. ",
-        "The weather report is above. ",
-        "Let me know if you need more details.",
-        "Using bash tool...",
-        "FAKE OUTPUT: tell me a joke",
+        'Using bash tool...',
+        'FAKE OUTPUT: weather --city tokyo',
+        'The weather report is above. ',
+        'The weather report is above. ',
+        'Let me know if you need more details.',
+        'Using bash tool...',
+        'FAKE OUTPUT: tell me a joke',
         "Here's something funny: Why did the scarecrow win an award? ",
-        "Because he was outstanding in his field.",
-      ]);
+        'Because he was outstanding in his field.',
+      ])
 
       expect(
-        events.filter((event) => event.type === "tool-call-started").length,
-      ).toBe(2);
+        events.filter(event => event.type === 'tool-call-started').length
+      ).toBe(2)
       expect(
-        events.filter((event) => event.type === "tool-call-completed").length,
-      ).toBe(2);
+        events.filter(event => event.type === 'tool-call-completed').length
+      ).toBe(2)
       expect(
-        events.filter((event) => event.type === "tool-call-progress").length,
-      ).toBe(2);
+        events.filter(event => event.type === 'tool-call-progress').length
+      ).toBe(2)
 
       expect(
-        events.filter((event) => event.type === "prompt-completed").length,
-      ).toBeGreaterThanOrEqual(2);
+        events.filter(event => event.type === 'prompt-completed').length
+      ).toBeGreaterThanOrEqual(2)
 
       expect(
         events.filter(
-          (event) =>
-            event.type === "message-created" && event.message.role === "user",
-        ).length,
-      ).toBeGreaterThanOrEqual(2);
+          event =>
+            event.type === 'message-created' && event.message.role === 'user'
+        ).length
+      ).toBeGreaterThanOrEqual(2)
       expect(
         events.filter(
-          (event) =>
-            event.type === "message-created" &&
-            event.message.role === "assistant",
-        ).length,
-      ).toBeGreaterThanOrEqual(2);
+          event =>
+            event.type === 'message-created' &&
+            event.message.role === 'assistant'
+        ).length
+      ).toBeGreaterThanOrEqual(2)
 
-      expect(normalizeData(events)).toMatchSnapshot("all events");
+      expect(normalizeData(events)).toMatchSnapshot('all events')
 
       // If a user connects to the stream after the conversation is complete, they should see the final state of the conversation
       const lateConnectingStream =
         await fixture.conversationService.streamConversation(
           conversationId,
-          user.id,
-        );
+          user.id
+        )
 
       expect(normalizeData(lateConnectingStream?.snapshot)).toMatchSnapshot(
-        "final snapshot",
-      );
-      lateConnectingStream?.events.return?.(undefined);
+        'final snapshot'
+      )
+      lateConnectingStream?.events.return?.(undefined)
     } finally {
-      firstToolStream.finish();
-      firstTextStream.finish();
-      secondToolStream?.finish();
-      secondTextStream?.finish();
-      await firstQueuePromise?.catch(() => undefined);
-      await secondQueuePromise?.catch(() => undefined);
-      await iterator.return?.(undefined);
+      firstToolStream.finish()
+      firstTextStream.finish()
+      secondToolStream?.finish()
+      secondTextStream?.finish()
+      await firstQueuePromise?.catch(() => undefined)
+      await secondQueuePromise?.catch(() => undefined)
+      await iterator.return?.(undefined)
     }
-  });
-});
+  })
+})
 
 /**
  * Recursively normalizes data for snapshots. Dates become "Any<Date>" and
@@ -733,32 +735,32 @@ describe("ConversationService – createConversation", () => {
  */
 function normalizeData(obj: unknown): unknown {
   if (obj instanceof Date) {
-    return "Any<Date>";
+    return 'Any<Date>'
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => normalizeData(item));
+    return obj.map(item => normalizeData(item))
   }
-  if (typeof obj === "object" && obj !== null) {
+  if (typeof obj === 'object' && obj !== null) {
     const entries = Object.entries(obj).map(([key, value]) => [
       key,
       normalizeData(value),
-    ]) as Array<[string, unknown]>;
+    ]) as Array<[string, unknown]>
 
     const rankKey = (key: string) => {
-      if (key === "id") return 0;
-      if (key === "type") return 1;
-      if (key.endsWith("Id") && key !== "id") return 2;
-      if (/(At|Date)$/i.test(key)) return 4;
-      return 3;
-    };
+      if (key === 'id') return 0
+      if (key === 'type') return 1
+      if (key.endsWith('Id') && key !== 'id') return 2
+      if (/(At|Date)$/i.test(key)) return 4
+      return 3
+    }
 
     entries.sort((a, b) => {
-      const rankDiff = rankKey(a[0]) - rankKey(b[0]);
-      if (rankDiff !== 0) return rankDiff;
-      return a[0].localeCompare(b[0]);
-    });
+      const rankDiff = rankKey(a[0]) - rankKey(b[0])
+      if (rankDiff !== 0) return rankDiff
+      return a[0].localeCompare(b[0])
+    })
 
-    return Object.fromEntries(entries);
+    return Object.fromEntries(entries)
   }
-  return obj;
+  return obj
 }

@@ -104,8 +104,8 @@ export const mockConversation: Conversation = {
           id: 'tool-4',
           name: 'bash',
           parameters: {
-            command: 'npm install -D eslint prettier @typescript-eslint/parser @typescript-eslint/eslint-plugin',
-            description: 'Install ESLint and Prettier'
+            command: 'npm install -D eslint @biomejs/biome @typescript-eslint/parser @typescript-eslint/eslint-plugin',
+            description: 'Install ESLint and Biome'
           },
           result: 'added 45 packages in 5.1s',
           status: 'completed',

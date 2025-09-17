@@ -1,10 +1,10 @@
-import { ConversationTitle } from "@/components/ui/ConversationTitle";
-import { Button } from "@/components/ui/button";
+import { ConversationTitle } from '@/components/ui/ConversationTitle'
+import { Button } from '@/components/ui/button'
 import {
-  conversationService,
   type ApiConversation,
-} from "@/services/conversationService";
-import type { Conversation } from "@/types/conversation";
+  conversationService,
+} from '@/services/conversationService'
+import type { Conversation } from '@/types/conversation'
 
 import {
   Check,
@@ -14,17 +14,17 @@ import {
   Trash2,
   X,
   X as XIcon,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface ConversationSidebarProps {
-  currentConversationId?: number;
-  onConversationSelect: (conversationId: number) => void;
-  onNewConversation: () => void;
-  onClose?: () => void;
-  isOpen: boolean;
-  refreshTrigger?: number; // Add this to trigger refresh when new conversations are created
-  onConversationDelete?: (conversationId: number) => void; // Add delete callback
+  currentConversationId?: number
+  onConversationSelect: (conversationId: number) => void
+  onNewConversation: () => void
+  onClose?: () => void
+  isOpen: boolean
+  refreshTrigger?: number // Add this to trigger refresh when new conversations are created
+  onConversationDelete?: (conversationId: number) => void // Add delete callback
 }
 
 export function ConversationSidebar({
@@ -36,195 +36,193 @@ export function ConversationSidebar({
   refreshTrigger,
   onConversationDelete,
 }: ConversationSidebarProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [titleAnimationTriggers, setTitleAnimationTriggers] = useState<
     Map<string, number>
-  >(new Map());
+  >(new Map())
   const [editingConversationId, setEditingConversationId] = useState<
     string | null
-  >(null);
-  const [editingTitle, setEditingTitle] = useState("");
+  >(null)
+  const [editingTitle, setEditingTitle] = useState('')
 
   // Load conversations
   useEffect(() => {
     if (isOpen) {
-      loadConversations();
+      loadConversations()
     }
-  }, [isOpen, refreshTrigger]);
+  }, [isOpen, refreshTrigger])
 
   const loadConversations = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      const result = await conversationService.listConversations();
+      setIsLoading(true)
+      setError(null)
+      const result = await conversationService.listConversations()
 
       // Transform backend format to frontend format
       const formattedConversations: Conversation[] = result.conversations.map(
         (conv: ApiConversation) => ({
           id: conv.id.toString(),
-          title: conv.title || "New Conversation",
+          title: conv.title || 'New Conversation',
           messages: [], // We don't need full messages for the sidebar
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
-        }),
-      );
+        })
+      )
 
       // Check for title changes and trigger animations
-      setConversations((prev) => {
-        const prevTitleMap = new Map(prev.map((c) => [c.id, c.title]));
-        const newTriggers = new Map(titleAnimationTriggers);
+      setConversations(prev => {
+        const prevTitleMap = new Map(prev.map(c => [c.id, c.title]))
+        const newTriggers = new Map(titleAnimationTriggers)
 
-        formattedConversations.forEach((conv) => {
-          const prevTitle = prevTitleMap.get(conv.id);
+        formattedConversations.forEach(conv => {
+          const prevTitle = prevTitleMap.get(conv.id)
           // Trigger animation if title changed from "New Conversation" to something else, or if it's different
           if (
             prevTitle &&
-            (prevTitle === "New Conversation" || prevTitle !== conv.title) &&
-            conv.title !== "New Conversation"
+            (prevTitle === 'New Conversation' || prevTitle !== conv.title) &&
+            conv.title !== 'New Conversation'
           ) {
             newTriggers.set(
               conv.id,
-              (titleAnimationTriggers.get(conv.id) || 0) + 1,
-            );
+              (titleAnimationTriggers.get(conv.id) || 0) + 1
+            )
           }
-        });
+        })
 
-        setTitleAnimationTriggers(newTriggers);
-        return formattedConversations;
-      });
+        setTitleAnimationTriggers(newTriggers)
+        return formattedConversations
+      })
     } catch (err) {
-      console.error("Failed to load conversations:", err);
-      setError("Failed to load conversations");
+      console.error('Failed to load conversations:', err)
+      setError('Failed to load conversations')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleConversationClick = (conversationId: string) => {
-    console.log("Sidebar: Conversation clicked:", conversationId);
-    onConversationSelect(Number(conversationId));
-  };
+    console.log('Sidebar: Conversation clicked:', conversationId)
+    onConversationSelect(Number(conversationId))
+  }
 
   const handleDeleteClick = async (
     conversationId: string,
-    e: React.MouseEvent,
+    e: React.MouseEvent
   ) => {
     // Stop propagation to prevent conversation selection
-    e.stopPropagation();
+    e.stopPropagation()
 
     const confirmed = window.confirm(
-      "Are you sure you want to delete this conversation? This action cannot be undone.",
-    );
-    if (!confirmed) return;
+      'Are you sure you want to delete this conversation? This action cannot be undone.'
+    )
+    if (!confirmed) return
 
     try {
-      await conversationService.deleteConversation(Number(conversationId));
+      await conversationService.deleteConversation(Number(conversationId))
 
       // Remove from local state
-      setConversations((prev) =>
-        prev.filter((conv) => conv.id !== conversationId),
-      );
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId))
 
       // Notify parent component about deletion
-      onConversationDelete?.(Number(conversationId));
+      onConversationDelete?.(Number(conversationId))
     } catch (error) {
-      console.error("Failed to delete conversation:", error);
-      alert("Failed to delete conversation. Please try again.");
+      console.error('Failed to delete conversation:', error)
+      alert('Failed to delete conversation. Please try again.')
     }
-  };
+  }
 
   const handleEditClick = (
     conversationId: string,
     currentTitle: string,
-    e: React.MouseEvent,
+    e: React.MouseEvent
   ) => {
-    e.stopPropagation(); // Prevent triggering conversation selection
-    setEditingConversationId(conversationId);
-    setEditingTitle(currentTitle);
-  };
+    e.stopPropagation() // Prevent triggering conversation selection
+    setEditingConversationId(conversationId)
+    setEditingTitle(currentTitle)
+  }
 
   const handleEditSave = async (
     conversationId: string,
-    e: React.MouseEvent | React.KeyboardEvent,
+    e: React.MouseEvent | React.KeyboardEvent
   ) => {
-    e.stopPropagation();
+    e.stopPropagation()
 
-    if (editingTitle.trim() === "") {
-      return; // Don't allow empty titles
+    if (editingTitle.trim() === '') {
+      return // Don't allow empty titles
     }
 
     try {
       // Update the conversation title via API
       await conversationService.updateTitle(
         Number.parseInt(conversationId),
-        editingTitle.trim(),
-      );
+        editingTitle.trim()
+      )
 
       // Update local state
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId ? { ...c, title: editingTitle.trim() } : c,
-        ),
-      );
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === conversationId ? { ...c, title: editingTitle.trim() } : c
+        )
+      )
 
       // Exit editing mode
-      setEditingConversationId(null);
-      setEditingTitle("");
+      setEditingConversationId(null)
+      setEditingTitle('')
     } catch (error) {
-      console.error("Failed to update conversation title:", error);
-      alert("Failed to update title. Please try again.");
+      console.error('Failed to update conversation title:', error)
+      alert('Failed to update title. Please try again.')
     }
-  };
+  }
 
   const handleEditCancel = (e: React.MouseEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
-    setEditingConversationId(null);
-    setEditingTitle("");
-  };
+    e.stopPropagation()
+    setEditingConversationId(null)
+    setEditingTitle('')
+  }
 
   const handleTitleKeyDown = (
     e: React.KeyboardEvent,
-    conversationId: string,
+    conversationId: string
   ) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleEditSave(conversationId, e);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      handleEditCancel(e);
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleEditSave(conversationId, e)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleEditCancel(e)
     }
-  };
+  }
 
   const truncateTitle = (title: string, maxLength = 30) => {
     return title.length > maxLength
-      ? title.substring(0, maxLength) + "..."
-      : title;
-  };
+      ? title.substring(0, maxLength) + '...'
+      : title
+  }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
     if (diffDays === 0) {
       return date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     } else if (diffDays === 1) {
-      return "Yesterday";
+      return 'Yesterday'
     } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
+      return `${diffDays} days ago`
     } else {
-      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
     }
-  };
+  }
 
   if (!isOpen) {
-    return null;
+    return null
   }
 
   return (
@@ -293,14 +291,14 @@ export function ConversationSidebar({
 
         {!isLoading && !error && conversations.length > 0 && (
           <div className="p-2">
-            {conversations.map((conversation) => (
+            {conversations.map(conversation => (
               <div
                 key={conversation.id}
                 onClick={() => handleConversationClick(conversation.id)}
                 className={`flex cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors hover:bg-accent group ${
                   currentConversationId?.toString() === conversation.id
-                    ? "bg-accent"
-                    : ""
+                    ? 'bg-accent'
+                    : ''
                 }`}
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -309,11 +307,11 @@ export function ConversationSidebar({
                     <input
                       type="text"
                       value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => handleTitleKeyDown(e, conversation.id)}
+                      onChange={e => setEditingTitle(e.target.value)}
+                      onKeyDown={e => handleTitleKeyDown(e, conversation.id)}
                       className="font-medium text-sm w-full bg-transparent border-b border-accent focus:outline-none focus:border-primary"
                       autoFocus
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={e => e.stopPropagation()}
                     />
                   ) : (
                     <ConversationTitle
@@ -334,7 +332,7 @@ export function ConversationSidebar({
                 {editingConversationId === conversation.id ? (
                   <div className="flex flex-shrink-0">
                     <Button
-                      onClick={(e) => handleEditSave(conversation.id, e)}
+                      onClick={e => handleEditSave(conversation.id, e)}
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 hover:bg-green-100 hover:text-green-600"
@@ -353,7 +351,7 @@ export function ConversationSidebar({
                 ) : (
                   <div className="flex flex-shrink-0">
                     <Button
-                      onClick={(e) =>
+                      onClick={e =>
                         handleEditClick(conversation.id, conversation.title, e)
                       }
                       variant="ghost"
@@ -363,7 +361,7 @@ export function ConversationSidebar({
                       <Pencil className="h-3 w-3" />
                     </Button>
                     <Button
-                      onClick={(e) => handleDeleteClick(conversation.id, e)}
+                      onClick={e => handleDeleteClick(conversation.id, e)}
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
@@ -378,5 +376,5 @@ export function ConversationSidebar({
         )}
       </div>
     </div>
-  );
+  )
 }

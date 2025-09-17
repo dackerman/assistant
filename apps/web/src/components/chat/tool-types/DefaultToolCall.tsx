@@ -1,13 +1,13 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ToolCall } from "@/types/conversation";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { formatInlineValue, formatMultilineValue } from "./utils";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { ToolCall } from '@/types/conversation'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { formatInlineValue, formatMultilineValue } from './utils'
 
 interface DefaultToolCallProps {
-  toolCall: ToolCall;
-  isExpanded: boolean;
-  onToggle: () => void;
-  statusIcon: React.ReactNode;
+  toolCall: ToolCall
+  isExpanded: boolean
+  onToggle: () => void
+  statusIcon: React.ReactNode
 }
 
 export function DefaultToolCall({
@@ -16,25 +16,25 @@ export function DefaultToolCall({
   onToggle,
   statusIcon,
 }: DefaultToolCallProps) {
-  const params = toolCall.parameters;
+  const params = toolCall.parameters
 
   const getSimpleDescription = () => {
     // For write commands, show the file path
-    if (toolCall.name === "write" && params.filePath !== undefined) {
-      return `Write to ${formatInlineValue(params.filePath)}`;
+    if (toolCall.name === 'write' && params.filePath !== undefined) {
+      return `Write to ${formatInlineValue(params.filePath)}`
     }
 
     // For other tools, show description if available, otherwise parameters
     if (params.description !== undefined && params.description !== null) {
-      return formatInlineValue(params.description);
+      return formatInlineValue(params.description)
     }
 
     // Fallback to showing the tool name with first parameter
-    const firstParam = Object.entries(params)[0];
+    const firstParam = Object.entries(params)[0]
     return firstParam
       ? `${firstParam[0]}: ${formatInlineValue(firstParam[1]).slice(0, 50)}...`
-      : "No parameters";
-  };
+      : 'No parameters'
+  }
 
   return (
     <Card className="border-l-4 border-l-purple-400">
@@ -95,5 +95,5 @@ export function DefaultToolCall({
         </CardContent>
       )}
     </Card>
-  );
+  )
 }
