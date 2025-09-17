@@ -13,6 +13,18 @@ interface StreamEvent {
   [key: string]: unknown;
 }
 
+/**
+ * Deterministic async stream used by tests to act as the Anthropic streaming source.
+ *
+ * The controller receives events via `push`, buffers them when no consumer is
+ * waiting, and hands them to the awaiting `next` call in FIFO order. `finish`
+ * flushes the waiting resolvers with `done: true` and prevents further pushes.
+ *
+ * The implementation mirrors an AsyncIterator interface so our fixture can hand
+ * it to `PromptService` exactly as if it were the provider SDK stream. Tests can
+ * therefore drive the stream by pushing events at specific times and assert that
+ * the service reacts correctly.
+ */
 class ControlledStream {
   private events: StreamEvent[] = [];
   private resolvers: ((result: IteratorResult<StreamEvent>) => void)[] = [];
