@@ -94,7 +94,32 @@ export type ConversationStreamEvent =
       promptId: number;
       messageId: number;
       blockId: number;
+    }
+  | {
+      type: "tool-call-started";
+      toolCall: ToolCall;
+      input: Record<string, unknown>;
+    }
+  | {
+      type: "tool-call-progress";
+      toolCallId: number;
+      blockId: number | null;
+      output: string;
+    }
+  | {
+      type: "tool-call-completed";
+      toolCall: ToolCall;
+    }
+  | {
+      type: "tool-call-failed";
+      toolCall: ToolCall;
+      error: string | null;
     };
+
+interface ConversationServiceOptions {
+  promptService?: PromptService;
+  logger?: Logger;
+}
 
 export class ConversationService {
   private db: DB;
@@ -105,10 +130,10 @@ export class ConversationService {
     Set<AsyncEventQueue<ConversationStreamEvent>>
   >();
 
-  constructor(dbInstance: DB = defaultDb) {
+  constructor(dbInstance: DB = defaultDb, options: ConversationServiceOptions = {}) {
     this.db = dbInstance;
-    this.logger = new Logger({ service: "ConversationService" });
-    this.promptService = new PromptService(dbInstance);
+    this.logger = options.logger ?? new Logger({ service: "ConversationService" });
+    this.promptService = options.promptService ?? new PromptService(dbInstance);
   }
 
   private addConversationStream(
@@ -517,6 +542,51 @@ export class ConversationService {
               blockId,
             });
           },
+          onToolStart: async (toolCallId, _name, input) => {
+            const record = await this.getToolCallWithPrompt(toolCallId);
+            if (!record || record.prompt.conversationId !== conversationId) {
+              return;
+            }
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "tool-call-started",
+              toolCall: record.toolCall,
+              input,
+            });
+          },
+          onToolProgress: async (toolCallId, output) => {
+            const record = await this.getToolCallWithPrompt(toolCallId);
+            if (!record || record.prompt.conversationId !== conversationId) {
+              return;
+            }
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "tool-call-progress",
+              toolCallId: record.toolCall.id,
+              blockId: record.toolCall.blockId ?? null,
+              output,
+            });
+          },
+          onToolEnd: async (toolCallId, output, success) => {
+            const record = await this.getToolCallWithPrompt(toolCallId);
+            if (!record || record.prompt.conversationId !== conversationId) {
+              return;
+            }
+
+            if (!success) {
+              this.broadcastConversationEvent(conversationId, {
+                type: "tool-call-failed",
+                toolCall: record.toolCall,
+                error: output || record.toolCall.error || null,
+              });
+              return;
+            }
+
+            this.broadcastConversationEvent(conversationId, {
+              type: "tool-call-completed",
+              toolCall: record.toolCall,
+            });
+          },
           onComplete: async (promptId) => {
             await this.handlePromptComplete(
               conversationId,
@@ -542,7 +612,19 @@ export class ConversationService {
         assistantMessageId,
         error,
       });
+      throw error;
     }
+  }
+
+  private async getToolCallWithPrompt(toolCallId: number) {
+    const [record] = await this.db
+      .select({ toolCall: toolCalls, prompt: prompts })
+      .from(toolCalls)
+      .innerJoin(prompts, eq(toolCalls.promptId, prompts.id))
+      .where(eq(toolCalls.id, toolCallId))
+      .limit(1);
+
+    return record ?? null;
   }
 
   /**

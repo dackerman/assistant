@@ -66,12 +66,23 @@ export interface CreatePromptParams {
 
 export interface StreamingCallbacks {
   onPromptCreated?: (promptId: number) => Promise<void> | void;
-  onBlockStart?: (blockId: number, type: string) => void;
-  onBlockDelta?: (blockId: number, content: string) => void;
-  onBlockEnd?: (blockId: number) => void;
-  onToolStart?: (toolCallId: number, name: string, input: ToolInput) => void;
-  onToolProgress?: (toolCallId: number, output: string) => void;
-  onToolEnd?: (toolCallId: number, output: string, success: boolean) => void;
+  onBlockStart?: (blockId: number, type: string) => Promise<void> | void;
+  onBlockDelta?: (blockId: number, content: string) => Promise<void> | void;
+  onBlockEnd?: (blockId: number) => Promise<void> | void;
+  onToolStart?: (
+    toolCallId: number,
+    name: string,
+    input: ToolInput,
+  ) => Promise<void> | void;
+  onToolProgress?: (
+    toolCallId: number,
+    output: string,
+  ) => Promise<void> | void;
+  onToolEnd?: (
+    toolCallId: number,
+    output: string,
+    success: boolean,
+  ) => Promise<void> | void;
   onComplete?: (promptId: number) => Promise<void> | void;
   onError?: (promptId: number | null, error: Error) => Promise<void> | void;
 }
@@ -435,7 +446,7 @@ export class PromptService {
 
               if (block) {
                 blockMap.set(event.index, block.id);
-                callbacks?.onBlockStart?.(block.id, "text");
+                await callbacks?.onBlockStart?.(block.id, "text");
               }
             } else if (event.content_block.type === "tool_use") {
               hasToolCalls = true;
@@ -464,7 +475,10 @@ export class PromptService {
                   input: "",
                 });
 
-                callbacks?.onBlockStart?.(block.id, "tool_use");
+                await callbacks?.onBlockStart?.(block.id, "tool_use");
+                if (block.content) {
+                  await callbacks?.onBlockDelta?.(block.id, block.content);
+                }
               }
             }
             break;
@@ -477,7 +491,7 @@ export class PromptService {
             if (event.delta.type === "text_delta") {
               // Update text block
               await this.updateBlockContent(blockId, event.delta.text, true);
-              callbacks?.onBlockDelta?.(blockId, event.delta.text);
+              await callbacks?.onBlockDelta?.(blockId, event.delta.text);
             } else if (event.delta.type === "input_json_delta") {
               // Accumulate tool input
               const toolData = toolInputs.get(event.index);
@@ -512,14 +526,28 @@ export class PromptService {
                   .returning();
 
                 if (toolCall) {
-                  callbacks?.onToolStart?.(
+                  await callbacks?.onToolStart?.(
                     toolCall.id,
                     toolData.toolName,
                     parsedInput,
                   );
 
-                  // Start tool execution
-                  await this.toolExecutor.executeToolCall(toolCall.id);
+                  try {
+                    // Start tool execution
+                    await this.toolExecutor.executeToolCall(toolCall.id);
+                  } catch (error) {
+                    const [failedTool] = await this.db
+                      .select()
+                      .from(toolCalls)
+                      .where(eq(toolCalls.id, toolCall.id));
+
+                    const failureOutput =
+                      failedTool?.error ||
+                      (error instanceof Error ? error.message : String(error));
+
+                    await callbacks?.onToolEnd?.(toolCall.id, failureOutput, false);
+                    throw error;
+                  }
 
                   // Get the result for continuation
                   const [completedTool] = await this.db
@@ -528,14 +556,24 @@ export class PromptService {
                     .where(eq(toolCalls.id, toolCall.id));
 
                   if (completedTool) {
+                    const outputText = completedTool.output || "";
+
                     toolResults.push({
                       tool_use_id: toolData.toolUseId,
-                      content: completedTool.output || "No output",
+                      content: outputText || "No output",
                     });
 
-                    callbacks?.onToolEnd?.(
+                    if (outputText) {
+                      await callbacks?.onToolProgress?.(
+                        toolCall.id,
+                        outputText,
+                      );
+                      await callbacks?.onBlockDelta?.(blockId, outputText);
+                    }
+
+                    await callbacks?.onToolEnd?.(
                       toolCall.id,
-                      completedTool.output || "",
+                      outputText,
                       completedTool.state === "completed",
                     );
                   }
@@ -548,7 +586,7 @@ export class PromptService {
               }
             }
 
-            callbacks?.onBlockEnd?.(blockId);
+            await callbacks?.onBlockEnd?.(blockId);
             break;
           }
 

@@ -1,13 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { expect } from "vitest";
 import type { DB } from "../db";
-import { type BlockType, users } from "../db/schema";
+import { blocks, toolCalls, type BlockType, users } from "../db/schema";
 import {
   ConversationService,
   type ConversationStreamEvent,
 } from "../services/conversationService";
 import { PromptService } from "../services/promptService";
+import { ToolExecutorService } from "../services/toolExecutorService";
 
 interface StreamEvent {
   [key: string]: unknown;
@@ -90,10 +91,80 @@ export function createConversationServiceFixture(db: DB) {
   const anthropicClient = new StubAnthropic(
     streamQueue,
   ) as unknown as Anthropic;
-  const conversationService = new ConversationService(db);
-  (
-    conversationService as unknown as { promptService: PromptService }
-  ).promptService = new PromptService(db, { anthropicClient });
+
+  const toolExecutor = new ToolExecutorService(db);
+  const executeToolCall = async (toolCallId: number) => {
+    const [toolCall] = await db
+      .select()
+      .from(toolCalls)
+      .where(eq(toolCalls.id, toolCallId));
+
+    if (!toolCall) {
+      throw new Error(`Tool call ${toolCallId} not found`);
+    }
+
+    const now = new Date();
+
+    await db
+      .update(toolCalls)
+      .set({
+        state: "executing",
+        startedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(toolCalls.id, toolCallId));
+
+    const rawInput = toolCall.input as Record<string, unknown> | null;
+    const commandValue = (() => {
+      if (!rawInput) return "";
+      const commandCandidate = rawInput["command"];
+      if (typeof commandCandidate === "string") {
+        return commandCandidate;
+      }
+      const queryCandidate = rawInput["query"];
+      if (typeof queryCandidate === "string") {
+        return queryCandidate;
+      }
+      return "";
+    })();
+
+    const output = commandValue
+      ? `FAKE OUTPUT: ${commandValue}`
+      : `FAKE OUTPUT FROM ${toolCall.name}`;
+
+    const completionTime = new Date();
+
+    await db
+      .update(toolCalls)
+      .set({
+        state: "completed",
+        output,
+        completedAt: completionTime,
+        updatedAt: completionTime,
+      })
+      .where(eq(toolCalls.id, toolCallId));
+
+    if (toolCall.blockId) {
+      await db
+        .update(blocks)
+        .set({
+          type: "tool_result",
+          content: output,
+          updatedAt: completionTime,
+        })
+        .where(eq(blocks.id, toolCall.blockId));
+    }
+  };
+
+  (toolExecutor as ToolExecutorService & {
+    executeToolCall(toolCallId: number): Promise<void>;
+  }).executeToolCall = executeToolCall;
+
+  const promptService = new PromptService(db, {
+    anthropicClient,
+    toolExecutor,
+  });
+  const conversationService = new ConversationService(db, { promptService });
 
   const truncateAll = async () => {
     await db.execute(sql`
@@ -202,7 +273,12 @@ export function expectBlockEvents(
   expected: BlockEventExpectation[],
 ) {
   const list = (actual ?? [])
-    .filter((event) => event.type !== "prompt-created")
+    .filter(
+      (event) =>
+        event.type === "block-start" ||
+        event.type === "block-delta" ||
+        event.type === "block-end",
+    )
     .map((event) => {
       if (event.type === "block-start") {
         return { type: "start", blockType: event.blockType };

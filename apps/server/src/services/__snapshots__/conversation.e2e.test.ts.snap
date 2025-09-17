@@ -86,23 +86,14 @@ Execute the commands and then explain the results in a helpful way.",
   },
   {
     "blockId": 2,
-    "blockType": "text",
+    "blockType": "tool_use",
     "messageId": 2,
     "promptId": 1,
     "type": "block-start",
   },
   {
     "blockId": 2,
-    "content": "Great Quest",
-    "messageId": 2,
-    "promptId": 1,
-    "type": "block-delta",
-  },
-  {
-    "blockId": 2,
-    "content": "ion!
-
-. It's sunny and 70 degrees.",
+    "content": "Using bash tool...",
     "messageId": 2,
     "promptId": 1,
     "type": "block-delta",
@@ -112,6 +103,231 @@ Execute the commands and then explain the results in a helpful way.",
     "messageId": 2,
     "promptId": 1,
     "type": "block-end",
+  },
+  {
+    "input": {
+      "command": "weather --city tokyo",
+    },
+    "toolCall": {
+      "apiToolCallId": "fake-tool-call-1",
+      "blockId": 2,
+      "completedAt": null,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "input": {
+        "command": "weather --city tokyo",
+      },
+      "lastHeartbeat": null,
+      "maxRetries": 3,
+      "name": "bash",
+      "output": null,
+      "pid": null,
+      "promptId": 1,
+      "retryCount": 0,
+      "startedAt": null,
+      "state": "pending",
+      "timeoutAt": null,
+      "timeoutSeconds": 300,
+      "updatedAt": "Any<Date>",
+    },
+    "type": "tool-call-started",
+  },
+  {
+    "blockId": 2,
+    "output": "FAKE OUTPUT: weather --city tokyo",
+    "toolCallId": 1,
+    "type": "tool-call-progress",
+  },
+  {
+    "blockId": 2,
+    "content": "FAKE OUTPUT: weather --city tokyo",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "toolCall": {
+      "apiToolCallId": "fake-tool-call-1",
+      "blockId": 2,
+      "completedAt": "Any<Date>",
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "input": {
+        "command": "weather --city tokyo",
+      },
+      "lastHeartbeat": null,
+      "maxRetries": 3,
+      "name": "bash",
+      "output": "FAKE OUTPUT: weather --city tokyo",
+      "pid": null,
+      "promptId": 1,
+      "retryCount": 0,
+      "startedAt": "Any<Date>",
+      "state": "completed",
+      "timeoutAt": null,
+      "timeoutSeconds": 300,
+      "updatedAt": "Any<Date>",
+    },
+    "type": "tool-call-completed",
+  },
+  {
+    "blockId": 2,
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-end",
+  },
+  {
+    "blockId": 3,
+    "blockType": "text",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-start",
+  },
+  {
+    "blockId": 3,
+    "content": "The weather report is above. ",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "prompt": {
+      "completedAt": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "messageId": 2,
+      "model": "claude-sonnet-4-20250514",
+      "request": {
+        "max_tokens": 50000,
+        "messages": [
+          {
+            "content": "What's the weather in Tokyo?",
+            "role": "user",
+          },
+        ],
+        "model": "claude-sonnet-4-20250514",
+        "stream": true,
+        "system": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+        "tools": [
+          {
+            "description": "Execute bash commands in a persistent shell session. Use this to run any command line operations, check files, install packages, etc.",
+            "input_schema": {
+              "properties": {
+                "command": {
+                  "description": "The bash command to execute",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "command",
+              ],
+              "type": "object",
+            },
+            "name": "bash",
+          },
+        ],
+      },
+      "response": null,
+      "status": "streaming",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-started",
+  },
+  {
+    "blockId": 2,
+    "blockType": "tool_result",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-start",
+  },
+  {
+    "blockId": 3,
+    "blockType": "text",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-start",
+  },
+  {
+    "blockId": 3,
+    "content": "The weather report is above. ",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 3,
+    "content": "Let me know if you need more details.",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 3,
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-end",
+  },
+  {
+    "prompt": {
+      "completedAt": "Any<Date>",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "messageId": 2,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "completed",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-completed",
   },
   {
     "prompt": {
@@ -158,6 +374,19 @@ Execute the commands and then explain the results in a helpful way.",
   },
   {
     "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 2,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "message": {
       "content": "Tell me a quick joke",
       "conversationId": 1,
       "createdAt": "Any<Date>",
@@ -168,6 +397,58 @@ Execute the commands and then explain the results in a helpful way.",
       "updatedAt": "Any<Date>",
     },
     "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "queued",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 4,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
   },
   {
     "message": {
@@ -239,21 +520,158 @@ Execute the commands and then explain the results in a helpful way.",
     "type": "prompt-started",
   },
   {
-    "blockId": 4,
+    "prompt": {
+      "completedAt": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "messageId": 4,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "streaming",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-started",
+  },
+  {
+    "blockId": 5,
+    "blockType": "tool_use",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-start",
+  },
+  {
+    "blockId": 5,
+    "content": "Using bash tool...",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 5,
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-end",
+  },
+  {
+    "blockId": 5,
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-end",
+  },
+  {
+    "input": {
+      "command": "tell me a joke",
+    },
+    "toolCall": {
+      "apiToolCallId": "fake-tool-call-2",
+      "blockId": 5,
+      "completedAt": null,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "input": {
+        "command": "tell me a joke",
+      },
+      "lastHeartbeat": null,
+      "maxRetries": 3,
+      "name": "bash",
+      "output": null,
+      "pid": null,
+      "promptId": 2,
+      "retryCount": 0,
+      "startedAt": null,
+      "state": "pending",
+      "timeoutAt": null,
+      "timeoutSeconds": 300,
+      "updatedAt": "Any<Date>",
+    },
+    "type": "tool-call-started",
+  },
+  {
+    "blockId": 5,
+    "output": "FAKE OUTPUT: tell me a joke",
+    "toolCallId": 2,
+    "type": "tool-call-progress",
+  },
+  {
+    "blockId": 5,
+    "content": "FAKE OUTPUT: tell me a joke",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-delta",
+  },
+  {
+    "toolCall": {
+      "apiToolCallId": "fake-tool-call-2",
+      "blockId": 5,
+      "completedAt": "Any<Date>",
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "input": {
+        "command": "tell me a joke",
+      },
+      "lastHeartbeat": null,
+      "maxRetries": 3,
+      "name": "bash",
+      "output": "FAKE OUTPUT: tell me a joke",
+      "pid": null,
+      "promptId": 2,
+      "retryCount": 0,
+      "startedAt": "Any<Date>",
+      "state": "completed",
+      "timeoutAt": null,
+      "timeoutSeconds": 300,
+      "updatedAt": "Any<Date>",
+    },
+    "type": "tool-call-completed",
+  },
+  {
+    "blockId": 5,
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-end",
+  },
+  {
+    "blockId": 6,
     "blockType": "text",
     "messageId": 4,
     "promptId": 2,
     "type": "block-start",
   },
   {
-    "blockId": 4,
-    "content": "Here is a joke.",
+    "blockId": 6,
+    "content": "Here's something funny: Why did the scarecrow win an award? ",
     "messageId": 4,
     "promptId": 2,
     "type": "block-delta",
   },
   {
-    "blockId": 4,
+    "blockId": 6,
+    "content": "Because he was outstanding in his field.",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 6,
     "messageId": 4,
     "promptId": 2,
     "type": "block-end",
@@ -287,6 +705,49 @@ For example:
 Execute the commands and then explain the results in a helpful way.",
     },
     "type": "prompt-completed",
+  },
+  {
+    "prompt": {
+      "completedAt": "Any<Date>",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "messageId": 4,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "completed",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-completed",
+  },
+  {
+    "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 4,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
   },
 ]
 `;
@@ -327,11 +788,45 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "Great Question!
-
-. It's sunny and 70 degrees.",
+          "content": "FAKE OUTPUT: weather --city tokyo",
           "createdAt": "Any<Date>",
           "id": 2,
+          "messageId": 2,
+          "metadata": {
+            "toolName": "bash",
+            "toolUseId": "fake-tool-call-1",
+          },
+          "order": 0,
+          "toolCall": {
+            "apiToolCallId": "fake-tool-call-1",
+            "blockId": 2,
+            "completedAt": "Any<Date>",
+            "createdAt": "Any<Date>",
+            "error": null,
+            "id": 1,
+            "input": {
+              "command": "weather --city tokyo",
+            },
+            "lastHeartbeat": null,
+            "maxRetries": 3,
+            "name": "bash",
+            "output": "FAKE OUTPUT: weather --city tokyo",
+            "pid": null,
+            "promptId": 1,
+            "retryCount": 0,
+            "startedAt": "Any<Date>",
+            "state": "completed",
+            "timeoutAt": null,
+            "timeoutSeconds": 300,
+            "updatedAt": "Any<Date>",
+          },
+          "type": "tool_result",
+          "updatedAt": "Any<Date>",
+        },
+        {
+          "content": "The weather report is above. Let me know if you need more details.",
+          "createdAt": "Any<Date>",
+          "id": 3,
           "messageId": 2,
           "metadata": null,
           "order": 0,
@@ -353,7 +848,7 @@ exports[`ConversationService – createConversation > streams conversation event
         {
           "content": "Tell me a quick joke",
           "createdAt": "Any<Date>",
-          "id": 3,
+          "id": 4,
           "messageId": 3,
           "metadata": null,
           "order": 0,
@@ -373,9 +868,45 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "Here is a joke.",
+          "content": "FAKE OUTPUT: tell me a joke",
           "createdAt": "Any<Date>",
-          "id": 4,
+          "id": 5,
+          "messageId": 4,
+          "metadata": {
+            "toolName": "bash",
+            "toolUseId": "fake-tool-call-2",
+          },
+          "order": 0,
+          "toolCall": {
+            "apiToolCallId": "fake-tool-call-2",
+            "blockId": 5,
+            "completedAt": "Any<Date>",
+            "createdAt": "Any<Date>",
+            "error": null,
+            "id": 2,
+            "input": {
+              "command": "tell me a joke",
+            },
+            "lastHeartbeat": null,
+            "maxRetries": 3,
+            "name": "bash",
+            "output": "FAKE OUTPUT: tell me a joke",
+            "pid": null,
+            "promptId": 2,
+            "retryCount": 0,
+            "startedAt": "Any<Date>",
+            "state": "completed",
+            "timeoutAt": null,
+            "timeoutSeconds": 300,
+            "updatedAt": "Any<Date>",
+          },
+          "type": "tool_result",
+          "updatedAt": "Any<Date>",
+        },
+        {
+          "content": "Here's something funny: Why did the scarecrow win an award? Because he was outstanding in his field.",
+          "createdAt": "Any<Date>",
+          "id": 6,
           "messageId": 4,
           "metadata": null,
           "order": 0,
@@ -432,9 +963,45 @@ exports[`ConversationService – createConversation > streams conversation event
     {
       "blocks": [
         {
-          "content": "Great Quest",
+          "content": "FAKE OUTPUT: weather --city tokyo",
           "createdAt": "Any<Date>",
           "id": 2,
+          "messageId": 2,
+          "metadata": {
+            "toolName": "bash",
+            "toolUseId": "fake-tool-call-1",
+          },
+          "order": 0,
+          "toolCall": {
+            "apiToolCallId": "fake-tool-call-1",
+            "blockId": 2,
+            "completedAt": "Any<Date>",
+            "createdAt": "Any<Date>",
+            "error": null,
+            "id": 1,
+            "input": {
+              "command": "weather --city tokyo",
+            },
+            "lastHeartbeat": null,
+            "maxRetries": 3,
+            "name": "bash",
+            "output": "FAKE OUTPUT: weather --city tokyo",
+            "pid": null,
+            "promptId": 1,
+            "retryCount": 0,
+            "startedAt": "Any<Date>",
+            "state": "completed",
+            "timeoutAt": null,
+            "timeoutSeconds": 300,
+            "updatedAt": "Any<Date>",
+          },
+          "type": "tool_result",
+          "updatedAt": "Any<Date>",
+        },
+        {
+          "content": "The weather report is above. ",
+          "createdAt": "Any<Date>",
+          "id": 3,
           "messageId": 2,
           "metadata": null,
           "order": 0,
