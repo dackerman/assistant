@@ -391,7 +391,7 @@ describe("ConversationService – createConversation", () => {
           conversationId,
           user.id,
         );
-      expect(normalizeDates(midConnectingStream?.snapshot)).toMatchSnapshot(
+      expect(normalizeData(midConnectingStream?.snapshot)).toMatchSnapshot(
         "mid connecting snapshot",
       );
       midConnectingStream?.events.return?.(undefined);
@@ -697,7 +697,7 @@ describe("ConversationService – createConversation", () => {
         ).length,
       ).toBeGreaterThanOrEqual(2);
 
-      expect(normalizeDates(events)).toMatchSnapshot("all events");
+      expect(normalizeData(events)).toMatchSnapshot("all events");
 
       // If a user connects to the stream after the conversation is complete, they should see the final state of the conversation
       const lateConnectingStream =
@@ -706,7 +706,7 @@ describe("ConversationService – createConversation", () => {
           user.id,
         );
 
-      expect(normalizeDates(lateConnectingStream?.snapshot)).toMatchSnapshot(
+      expect(normalizeData(lateConnectingStream?.snapshot)).toMatchSnapshot(
         "final snapshot",
       );
       lateConnectingStream?.events.return?.(undefined);
@@ -723,19 +723,42 @@ describe("ConversationService – createConversation", () => {
 });
 
 /**
- * Accepts any array or object and recursively replace any date properties with the string "Any<Date>"
+ * Recursively normalizes data for snapshots. Dates become "Any<Date>" and
+ * object keys are ordered using the custom precedence rules:
+ *   1) `id`
+ *   2) `type`
+ *   3) other keys ending in `Id` (alphabetical)
+ *   4) remaining keys alphabetically, with date-like keys (ending in `At` or
+ *      `Date`) sorted last.
  */
-function normalizeDates(obj: unknown) {
+function normalizeData(obj: unknown): unknown {
   if (obj instanceof Date) {
     return "Any<Date>";
   }
   if (Array.isArray(obj)) {
-    return obj.map(normalizeDates);
+    return obj.map((item) => normalizeData(item));
   }
   if (typeof obj === "object" && obj !== null) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [key, normalizeDates(value)]),
-    );
+    const entries = Object.entries(obj).map(([key, value]) => [
+      key,
+      normalizeData(value),
+    ]) as Array<[string, unknown]>;
+
+    const rankKey = (key: string) => {
+      if (key === "id") return 0;
+      if (key === "type") return 1;
+      if (key.endsWith("Id") && key !== "id") return 2;
+      if (/(At|Date)$/i.test(key)) return 4;
+      return 3;
+    };
+
+    entries.sort((a, b) => {
+      const rankDiff = rankKey(a[0]) - rankKey(b[0]);
+      if (rankDiff !== 0) return rankDiff;
+      return a[0].localeCompare(b[0]);
+    });
+
+    return Object.fromEntries(entries);
   }
   return obj;
 }
