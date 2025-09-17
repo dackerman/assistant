@@ -7,7 +7,10 @@ import type { RawData, WebSocket } from "ws";
 import "dotenv/config";
 
 import { ConversationService } from "./src/services/conversationService";
+import { PromptService } from "./src/services/promptService";
 import { ToolExecutorService } from "./src/services/toolExecutorService";
+import { BashSessionManager } from "./src/services/bashSessionManager";
+import { createBashTool } from "./src/services/tools/bashTool";
 import { logger } from "./src/utils/logger";
 
 const app = new Hono();
@@ -22,7 +25,20 @@ const anthropic = new Anthropic({
   apiKey: anthropicApiKey,
 });
 
-const conversationService = new ConversationService();
+const bashSessionManager = new BashSessionManager();
+const toolExecutorService = new ToolExecutorService(undefined, [
+  createBashTool(bashSessionManager),
+]);
+toolExecutorService.initialize();
+
+const promptService = new PromptService(undefined, {
+  anthropicClient: anthropic,
+  toolExecutor: toolExecutorService,
+});
+
+const conversationService = new ConversationService(undefined, {
+  promptService,
+});
 
 // Enable CORS for frontend
 app.use(
@@ -333,10 +349,6 @@ function broadcast(conversationId: number, payload: OutgoingMessage) {
     payloadSize: data.length,
   });
 }
-
-// Initialize ToolExecutorService
-const toolExecutorService = new ToolExecutorService();
-toolExecutorService.initialize();
 
 wss.on("connection", (ws: WebSocket) => {
   const wsId = Math.random().toString(36).substring(7);

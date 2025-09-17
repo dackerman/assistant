@@ -18,7 +18,10 @@ import {
   toolCalls,
 } from "../db/schema";
 import { Logger } from "../utils/logger";
-import { ToolExecutorService } from "./toolExecutorService";
+import {
+  ToolExecutorService,
+  type ToolDefinition,
+} from "./toolExecutorService";
 import { AsyncEventQueue } from "../utils/asyncEventQueue";
 
 // Types for tool handling
@@ -90,6 +93,7 @@ export interface StreamingCallbacks {
 interface PromptServiceOptions {
   anthropicClient?: Anthropic;
   toolExecutor?: ToolExecutorService;
+  tools?: ToolDefinition[];
   logger?: Logger;
 }
 
@@ -107,8 +111,12 @@ export class PromptService {
   constructor(dbInstance: DB = defaultDb, options: PromptServiceOptions = {}) {
     this.db = dbInstance;
     this.logger = options.logger ?? new Logger({ service: "PromptService" });
-    this.toolExecutor =
-      options.toolExecutor ?? new ToolExecutorService(dbInstance);
+    if (options.toolExecutor) {
+      this.toolExecutor = options.toolExecutor;
+    } else {
+      const tools = options.tools ?? [];
+      this.toolExecutor = new ToolExecutorService(dbInstance, tools);
+    }
     this.client = options.anthropicClient;
   }
 

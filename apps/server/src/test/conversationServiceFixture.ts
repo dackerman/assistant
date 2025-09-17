@@ -1,14 +1,15 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { expect } from "vitest";
 import type { DB } from "../db";
-import { blocks, toolCalls, type BlockType, users } from "../db/schema";
+import { type BlockType, users } from "../db/schema";
 import {
   ConversationService,
   type ConversationStreamEvent,
 } from "../services/conversationService";
 import { PromptService } from "../services/promptService";
 import { ToolExecutorService } from "../services/toolExecutorService";
+import { createTestTool } from "./tools/testTool";
 
 interface StreamEvent {
   [key: string]: unknown;
@@ -92,77 +93,9 @@ export function createConversationServiceFixture(db: DB) {
     streamQueue,
   ) as unknown as Anthropic;
 
-  const toolExecutor = new ToolExecutorService(db);
-  const executeToolCall = async (toolCallId: number) => {
-    const [toolCall] = await db
-      .select()
-      .from(toolCalls)
-      .where(eq(toolCalls.id, toolCallId));
-
-    if (!toolCall) {
-      throw new Error(`Tool call ${toolCallId} not found`);
-    }
-
-    const now = new Date();
-
-    await db
-      .update(toolCalls)
-      .set({
-        state: "executing",
-        startedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(toolCalls.id, toolCallId));
-
-    const rawInput = toolCall.input as Record<string, unknown> | null;
-    const commandValue = (() => {
-      if (!rawInput) return "";
-      const commandCandidate = rawInput["command"];
-      if (typeof commandCandidate === "string") {
-        return commandCandidate;
-      }
-      const queryCandidate = rawInput["query"];
-      if (typeof queryCandidate === "string") {
-        return queryCandidate;
-      }
-      return "";
-    })();
-
-    const output = commandValue
-      ? `FAKE OUTPUT: ${commandValue}`
-      : `FAKE OUTPUT FROM ${toolCall.name}`;
-
-    const completionTime = new Date();
-
-    await db
-      .update(toolCalls)
-      .set({
-        state: "completed",
-        output,
-        completedAt: completionTime,
-        updatedAt: completionTime,
-      })
-      .where(eq(toolCalls.id, toolCallId));
-
-    if (toolCall.blockId) {
-      await db
-        .update(blocks)
-        .set({
-          type: "tool_result",
-          content: output,
-          updatedAt: completionTime,
-        })
-        .where(eq(blocks.id, toolCall.blockId));
-    }
-  };
-
-  (toolExecutor as ToolExecutorService & {
-    executeToolCall(toolCallId: number): Promise<void>;
-  }).executeToolCall = executeToolCall;
-
   const promptService = new PromptService(db, {
     anthropicClient,
-    toolExecutor,
+    toolExecutor: new ToolExecutorService(db, [createTestTool()]),
   });
   const conversationService = new ConversationService(db, { promptService });
 
