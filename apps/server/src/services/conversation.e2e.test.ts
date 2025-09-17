@@ -260,12 +260,36 @@ describe("ConversationService – createConversation", () => {
       firstStreamController.push({
         type: "content_block_delta",
         index: 0,
-        delta: { type: "text_delta", text: "Partial..." },
+        delta: { type: "text_delta", text: "Great Quest" },
       });
+
+      // Events stream in before blocks are finished
+      await expectEvent("block-start", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+      });
+      await expectEvent("block-delta", (event) => {
+        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
+        expect(event.content).toBe("Great Quest");
+      });
+
+      // If a user connects to the stream at this point, the snapshot will show a partial block
+      const midConnectingStream =
+        await fixture.conversationService.streamConversation(
+          conversationId,
+          user.id,
+        );
+      expect(normalizeDates(midConnectingStream?.snapshot)).toMatchSnapshot(
+        "mid connecting snapshot",
+      );
+      midConnectingStream?.events.return?.(undefined);
+
       firstStreamController.push({
         type: "content_block_delta",
         index: 0,
-        delta: { type: "text_delta", text: "More details on weather." },
+        delta: {
+          type: "text_delta",
+          text: `ion!\n\n. It's sunny and 70 degrees.`,
+        },
       });
 
       firstStreamController.push({ type: "content_block_stop", index: 0 });
@@ -277,16 +301,9 @@ describe("ConversationService – createConversation", () => {
       firstStreamController.push({ type: "message_stop" });
       firstStreamController.finish();
 
-      await expectEvent("block-start", (event) => {
-        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-      });
       await expectEvent("block-delta", (event) => {
         expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.content).toBe("Partial...");
-      });
-      await expectEvent("block-delta", (event) => {
-        expect(event.promptId).toBe(firstPromptStarted.prompt.id);
-        expect(event.content).toBe("More details on weather.");
+        expect(event.content).toBe("ion!\n\n. It's sunny and 70 degrees.");
       });
       await expectEvent("block-end", (event) => {
         expect(event.promptId).toBe(firstPromptStarted.prompt.id);
@@ -375,11 +392,11 @@ describe("ConversationService – createConversation", () => {
 
       const blockDeltas = events
         .filter((event) => event.type === "block-delta")
-        .map((event) => event.content);
+        .map((event) => "content" in event && event.content);
 
       expect(blockDeltas).toEqual([
-        "Partial...",
-        "More details on weather.",
+        "Great Quest",
+        "ion!\n\n. It's sunny and 70 degrees.",
         "Here is a joke.",
       ]);
 
@@ -401,7 +418,7 @@ describe("ConversationService – createConversation", () => {
         ).length,
       ).toBe(2);
 
-      expect(normalizeDates(events)).toMatchSnapshot();
+      expect(normalizeDates(events)).toMatchSnapshot("all events");
 
       // If a user connects to the stream after the conversation is complete, they should see the final state of the conversation
       const lateConnectingStream =
@@ -410,7 +427,9 @@ describe("ConversationService – createConversation", () => {
           user.id,
         );
 
-      expect(normalizeDates(lateConnectingStream?.snapshot)).toMatchSnapshot();
+      expect(normalizeDates(lateConnectingStream?.snapshot)).toMatchSnapshot(
+        "final snapshot",
+      );
       lateConnectingStream?.events.return?.(undefined);
     } finally {
       firstStreamController.finish();
