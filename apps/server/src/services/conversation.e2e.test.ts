@@ -400,12 +400,42 @@ describe("ConversationService – createConversation", () => {
             event.message.role === "assistant",
         ).length,
       ).toBe(2);
+
+      expect(normalizeDates(events)).toMatchSnapshot();
+
+      // If a user connects to the stream after the conversation is complete, they should see the final state of the conversation
+      const lateConnectingStream =
+        await fixture.conversationService.streamConversation(
+          conversationId,
+          user.id,
+        );
+
+      expect(normalizeDates(lateConnectingStream?.snapshot)).toMatchSnapshot();
+      lateConnectingStream?.events.return?.(undefined);
     } finally {
       firstStreamController.finish();
       secondStreamController?.finish();
       await firstQueuePromise?.catch(() => undefined);
       await secondQueuePromise?.catch(() => undefined);
-      await iterator.return?.();
+      await iterator.return?.(undefined);
     }
   });
 });
+
+/**
+ * Accepts any array or object and recursively replace any date properties with the string "Any<Date>"
+ */
+function normalizeDates(obj: unknown) {
+  if (obj instanceof Date) {
+    return "Any<Date>";
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(normalizeDates);
+  }
+  if (typeof obj === "object" && obj !== null) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, normalizeDates(value)]),
+    );
+  }
+  return obj;
+}

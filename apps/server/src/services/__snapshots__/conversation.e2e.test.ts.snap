@@ -1,0 +1,393 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ConversationService – createConversation > streams conversation events across prompts 1`] = `
+[
+  {
+    "message": {
+      "content": "What's the weather in Tokyo?",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 1,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "queued",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "What's the weather in Tokyo?",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 1,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 2,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "What's the weather in Tokyo?",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 1,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "prompt": {
+      "completedAt": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "messageId": 2,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "streaming",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-started",
+  },
+  {
+    "blockId": 2,
+    "blockType": "text",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-start",
+  },
+  {
+    "blockId": 2,
+    "content": "Partial...",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 2,
+    "content": "More details on weather.",
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 2,
+    "messageId": 2,
+    "promptId": 1,
+    "type": "block-end",
+  },
+  {
+    "prompt": {
+      "completedAt": "Any<Date>",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 1,
+      "messageId": 2,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "completed",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-completed",
+  },
+  {
+    "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 2,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "queued",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "message": {
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 4,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "processing",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-created",
+  },
+  {
+    "message": {
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    "type": "message-updated",
+  },
+  {
+    "prompt": {
+      "completedAt": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "messageId": 4,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "streaming",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-started",
+  },
+  {
+    "blockId": 4,
+    "blockType": "text",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-start",
+  },
+  {
+    "blockId": 4,
+    "content": "Here is a joke.",
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-delta",
+  },
+  {
+    "blockId": 4,
+    "messageId": 4,
+    "promptId": 2,
+    "type": "block-end",
+  },
+  {
+    "prompt": {
+      "completedAt": "Any<Date>",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "error": null,
+      "id": 2,
+      "messageId": 4,
+      "model": "claude-sonnet-4-20250514",
+      "request": null,
+      "response": null,
+      "status": "completed",
+      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
+- List files or directories
+- Run commands  
+- Check system information
+- Execute scripts
+- Perform any system operations
+
+Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
+
+For example:
+- "list files" or "what files are here" → use bash tool with "ls" command
+- "current directory" → use bash tool with "pwd" command  
+- "check disk space" → use bash tool with "df -h" command
+
+Execute the commands and then explain the results in a helpful way.",
+    },
+    "type": "prompt-completed",
+  },
+]
+`;
+
+exports[`ConversationService – createConversation > streams conversation events across prompts 2`] = `
+{
+  "conversation": {
+    "activePromptId": null,
+    "createdAt": "Any<Date>",
+    "id": 1,
+    "title": "Streaming",
+    "updatedAt": "Any<Date>",
+    "userId": 1,
+  },
+  "messages": [
+    {
+      "blocks": [
+        {
+          "content": "What's the weather in Tokyo?",
+          "createdAt": "Any<Date>",
+          "id": 1,
+          "messageId": 1,
+          "metadata": null,
+          "order": 0,
+          "type": "text",
+          "updatedAt": "Any<Date>",
+        },
+      ],
+      "content": "What's the weather in Tokyo?",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 1,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    {
+      "blocks": [
+        {
+          "content": "Partial...More details on weather.",
+          "createdAt": "Any<Date>",
+          "id": 2,
+          "messageId": 2,
+          "metadata": null,
+          "order": 0,
+          "type": "text",
+          "updatedAt": "Any<Date>",
+        },
+      ],
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 2,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    {
+      "blocks": [
+        {
+          "content": "Tell me a quick joke",
+          "createdAt": "Any<Date>",
+          "id": 3,
+          "messageId": 3,
+          "metadata": null,
+          "order": 0,
+          "type": "text",
+          "updatedAt": "Any<Date>",
+        },
+      ],
+      "content": "Tell me a quick joke",
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 3,
+      "queueOrder": 1,
+      "role": "user",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+    {
+      "blocks": [
+        {
+          "content": "Here is a joke.",
+          "createdAt": "Any<Date>",
+          "id": 4,
+          "messageId": 4,
+          "metadata": null,
+          "order": 0,
+          "type": "text",
+          "updatedAt": "Any<Date>",
+        },
+      ],
+      "content": null,
+      "conversationId": 1,
+      "createdAt": "Any<Date>",
+      "id": 4,
+      "queueOrder": null,
+      "role": "assistant",
+      "status": "completed",
+      "updatedAt": "Any<Date>",
+    },
+  ],
+}
+`;
