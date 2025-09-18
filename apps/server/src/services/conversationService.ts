@@ -1149,8 +1149,7 @@ export class ConversationService {
    */
   async createUserMessage(
     conversationId: number,
-    content: string,
-    model = 'claude-sonnet-4-20250514'
+    content: string
   ): Promise<{ userMessageId: number; promptId: number }> {
     // Queue the message and get the response
     const userMessageId = await this.queueMessage(conversationId, content)

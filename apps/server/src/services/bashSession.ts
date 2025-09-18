@@ -321,7 +321,7 @@ export class BashSession implements BashSessionLike {
         // Destroy the PTY process
         try {
           this.ptyProcess?.kill()
-        } catch (e) {
+        } catch {
           // Ignore errors during kill
         }
 
@@ -344,7 +344,7 @@ export class BashSession implements BashSessionLike {
       // Try graceful termination first
       try {
         this.ptyProcess.write('exit\n')
-      } catch (e) {
+      } catch {
         // If write fails, just kill it
         cleanup()
       }

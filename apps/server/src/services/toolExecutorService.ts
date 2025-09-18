@@ -45,7 +45,6 @@ export interface ToolExecutorConfig {
 export class ToolExecutorService {
   private db: DB
   private logger: Logger
-  private config: Required<ToolExecutorConfig>
   private tools: Map<string, ToolDefinition<unknown>>
 
   constructor(

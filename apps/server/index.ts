@@ -97,7 +97,7 @@ app.post('/api/conversations', async c => {
 })
 
 app.get('/api/conversations/:id', async c => {
-  const conversationId = Number.parseInt(c.req.param('id'))
+  const conversationId = Number.parseInt(c.req.param('id'), 10)
   const userId = 1 // TODO: Get from auth
 
   const conversation = await conversationService.getConversation(
@@ -113,7 +113,7 @@ app.get('/api/conversations/:id', async c => {
 })
 
 app.get('/api/conversations/:id/stream', async c => {
-  const conversationId = Number.parseInt(c.req.param('id'))
+  const conversationId = Number.parseInt(c.req.param('id'), 10)
 
   const activeStream = await conversationService.getActiveStream(conversationId)
 
@@ -121,7 +121,7 @@ app.get('/api/conversations/:id/stream', async c => {
 })
 
 app.post('/api/conversations/:id/messages', async c => {
-  const conversationId = Number.parseInt(c.req.param('id'))
+  const conversationId = Number.parseInt(c.req.param('id'), 10)
   const body = await c.req.json()
 
   // Validate model if provided
@@ -154,7 +154,7 @@ app.get('/api/conversations', async c => {
 })
 
 app.delete('/api/conversations/:id', async c => {
-  const conversationId = Number.parseInt(c.req.param('id'))
+  const conversationId = Number.parseInt(c.req.param('id'), 10)
   const userId = 1 // TODO: Get from auth
 
   try {
@@ -167,7 +167,7 @@ app.delete('/api/conversations/:id', async c => {
 })
 
 app.put('/api/conversations/:id', async c => {
-  const conversationId = Number.parseInt(c.req.param('id'))
+  const conversationId = Number.parseInt(c.req.param('id'), 10)
   const userId = 1 // TODO: Get from auth
 
   try {

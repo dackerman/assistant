@@ -25,7 +25,9 @@
         "recommended": true
       },
       "suspicious": {
-        "recommended": true
+        "recommended": true,
+        "noArrayIndexKey": "off",
+        "noUnknownAtRules": "off"
       }
     }
   },

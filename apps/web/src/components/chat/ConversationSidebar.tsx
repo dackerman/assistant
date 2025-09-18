@@ -7,7 +7,7 @@ import {
   X,
   X as XIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ConversationTitle } from '@/components/ui/ConversationTitle'
 import {
@@ -22,7 +22,6 @@ interface ConversationSidebarProps {
   onNewConversation: () => void
   onClose?: () => void
   isOpen: boolean
-  refreshTrigger?: number // Add this to trigger refresh when new conversations are created
   onConversationDelete?: (conversationId: number) => void // Add delete callback
 }
 
@@ -32,7 +31,6 @@ export function ConversationSidebar({
   onNewConversation,
   onClose,
   isOpen,
-  refreshTrigger,
   onConversationDelete,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -46,14 +44,7 @@ export function ConversationSidebar({
   >(null)
   const [editingTitle, setEditingTitle] = useState('')
 
-  // Load conversations
-  useEffect(() => {
-    if (isOpen) {
-      loadConversations()
-    }
-  }, [isOpen, refreshTrigger])
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
@@ -99,7 +90,14 @@ export function ConversationSidebar({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [conversationService, titleAnimationTriggers])
+
+  // Load conversations
+  useEffect(() => {
+    if (isOpen) {
+      loadConversations()
+    }
+  }, [isOpen, loadConversations])
 
   const handleConversationClick = (conversationId: string) => {
     console.log('Sidebar: Conversation clicked:', conversationId)
@@ -155,7 +153,7 @@ export function ConversationSidebar({
     try {
       // Update the conversation title via API
       await conversationService.updateTitle(
-        Number.parseInt(conversationId),
+        Number.parseInt(conversationId, 10),
         editingTitle.trim()
       )
 

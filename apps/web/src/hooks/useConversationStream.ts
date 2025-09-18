@@ -21,7 +21,6 @@ interface UseConversationStreamOptions {
   conversationId: number | null
   userId: number | null
   client: ConversationStreamClient
-  reloadKey?: number
 }
 
 interface UseConversationStreamResult {
@@ -340,7 +339,6 @@ export function useConversationStream({
   conversationId,
   userId,
   client,
-  reloadKey,
 }: UseConversationStreamOptions): UseConversationStreamResult {
   const [internalState, setInternalState] =
     useState<InternalConversationState | null>(null)
@@ -423,7 +421,7 @@ export function useConversationStream({
       iteratorRef.current = null
       setIsStreaming(false)
     }
-  }, [conversationId, userId, client, reloadKey])
+  }, [conversationId, userId, client])
 
   useEffect(() => {
     if (!internalState) {

@@ -23,18 +23,6 @@ const truncateAll = async () => {
   `)
 }
 
-const waitFor = async (
-  predicate: () => Promise<boolean>,
-  attempts = 20,
-  delayMs = 25
-) => {
-  for (let i = 0; i < attempts; i++) {
-    if (await predicate()) return
-    await new Promise(resolve => setTimeout(resolve, delayMs))
-  }
-  throw new Error('Condition not met within timeout')
-}
-
 describe('ConversationService – createConversation', () => {
   beforeAll(async () => {
     await setupTestDatabase()

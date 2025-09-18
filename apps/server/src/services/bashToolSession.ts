@@ -12,7 +12,7 @@ export class BashToolSession implements ToolSession {
   private bashSession?: BashSession
   private logger: Logger
 
-  constructor(private readonly parentLogger: Logger) {
+  constructor(readonly parentLogger: Logger) {
     this.logger = parentLogger.child({
       service: 'BashToolSession',
     })
