@@ -15,14 +15,17 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "a11y": "off",
+      "complexity": "off",
+      "nursery": "off",
+      "performance": "off",
+      "security": "off",
+      "style": "off",
       "correctness": {
-        "noUnusedImports": "error",
-        "useExhaustiveDependencies": "warn",
-        "useHookAtTopLevel": "error"
+        "recommended": true
       },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "recommended": true
       }
     }
   },

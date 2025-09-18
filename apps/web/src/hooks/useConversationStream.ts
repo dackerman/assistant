@@ -3,10 +3,10 @@ import type { Message } from '@/types/conversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
-  SnapshotBlock,
-  SnapshotMessage,
-  SnapshotConversation,
   ConversationStreamPayload,
+  SnapshotBlock,
+  SnapshotConversation,
+  SnapshotMessage,
 } from '@/types/streaming'
 
 interface ConversationStreamClient {

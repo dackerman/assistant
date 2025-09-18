@@ -8,15 +8,15 @@ import 'dotenv/config'
 
 import { db as defaultDb } from './src/db'
 import { BashSessionManager } from './src/services/bashSessionManager'
+import type {
+  ConversationState,
+  ConversationStreamEvent,
+} from './src/services/conversationService'
 import { ConversationService } from './src/services/conversationService'
 import { PromptService } from './src/services/promptService'
 import { ToolExecutorService } from './src/services/toolExecutorService'
 import { createBashTool } from './src/services/tools/bashTool'
 import { logger } from './src/utils/logger'
-import type {
-  ConversationState,
-  ConversationStreamEvent,
-} from './src/services/conversationService'
 
 const app = new Hono()
 
@@ -31,10 +31,9 @@ const anthropic = new Anthropic({
 })
 
 const bashSessionManager = new BashSessionManager()
-const toolExecutorService = new ToolExecutorService(
-  defaultDb,
-  [createBashTool(bashSessionManager)]
-)
+const toolExecutorService = new ToolExecutorService(defaultDb, [
+  createBashTool(bashSessionManager),
+])
 toolExecutorService.initialize()
 
 const promptService = new PromptService(undefined, {

@@ -18,8 +18,8 @@ import {
   type SupportedModel,
 } from '@/constants/models'
 import { useConversationStream } from '@/hooks/useConversationStream'
-import { conversationStreamClient } from '@/services/conversationStreamClient'
 import { conversationService } from '@/services/conversationService'
+import { conversationStreamClient } from '@/services/conversationStreamClient'
 import type { Message } from '@/types/conversation'
 import { MessageBubble } from './MessageBubble'
 
@@ -309,8 +309,9 @@ export function ConversationView({
             </div>
           )}
 
-          {!isLoadingConversation && !conversationError && (
-            messages.length > 0 ? (
+          {!isLoadingConversation &&
+            !conversationError &&
+            (messages.length > 0 ? (
               messages.map((message: Message) => (
                 <MessageBubble key={message.id} message={message} />
               ))
@@ -318,8 +319,7 @@ export function ConversationView({
               <div className="text-sm text-muted-foreground py-8 text-center">
                 Start a conversation by sending a message.
               </div>
-            )
-          )}
+            ))}
         </div>
       </div>
 

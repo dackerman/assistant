@@ -1,14 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createStreamServiceStub,
-} from '@/test/conversationStreamTestUtils'
-import type { ConversationStreamClient } from './useConversationStream'
-import { useConversationStream } from './useConversationStream'
+import { createStreamServiceStub } from '@/test/conversationStreamTestUtils'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
 } from '@/types/streaming'
+import type { ConversationStreamClient } from './useConversationStream'
+import { useConversationStream } from './useConversationStream'
 
 function toIso(timestamp: string): string {
   return new Date(timestamp).toISOString()

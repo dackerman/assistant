@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ToolDefinition } from '../toolExecutorService'
 import type { BashSessionManager } from '../bashSessionManager'
+import type { ToolDefinition } from '../toolExecutorService'
 
 const BashToolInputSchema = z.object({
   command: z.string().min(1, 'Command is required'),

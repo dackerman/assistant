@@ -1017,7 +1017,9 @@ export class ConversationService {
         .where(eq(promptEventsTable.promptId, activeStream.prompt.id))
 
       const blocksByOrder = new Map<number, Block[]>()
-      for (const block of [...activeStream.blocks].sort((a, b) => a.id - b.id)) {
+      for (const block of [...activeStream.blocks].sort(
+        (a, b) => a.id - b.id
+      )) {
         const queue = blocksByOrder.get(block.order) ?? []
         queue.push(block)
         blocksByOrder.set(block.order, queue)

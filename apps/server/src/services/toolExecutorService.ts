@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db as defaultDb } from '../db'
 import type { DB } from '../db'
+import { db as defaultDb } from '../db'
 import {
   blocks,
   prompts,

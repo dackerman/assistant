@@ -326,7 +326,9 @@ describe('ConversationService – createConversation', () => {
 
       await waitForEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(firstToolStarted.toolCall.id)
-        expect(event.toolCall.output).toBe('testing tool output.\nthis is just a test!')
+        expect(event.toolCall.output).toBe(
+          'testing tool output.\nthis is just a test!'
+        )
       })
 
       await waitForEvent('block-end', event => {
@@ -550,7 +552,9 @@ describe('ConversationService – createConversation', () => {
 
       await waitForEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(secondToolStarted.toolCall.id)
-        expect(event.toolCall.output).toBe('testing tool output.\nthis is just a test!')
+        expect(event.toolCall.output).toBe(
+          'testing tool output.\nthis is just a test!'
+        )
       })
 
       await waitForEvent('block-end', event => {

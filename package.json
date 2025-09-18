@@ -8,9 +8,8 @@
     "dev:logs": "LOG_TO_FILE=true LOG_DIR=./logs turbo dev",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint",
-    "format": "biome check --write .",
-    "format:imports": "biome check --write --organize-imports-enabled=true .",
+    "lint": "biome lint .",
+    "fix": "biome check --write .",
     "clean": "turbo clean"
   },
   "devDependencies": {
