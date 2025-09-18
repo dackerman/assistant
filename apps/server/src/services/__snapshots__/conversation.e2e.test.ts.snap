@@ -200,100 +200,6 @@ this is just a test!",
     "type": "block-delta",
   },
   {
-    "prompt": {
-      "completedAt": null,
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "error": null,
-      "id": 1,
-      "messageId": 2,
-      "model": "claude-sonnet-4-20250514",
-      "request": {
-        "max_tokens": 50000,
-        "messages": [
-          {
-            "content": "What's the weather in Tokyo?",
-            "role": "user",
-          },
-        ],
-        "model": "claude-sonnet-4-20250514",
-        "stream": true,
-        "system": "You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.",
-        "tools": [
-          {
-            "description": "Execute bash commands in a persistent shell session. Use this to run any command line operations, check files, install packages, etc.",
-            "input_schema": {
-              "properties": {
-                "command": {
-                  "description": "The bash command to execute",
-                  "type": "string",
-                },
-              },
-              "required": [
-                "command",
-              ],
-              "type": "object",
-            },
-            "name": "bash",
-          },
-        ],
-      },
-      "response": null,
-      "status": "streaming",
-      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.",
-    },
-    "type": "prompt-started",
-  },
-  {
-    "blockId": 2,
-    "blockType": "tool_result",
-    "messageId": 2,
-    "promptId": 1,
-    "type": "block-start",
-  },
-  {
-    "blockId": 3,
-    "blockType": "text",
-    "messageId": 2,
-    "promptId": 1,
-    "type": "block-start",
-  },
-  {
-    "blockId": 3,
-    "content": "The weather report is above. ",
-    "messageId": 2,
-    "promptId": 1,
-    "type": "block-delta",
-  },
-  {
     "blockId": 3,
     "content": "Let me know if you need more details.",
     "messageId": 2,
@@ -337,36 +243,6 @@ Execute the commands and then explain the results in a helpful way.",
     "type": "prompt-completed",
   },
   {
-    "prompt": {
-      "completedAt": "Any<Date>",
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "error": null,
-      "id": 1,
-      "messageId": 2,
-      "model": "claude-sonnet-4-20250514",
-      "request": null,
-      "response": null,
-      "status": "completed",
-      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.",
-    },
-    "type": "prompt-completed",
-  },
-  {
     "message": {
       "content": null,
       "conversationId": 1,
@@ -378,32 +254,6 @@ Execute the commands and then explain the results in a helpful way.",
       "updatedAt": "Any<Date>",
     },
     "type": "message-updated",
-  },
-  {
-    "message": {
-      "content": null,
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "id": 2,
-      "queueOrder": null,
-      "role": "assistant",
-      "status": "completed",
-      "updatedAt": "Any<Date>",
-    },
-    "type": "message-updated",
-  },
-  {
-    "message": {
-      "content": "Tell me a quick joke",
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "id": 3,
-      "queueOrder": 1,
-      "role": "user",
-      "status": "queued",
-      "updatedAt": "Any<Date>",
-    },
-    "type": "message-created",
   },
   {
     "message": {
@@ -456,75 +306,6 @@ Execute the commands and then explain the results in a helpful way.",
       "updatedAt": "Any<Date>",
     },
     "type": "message-updated",
-  },
-  {
-    "message": {
-      "content": "Tell me a quick joke",
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "id": 3,
-      "queueOrder": 1,
-      "role": "user",
-      "status": "processing",
-      "updatedAt": "Any<Date>",
-    },
-    "type": "message-updated",
-  },
-  {
-    "message": {
-      "content": null,
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "id": 4,
-      "queueOrder": null,
-      "role": "assistant",
-      "status": "processing",
-      "updatedAt": "Any<Date>",
-    },
-    "type": "message-created",
-  },
-  {
-    "message": {
-      "content": "Tell me a quick joke",
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "id": 3,
-      "queueOrder": 1,
-      "role": "user",
-      "status": "completed",
-      "updatedAt": "Any<Date>",
-    },
-    "type": "message-updated",
-  },
-  {
-    "prompt": {
-      "completedAt": null,
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "error": null,
-      "id": 2,
-      "messageId": 4,
-      "model": "claude-sonnet-4-20250514",
-      "request": null,
-      "response": null,
-      "status": "streaming",
-      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.",
-    },
-    "type": "prompt-started",
   },
   {
     "prompt": {
@@ -569,12 +350,6 @@ Execute the commands and then explain the results in a helpful way.",
     "messageId": 4,
     "promptId": 2,
     "type": "block-delta",
-  },
-  {
-    "blockId": 5,
-    "messageId": 4,
-    "promptId": 2,
-    "type": "block-end",
   },
   {
     "blockId": 5,
@@ -689,36 +464,6 @@ this is just a test!",
     "messageId": 4,
     "promptId": 2,
     "type": "block-end",
-  },
-  {
-    "prompt": {
-      "completedAt": "Any<Date>",
-      "conversationId": 1,
-      "createdAt": "Any<Date>",
-      "error": null,
-      "id": 2,
-      "messageId": 4,
-      "model": "claude-sonnet-4-20250514",
-      "request": null,
-      "response": null,
-      "status": "completed",
-      "systemMessage": "You are a helpful assistant with access to a bash terminal. When users ask you to:
-- List files or directories
-- Run commands  
-- Check system information
-- Execute scripts
-- Perform any system operations
-
-Use the bash tool to execute the appropriate commands. Always explain what you're doing and show the results to the user.
-
-For example:
-- "list files" or "what files are here" → use bash tool with "ls" command
-- "current directory" → use bash tool with "pwd" command  
-- "check disk space" → use bash tool with "df -h" command
-
-Execute the commands and then explain the results in a helpful way.",
-    },
-    "type": "prompt-completed",
   },
   {
     "prompt": {
@@ -1016,16 +761,6 @@ this is just a test!",
             "updatedAt": "Any<Date>",
           },
           "type": "tool_result",
-          "updatedAt": "Any<Date>",
-        },
-        {
-          "content": "The weather report is above. ",
-          "createdAt": "Any<Date>",
-          "id": 3,
-          "messageId": 2,
-          "metadata": null,
-          "order": 0,
-          "type": "text",
           "updatedAt": "Any<Date>",
         },
       ],

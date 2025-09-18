@@ -12,6 +12,7 @@ import {
   type NewBlock,
   type NewConversation,
   type NewMessage,
+  promptEvents as promptEventsTable,
   prompts,
   toolCalls,
 } from '../db/schema'
@@ -1007,30 +1008,119 @@ export class ConversationService {
     }
 
     const activeStream = await this.getActiveStream(conversationId)
-    if (activeStream) {
-      this.broadcastConversationEvent(conversationId, {
-        type: 'prompt-started',
-        prompt: activeStream.prompt,
-      })
+    const inflightBlockIds = new Set<number>()
+
+    if (activeStream?.blocks.length) {
+      const promptEvents = await this.db
+        .select({ type: promptEventsTable.type, data: promptEventsTable.data })
+        .from(promptEventsTable)
+        .where(eq(promptEventsTable.promptId, activeStream.prompt.id))
+
+      const blocksByOrder = new Map<number, Block[]>()
+      for (const block of [...activeStream.blocks].sort((a, b) => a.id - b.id)) {
+        const queue = blocksByOrder.get(block.order) ?? []
+        queue.push(block)
+        blocksByOrder.set(block.order, queue)
+      }
+
+      const activeBlocksByIndex = new Map<number, Block>()
+      const completedBlockIds = new Set<number>()
+
+      for (const event of promptEvents) {
+        const payload = event.data as
+          | { index?: number; content_block?: { type?: string } }
+          | undefined
+
+        const index = typeof payload?.index === 'number' ? payload.index : null
+
+        if (event.type === 'content_block_start' && index !== null) {
+          const queue = blocksByOrder.get(index)
+          const nextBlock = queue?.shift()
+          if (nextBlock) {
+            activeBlocksByIndex.set(index, nextBlock)
+          }
+        }
+
+        if (event.type === 'content_block_stop' && index !== null) {
+          const activeBlock = activeBlocksByIndex.get(index)
+          if (activeBlock) {
+            completedBlockIds.add(activeBlock.id)
+            activeBlocksByIndex.delete(index)
+          }
+        }
+      }
+
       for (const block of activeStream.blocks) {
-        this.broadcastConversationEvent(conversationId, {
-          type: 'block-start',
-          promptId: activeStream.prompt.id,
-          messageId: block.messageId,
-          blockId: block.id,
-          blockType: block.type,
+        const isStreamingType =
+          block.type === 'text' ||
+          block.type === 'thinking' ||
+          block.type === 'tool_use' ||
+          block.type === 'code'
+
+        if (isStreamingType && !completedBlockIds.has(block.id)) {
+          inflightBlockIds.add(block.id)
+        }
+      }
+
+      if (inflightBlockIds.size > 0) {
+        queue.push({
+          type: 'prompt-started',
+          prompt: activeStream.prompt,
         })
-        if (block.type === 'text' && block.content) {
-          this.broadcastConversationEvent(conversationId, {
-            type: 'block-delta',
+
+        for (const block of activeStream.blocks) {
+          if (!inflightBlockIds.has(block.id)) {
+            continue
+          }
+
+          queue.push({
+            type: 'block-start',
             promptId: activeStream.prompt.id,
             messageId: block.messageId,
             blockId: block.id,
-            content: block.content,
+            blockType: block.type,
           })
+
+          if (block.content) {
+            queue.push({
+              type: 'block-delta',
+              promptId: activeStream.prompt.id,
+              messageId: block.messageId,
+              blockId: block.id,
+              content: block.content,
+            })
+          }
         }
       }
     }
+
+    const sanitizedSnapshot: ConversationState = inflightBlockIds.size
+      ? {
+          conversation: snapshot.conversation,
+          messages: snapshot.messages.map(message => {
+            if (!activeStream || message.id !== activeStream.prompt.messageId) {
+              return message
+            }
+
+            if (!message.blocks?.length) {
+              return message
+            }
+
+            const filteredBlocks = message.blocks.filter(
+              block => !inflightBlockIds.has(block.id)
+            )
+
+            if (filteredBlocks.length === message.blocks.length) {
+              return message
+            }
+
+            return {
+              ...message,
+              blocks: filteredBlocks,
+            }
+          }),
+        }
+      : snapshot
 
     const events = (async function* () {
       try {
@@ -1047,7 +1137,7 @@ export class ConversationService {
     })()
 
     return {
-      snapshot,
+      snapshot: sanitizedSnapshot,
       events,
     }
   }

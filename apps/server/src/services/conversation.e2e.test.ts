@@ -386,20 +386,29 @@ describe('ConversationService – createConversation', () => {
       expect(normalizeData(midConnectingStream?.snapshot)).toMatchSnapshot(
         'mid connecting snapshot'
       )
-      midConnectingStream?.events.return?.(undefined)
+      if (midConnectingStream) {
+        const midIterator = midConnectingStream.events[Symbol.asyncIterator]()
 
-      const replayPrompt = await nextEvent()
-      expect(replayPrompt.type).toBe('prompt-started')
-      expect(replayPrompt.prompt.id).toBe(firstPromptStarted.prompt.id)
+        const replayPrompt = await midIterator.next()
+        expect(replayPrompt.done).toBe(false)
+        const promptEvent = replayPrompt.value
+        expect(promptEvent?.type).toBe('prompt-started')
+        expect(promptEvent?.prompt?.id).toBe(firstPromptStarted.prompt.id)
 
-      let replayDeltaReceived = false
-      while (!replayDeltaReceived) {
-        const replayEvent = await nextEvent()
-        if (replayEvent.type === 'block-delta') {
-          expect(replayEvent.blockId).toBe(firstTextBlockStart.blockId)
-          expect(replayEvent.content).toBe('The weather report is above. ')
-          replayDeltaReceived = true
-        }
+        const replayBlockStart = await midIterator.next()
+        expect(replayBlockStart.done).toBe(false)
+        const blockStartEvent = replayBlockStart.value
+        expect(blockStartEvent?.type).toBe('block-start')
+        expect(blockStartEvent?.blockId).toBe(firstTextBlockStart.blockId)
+
+        const replayDelta = await midIterator.next()
+        expect(replayDelta.done).toBe(false)
+        const blockDeltaEvent = replayDelta.value
+        expect(blockDeltaEvent?.type).toBe('block-delta')
+        expect(blockDeltaEvent?.blockId).toBe(firstTextBlockStart.blockId)
+        expect(blockDeltaEvent?.content).toBe('The weather report is above. ')
+
+        await midIterator.return?.(undefined)
       }
 
       firstTextStream.push({
@@ -666,7 +675,6 @@ describe('ConversationService – createConversation', () => {
 
       expect(blockDeltas).toEqual([
         'Using bash tool...',
-        'The weather report is above. ',
         'The weather report is above. ',
         'Let me know if you need more details.',
         'Using bash tool...',
