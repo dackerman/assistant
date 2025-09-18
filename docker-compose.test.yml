@@ -1,0 +1,48 @@
+# Docker Compose configuration for E2E testing
+services:
+  # Test PostgreSQL database
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: core_test
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: core_test
+    ports:
+      - '55433:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U core_test']
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+
+  # E2E test runner
+  e2e-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      DATABASE_URL: postgresql://core_test:test_password@postgres-test:5432/core_test
+      NODE_ENV: test
+      # Frontend and backend ports
+      FRONTEND_PORT: 4000
+      BACKEND_PORT: 4001
+      BASE_URL: http://localhost:4000
+      # Add required Anthropic API key (can be mock for tests)
+      ANTHROPIC_API_KEY: test_key_for_e2e_tests
+      # Playwright specific
+      CI: true
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    volumes:
+      # Mount test results and artifacts
+      - ./test-results:/app/test-results
+      - ./playwright-report:/app/playwright-report
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    # Override command for different test scenarios
+
+volumes:
+  postgres_test_data:

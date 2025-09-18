@@ -1,0 +1,37 @@
+# Dockerfile for E2E testing with Playwright and browser dependencies
+FROM mcr.microsoft.com/playwright:v1.55.0-jammy
+
+# Install Node.js and pnpm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && corepack enable \
+    && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* turbo.json ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/server/package.json ./apps/server/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Install Playwright browsers (already available in the base image, but ensure they're up to date)
+RUN pnpm exec playwright install --with-deps
+
+# Build the application
+RUN pnpm build
+
+# Set environment variables
+ENV NODE_ENV=test
+ENV CI=true
+
+# Expose ports for the test servers
+EXPOSE 4000 4001
+
+# Default command - can be overridden
+CMD ["pnpm", "exec", "playwright", "test", "--config=playwright.docker.config.ts"]
