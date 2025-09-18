@@ -1,69 +1,95 @@
-# React + TypeScript + Vite
+# Web Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript application built with Vite, featuring a modern chat interface for AI conversations.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Framework**: React 19 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Routing**: React Router DOM
+- **Markdown**: react-markdown with syntax highlighting
+- **Icons**: Lucide React
+- **Testing**: Vitest + React Testing Library
 
-## Expanding the ESLint configuration
+## Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Start the development server:
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app will be available at http://localhost:4000
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Available Scripts
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `pnpm run dev` - Start development server
+- `pnpm run build` - Build for production
+- `pnpm run test` - Run tests with Vitest
+- `pnpm run lint` - Check code with Biome
+- `pnpm run lint:fix` - Fix linting issues
+- `pnpm run preview` - Preview production build
+
+## Project Structure
+
 ```
+src/
+├── components/       # React components
+│   ├── chat/        # Chat-related components
+│   └── ui/          # Reusable UI components (shadcn/ui)
+├── constants/       # Application constants
+├── data/           # Mock data and fixtures
+├── hooks/          # Custom React hooks
+├── lib/            # Utility functions
+├── services/       # API services
+├── types/          # TypeScript type definitions
+└── test/           # Test utilities and setup
+```
+
+## Key Features
+
+- Real-time conversation streaming
+- Tool call visualization (Bash, Gmail, Asana, etc.)
+- Markdown rendering with syntax highlighting
+- Responsive design with Tailwind CSS
+- Type-safe development with TypeScript
+
+## Environment Variables
+
+Create a `.env.local` file based on `.env.local.example`:
+
+```bash
+cp .env.local.example .env.local
+```
+
+## Testing
+
+Run unit tests:
+
+```bash
+pnpm run test
+```
+
+Run tests for a specific file:
+
+```bash
+pnpm run test src/hooks/useConversationStream.test.tsx
+```
+
+## Building for Production
+
+```bash
+pnpm run build
+```
+
+The production build will be in the `dist/` directory.
+
+## Code Style
+
+This project uses Biome for code formatting and linting. The configuration enforces:
+- 2 spaces for indentation
+- 80 character line width
+- Single quotes for strings
+- No semicolons (except where necessary)
+- Organized imports
