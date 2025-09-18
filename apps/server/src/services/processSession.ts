@@ -3,6 +3,11 @@ import type { ToolCall } from '../db/schema.js'
 import { Logger } from '../utils/logger.js'
 import { BaseSession, type ToolResult } from './toolSession.js'
 
+interface ProcessToolInput {
+  command?: string
+  restart?: boolean
+}
+
 interface QueuedCommand {
   toolCall: ToolCall
   resolve: (result: ToolResult) => void
@@ -119,7 +124,7 @@ export class ProcessSession extends BaseSession {
       throw new Error('Process is not available')
     }
 
-    const request = toolCall.input as any
+    const request = toolCall.input as ProcessToolInput
 
     // Handle restart command
     if (request.restart === true) {
@@ -131,7 +136,7 @@ export class ProcessSession extends BaseSession {
       }
     }
 
-    const command = request.command as string
+    const command = request.command
     if (!command) {
       throw new Error('No command provided')
     }

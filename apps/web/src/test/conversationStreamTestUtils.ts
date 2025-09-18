@@ -37,7 +37,7 @@ function createStreamController(): StreamControllerResult {
       })
     },
 
-    async return(value?: any) {
+    async return(value?: ConversationStreamEvent) {
       closed = true
       while (waiters.length > 0) {
         const resolve = waiters.shift()

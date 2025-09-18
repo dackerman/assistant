@@ -3,6 +3,12 @@ import type { Logger } from '../utils/logger.js'
 import { BashSession } from './bashSession'
 import type { ToolResult, ToolSession } from './toolSession.js'
 
+interface BashToolInput {
+  command: string
+  description?: string
+  timeout?: number
+}
+
 export class BashToolSession implements ToolSession {
   public readonly id: string = 'bash'
   public readonly toolType: string = 'bash'
@@ -37,7 +43,7 @@ export class BashToolSession implements ToolSession {
       throw new Error('Bash session not started')
     }
 
-    const request = toolCall.input as any
+    const request = toolCall.input as BashToolInput
     if (
       !request ||
       typeof request !== 'object' ||

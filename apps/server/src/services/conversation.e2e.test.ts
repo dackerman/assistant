@@ -437,12 +437,16 @@ describe('ConversationService – createConversation', () => {
         expect(postPromptEvent.prompt.id).toBe(firstPromptStarted.prompt.id)
         const afterReplay = await nextEvent()
         expect(afterReplay.type).toBe('message-updated')
-        expect(afterReplay.message.role).toBe('assistant')
-        expect(afterReplay.message.status).toBe('completed')
+        if (afterReplay.type === 'message-updated') {
+          expect(afterReplay.message.role).toBe('assistant')
+          expect(afterReplay.message.status).toBe('completed')
+        }
       } else {
         expect(postPromptEvent.type).toBe('message-updated')
-        expect(postPromptEvent.message.role).toBe('assistant')
-        expect(postPromptEvent.message.status).toBe('completed')
+        if (postPromptEvent.type === 'message-updated') {
+          expect(postPromptEvent.message.role).toBe('assistant')
+          expect(postPromptEvent.message.status).toBe('completed')
+        }
       }
       await firstQueuePromise
 
@@ -649,8 +653,15 @@ describe('ConversationService – createConversation', () => {
       ])
 
       const progressChunks = events
-        .filter(event => event.type === 'tool-call-progress')
-        .map(event => (event as any).output)
+        .filter(
+          (
+            event
+          ): event is Extract<
+            ConversationStreamEvent,
+            { type: 'tool-call-progress' }
+          > => event.type === 'tool-call-progress'
+        )
+        .map(event => event.output)
 
       expect(progressChunks).toEqual([
         'testing tool output.\n',
