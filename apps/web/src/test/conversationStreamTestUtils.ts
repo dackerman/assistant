@@ -13,7 +13,9 @@ type StreamControllerResult = {
 
 function createStreamController(): StreamControllerResult {
   let buffer: ConversationStreamEvent[] = []
-  let waiters: Array<(result: IteratorResult<ConversationStreamEvent>) => void> = []
+  let waiters: Array<
+    (result: IteratorResult<ConversationStreamEvent>) => void
+  > = []
   let closed = false
 
   const iterator: AsyncGenerator<ConversationStreamEvent> = {
@@ -24,7 +26,10 @@ function createStreamController(): StreamControllerResult {
       }
 
       if (closed) {
-        return { value: undefined as unknown as ConversationStreamEvent, done: true }
+        return {
+          value: undefined as unknown as ConversationStreamEvent,
+          done: true,
+        }
       }
 
       return new Promise(resolve => {
@@ -32,17 +37,20 @@ function createStreamController(): StreamControllerResult {
       })
     },
 
-    async return() {
+    async return(value?: any) {
       closed = true
       while (waiters.length > 0) {
         const resolve = waiters.shift()
         resolve?.({
-          value: undefined as unknown as ConversationStreamEvent,
+          value: value ?? (undefined as unknown as ConversationStreamEvent),
           done: true,
         })
       }
       buffer = []
-      return { value: undefined as unknown as ConversationStreamEvent, done: true }
+      return {
+        value: value ?? (undefined as unknown as ConversationStreamEvent),
+        done: true,
+      }
     },
 
     async throw(error) {
@@ -60,6 +68,10 @@ function createStreamController(): StreamControllerResult {
 
     [Symbol.asyncIterator]() {
       return this
+    },
+
+    async [Symbol.asyncDispose]() {
+      await this.return(undefined)
     },
   }
 
@@ -89,9 +101,7 @@ function createStreamController(): StreamControllerResult {
   return { iterator, emit, close }
 }
 
-export function createStreamServiceStub(
-  snapshot: ConversationSnapshot
-): {
+export function createStreamServiceStub(snapshot: ConversationSnapshot): {
   payload: ConversationStreamPayload
   emit: (event: ConversationStreamEvent) => Promise<void>
   close: () => Promise<void>

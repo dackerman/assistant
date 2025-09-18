@@ -349,7 +349,9 @@ export function useConversationStream({
   )
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
-  const iteratorRef = useRef<AsyncGenerator<ConversationStreamEvent> | null>(null)
+  const iteratorRef = useRef<AsyncGenerator<ConversationStreamEvent> | null>(
+    null
+  )
   const activeEffectRef = useRef<number>(0)
 
   useEffect(() => {
@@ -371,10 +373,7 @@ export function useConversationStream({
       setIsStreaming(false)
 
       try {
-        const payload = await client.streamConversation(
-          conversationId,
-          userId
-        )
+        const payload = await client.streamConversation(conversationId, userId)
 
         if (!payload) {
           if (cancelled || activeEffectRef.current !== effectId) return
@@ -385,7 +384,7 @@ export function useConversationStream({
         }
 
         if (cancelled || activeEffectRef.current !== effectId) {
-          await payload.events.return?.()
+          await payload.events.return({ value: undefined, done: true })
           return
         }
 
@@ -419,7 +418,7 @@ export function useConversationStream({
     return () => {
       cancelled = true
       if (iteratorRef.current?.return) {
-        void iteratorRef.current.return()
+        void iteratorRef.current.return({ value: undefined, done: true })
       }
       iteratorRef.current = null
       setIsStreaming(false)

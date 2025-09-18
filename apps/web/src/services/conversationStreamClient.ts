@@ -79,11 +79,22 @@ interface ServerPrompt {
   systemMessage?: string | null
 }
 
-interface ServerStreamEvent
-  extends Omit<ConversationStreamEvent, 'message' | 'prompt' | 'toolCall'> {
+interface ServerStreamEvent {
+  type: string
+  conversationId?: number
   message?: ServerMessage
   prompt?: ServerPrompt
   toolCall?: ServerToolCall
+  promptId?: number
+  messageId?: number
+  blockId?: number
+  blockType?: string
+  content?: string
+  delta?: string
+  error?: string
+  input?: Record<string, unknown>
+  toolCallId?: number
+  output?: string
 }
 
 interface AsyncEventStream<T> {
@@ -198,23 +209,35 @@ function assert<T>(value: T | undefined | null, message: string): T {
 
 function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
   switch (event.type) {
-    case 'message-created':
-    case 'message-updated':
+    case 'message_created':
       return {
-        type: event.type,
+        type: 'message-created',
         message: normalizeMessage(
           assert(event.message, 'Missing message payload in stream event')
         ),
       }
-    case 'prompt-started':
-    case 'prompt-completed':
+    case 'message_updated':
       return {
-        type: event.type,
+        type: 'message-updated',
+        message: normalizeMessage(
+          assert(event.message, 'Missing message payload in stream event')
+        ),
+      }
+    case 'prompt_started':
+      return {
+        type: 'prompt-started',
         prompt: normalizePrompt(
           assert(event.prompt, 'Missing prompt payload in stream event')
         ),
       }
-    case 'prompt-failed':
+    case 'prompt_completed':
+      return {
+        type: 'prompt-completed',
+        prompt: normalizePrompt(
+          assert(event.prompt, 'Missing prompt payload in stream event')
+        ),
+      }
+    case 'prompt_failed':
       return {
         type: 'prompt-failed',
         prompt: normalizePrompt(
@@ -222,30 +245,45 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         ),
         error: event.error ?? null,
       }
-    case 'block-start':
+    case 'block_start':
       return {
         type: 'block-start',
-        promptId: event.promptId,
-        messageId: event.messageId,
-        blockId: event.blockId,
-        blockType: event.blockType,
+        promptId: assert(
+          event.promptId,
+          'Missing promptId in block_start event'
+        ),
+        messageId: assert(
+          event.messageId,
+          'Missing messageId in block_start event'
+        ),
+        blockId: assert(event.blockId, 'Missing blockId in block_start event'),
+        blockType: event.blockType as SnapshotBlock['type'],
       }
-    case 'block-delta':
+    case 'block_delta':
       return {
         type: 'block-delta',
-        promptId: event.promptId,
-        messageId: event.messageId,
-        blockId: event.blockId,
-        content: event.content,
+        promptId: assert(
+          event.promptId,
+          'Missing promptId in block_delta event'
+        ),
+        messageId: assert(
+          event.messageId,
+          'Missing messageId in block_delta event'
+        ),
+        blockId: assert(event.blockId, 'Missing blockId in block_delta event'),
+        content: event.delta || event.content || '',
       }
-    case 'block-end':
+    case 'block_end':
       return {
         type: 'block-end',
-        promptId: event.promptId,
-        messageId: event.messageId,
-        blockId: event.blockId,
+        promptId: assert(event.promptId, 'Missing promptId in block_end event'),
+        messageId: assert(
+          event.messageId,
+          'Missing messageId in block_end event'
+        ),
+        blockId: assert(event.blockId, 'Missing blockId in block_end event'),
       }
-    case 'tool-call-started':
+    case 'tool_call_started':
       return {
         type: 'tool-call-started',
         toolCall: normalizeToolCall(
@@ -253,21 +291,24 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         ),
         input: event.input ?? {},
       }
-    case 'tool-call-progress':
+    case 'tool_call_progress':
       return {
         type: 'tool-call-progress',
-        toolCallId: event.toolCallId,
+        toolCallId: assert(
+          event.toolCallId,
+          'Missing toolCallId in tool_call_progress event'
+        ),
         blockId: event.blockId ?? null,
-        output: event.output,
+        output: event.output || '',
       }
-    case 'tool-call-completed':
+    case 'tool_call_completed':
       return {
         type: 'tool-call-completed',
         toolCall: normalizeToolCall(
           assert(event.toolCall, 'Missing tool call payload in stream event')
         ),
       }
-    case 'tool-call-failed':
+    case 'tool_call_failed':
       return {
         type: 'tool-call-failed',
         toolCall: normalizeToolCall(
@@ -276,13 +317,11 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         error: event.error ?? null,
       }
     default:
-      return event as ConversationStreamEvent
+      throw new Error(`Unknown event type: ${event.type}`)
   }
 }
 
-function createAsyncEventStream<T>(
-  onCancel: () => void
-): AsyncEventStream<T> {
+function createAsyncEventStream<T>(onCancel: () => void): AsyncEventStream<T> {
   let queue: T[] = []
   let pendingResolvers: Array<(value: IteratorResult<T>) => void> = []
   let pendingRejectors: Array<(reason?: unknown) => void> = []
@@ -342,6 +381,10 @@ function createAsyncEventStream<T>(
     [Symbol.asyncIterator]() {
       return this
     },
+
+    async [Symbol.asyncDispose]() {
+      await this.return({ value: undefined as unknown as T, done: true })
+    },
   }
 
   return {
@@ -372,9 +415,7 @@ function createAsyncEventStream<T>(
   }
 }
 
-class WebSocketConversationStreamClient
-  implements ConversationStreamClient
-{
+class WebSocketConversationStreamClient implements ConversationStreamClient {
   async streamConversation(
     conversationId: number,
     _userId: number
@@ -422,7 +463,10 @@ class WebSocketConversationStreamClient
           return
         }
 
-        if (payload.conversationId !== undefined && payload.conversationId !== conversationId) {
+        if (
+          payload.conversationId !== undefined &&
+          payload.conversationId !== conversationId
+        ) {
           return
         }
 
@@ -445,7 +489,14 @@ class WebSocketConversationStreamClient
             break
           case 'event':
             if (!payload.event) return
-            stream.push(normalizeEvent(payload.event))
+            try {
+              stream.push(normalizeEvent(payload.event as ServerStreamEvent))
+            } catch (error) {
+              console.error('Failed to normalize event', {
+                error,
+                event: payload.event,
+              })
+            }
             break
           case 'error': {
             const errorMessage =
