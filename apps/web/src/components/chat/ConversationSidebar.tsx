@@ -61,27 +61,42 @@ export function ConversationSidebar({
         })
       )
 
-      // Check for title changes and trigger animations
       setConversations(prev => {
         const prevTitleMap = new Map(prev.map(c => [c.id, c.title]))
-        const newTriggers = new Map(titleAnimationTriggers)
 
-        formattedConversations.forEach(conv => {
-          const prevTitle = prevTitleMap.get(conv.id)
-          // Trigger animation if title changed from "New Conversation" to something else, or if it's different
-          if (
-            prevTitle &&
-            (prevTitle === 'New Conversation' || prevTitle !== conv.title) &&
-            conv.title !== 'New Conversation'
-          ) {
-            newTriggers.set(
-              conv.id,
-              (titleAnimationTriggers.get(conv.id) || 0) + 1
-            )
-          }
+        setTitleAnimationTriggers(prevTriggers => {
+          const formattedIds = new Set(
+            formattedConversations.map(conversation => conversation.id)
+          )
+          let hasChanges = false
+          const updatedTriggers = new Map(prevTriggers)
+
+          formattedConversations.forEach(conv => {
+            const prevTitle = prevTitleMap.get(conv.id)
+            // Trigger animation if title moved away from the placeholder or changed
+            if (
+              prevTitle &&
+              (prevTitle === 'New Conversation' || prevTitle !== conv.title) &&
+              conv.title !== 'New Conversation'
+            ) {
+              const nextCount = (prevTriggers.get(conv.id) || 0) + 1
+              if (nextCount !== prevTriggers.get(conv.id)) {
+                updatedTriggers.set(conv.id, nextCount)
+                hasChanges = true
+              }
+            }
+          })
+
+          prevTriggers.forEach((_, key) => {
+            if (!formattedIds.has(key)) {
+              updatedTriggers.delete(key)
+              hasChanges = true
+            }
+          })
+
+          return hasChanges ? updatedTriggers : prevTriggers
         })
 
-        setTitleAnimationTriggers(newTriggers)
         return formattedConversations
       })
     } catch (err) {
@@ -90,7 +105,7 @@ export function ConversationSidebar({
     } finally {
       setIsLoading(false)
     }
-  }, [conversationService, titleAnimationTriggers])
+  }, [conversationService])
 
   // Load conversations
   useEffect(() => {
