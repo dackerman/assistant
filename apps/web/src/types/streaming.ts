@@ -1,3 +1,5 @@
+import type { ConversationStreamEventType } from '../../../../types/conversationStream'
+
 export interface SnapshotConversation {
   id: number
   title: string | null
@@ -65,48 +67,64 @@ export interface ConversationSnapshot {
 }
 
 export type ConversationStreamEvent =
-  | { type: 'message-created'; message: SnapshotMessage }
-  | { type: 'message-updated'; message: SnapshotMessage }
-  | { type: 'prompt-started'; prompt: SnapshotPrompt }
-  | { type: 'prompt-completed'; prompt: SnapshotPrompt }
-  | { type: 'prompt-failed'; prompt: SnapshotPrompt; error?: string | null }
   | {
-      type: 'block-start'
+      type: Extract<ConversationStreamEventType, 'message-created'>
+      message: SnapshotMessage
+    }
+  | {
+      type: Extract<ConversationStreamEventType, 'message-updated'>
+      message: SnapshotMessage
+    }
+  | {
+      type: Extract<ConversationStreamEventType, 'prompt-started'>
+      prompt: SnapshotPrompt
+    }
+  | {
+      type: Extract<ConversationStreamEventType, 'prompt-completed'>
+      prompt: SnapshotPrompt
+    }
+  | {
+      type: Extract<ConversationStreamEventType, 'prompt-failed'>
+      prompt: SnapshotPrompt
+      error?: string | null
+    }
+  | {
+      type: Extract<ConversationStreamEventType, 'block-start'>
       promptId: number
       messageId: number
       blockId: number
       blockType?: SnapshotBlock['type']
     }
   | {
-      type: 'block-delta'
+      type: Extract<ConversationStreamEventType, 'block-delta'>
       promptId: number
       messageId: number
       blockId: number
       content: string
     }
   | {
-      type: 'block-end'
+      type: Extract<ConversationStreamEventType, 'block-end'>
       promptId: number
       messageId: number
       blockId: number
     }
   | {
-      type: 'tool-call-started'
+      type: Extract<ConversationStreamEventType, 'tool-call-started'>
       toolCall: SnapshotToolCall
       input: Record<string, unknown>
     }
   | {
-      type: 'tool-call-progress'
+      type: Extract<ConversationStreamEventType, 'tool-call-progress'>
       toolCallId: number
       blockId: number | null
       output: string
     }
   | {
-      type: 'tool-call-completed'
+      type: Extract<ConversationStreamEventType, 'tool-call-completed'>
       toolCall: SnapshotToolCall
     }
   | {
-      type: 'tool-call-failed'
+      type: Extract<ConversationStreamEventType, 'tool-call-failed'>
       toolCall: SnapshotToolCall
       error: string | null
     }
@@ -115,3 +133,5 @@ export interface ConversationStreamPayload {
   snapshot: ConversationSnapshot
   events: AsyncGenerator<ConversationStreamEvent>
 }
+
+export type { ConversationStreamEventType } from '../../../../types/conversationStream'

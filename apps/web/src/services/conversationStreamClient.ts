@@ -8,6 +8,10 @@ import type {
   SnapshotPrompt,
   SnapshotToolCall,
 } from '@/types/streaming'
+import {
+  isConversationStreamEventType,
+  type ConversationStreamEventType,
+} from '../../../../types/conversationStream'
 
 interface ServerConversationState {
   conversation: ServerConversation
@@ -80,7 +84,7 @@ interface ServerPrompt {
 }
 
 interface ServerStreamEvent {
-  type: string
+  type: ConversationStreamEventType | string
   conversationId?: number
   message?: ServerMessage
   prompt?: ServerPrompt
@@ -208,36 +212,40 @@ function assert<T>(value: T | undefined | null, message: string): T {
 }
 
 function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
+  if (!isConversationStreamEventType(event.type)) {
+    throw new Error(`Unknown event type: ${event.type}`)
+  }
+
   switch (event.type) {
-    case 'message_created':
+    case 'message-created':
       return {
         type: 'message-created',
         message: normalizeMessage(
           assert(event.message, 'Missing message payload in stream event')
         ),
       }
-    case 'message_updated':
+    case 'message-updated':
       return {
         type: 'message-updated',
         message: normalizeMessage(
           assert(event.message, 'Missing message payload in stream event')
         ),
       }
-    case 'prompt_started':
+    case 'prompt-started':
       return {
         type: 'prompt-started',
         prompt: normalizePrompt(
           assert(event.prompt, 'Missing prompt payload in stream event')
         ),
       }
-    case 'prompt_completed':
+    case 'prompt-completed':
       return {
         type: 'prompt-completed',
         prompt: normalizePrompt(
           assert(event.prompt, 'Missing prompt payload in stream event')
         ),
       }
-    case 'prompt_failed':
+    case 'prompt-failed':
       return {
         type: 'prompt-failed',
         prompt: normalizePrompt(
@@ -245,7 +253,7 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         ),
         error: event.error ?? null,
       }
-    case 'block_start':
+    case 'block-start':
       return {
         type: 'block-start',
         promptId: assert(
@@ -259,7 +267,7 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         blockId: assert(event.blockId, 'Missing blockId in block_start event'),
         blockType: event.blockType as SnapshotBlock['type'],
       }
-    case 'block_delta':
+    case 'block-delta':
       return {
         type: 'block-delta',
         promptId: assert(
@@ -273,7 +281,7 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         blockId: assert(event.blockId, 'Missing blockId in block_delta event'),
         content: event.delta || event.content || '',
       }
-    case 'block_end':
+    case 'block-end':
       return {
         type: 'block-end',
         promptId: assert(event.promptId, 'Missing promptId in block_end event'),
@@ -283,7 +291,7 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         ),
         blockId: assert(event.blockId, 'Missing blockId in block_end event'),
       }
-    case 'tool_call_started':
+    case 'tool-call-started':
       return {
         type: 'tool-call-started',
         toolCall: normalizeToolCall(
@@ -291,7 +299,7 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         ),
         input: event.input ?? {},
       }
-    case 'tool_call_progress':
+    case 'tool-call-progress':
       return {
         type: 'tool-call-progress',
         toolCallId: assert(
@@ -301,14 +309,14 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
         blockId: event.blockId ?? null,
         output: event.output || '',
       }
-    case 'tool_call_completed':
+    case 'tool-call-completed':
       return {
         type: 'tool-call-completed',
         toolCall: normalizeToolCall(
           assert(event.toolCall, 'Missing tool call payload in stream event')
         ),
       }
-    case 'tool_call_failed':
+    case 'tool-call-failed':
       return {
         type: 'tool-call-failed',
         toolCall: normalizeToolCall(
