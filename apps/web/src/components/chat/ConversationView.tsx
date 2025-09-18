@@ -46,7 +46,7 @@ export function ConversationView({
   const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editingTitle, setEditingTitle] = useState('')
-  const [streamReloadKey, setStreamReloadKey] = useState(0)
+
   const [isSending, setIsSending] = useState(false)
   const previousTitleRef = useRef<string | null>(null)
 
@@ -64,7 +64,6 @@ export function ConversationView({
     conversationId: currentConversationId,
     userId: STREAM_USER_ID,
     client: conversationStreamClient,
-    reloadKey: streamReloadKey,
   })
 
   const messages = streamMessages
@@ -197,7 +196,7 @@ export function ConversationView({
   }
 
   const retryLoadConversation = () => {
-    setStreamReloadKey(prev => prev + 1)
+    // TODO: Implement retry logic if needed
   }
 
   return (

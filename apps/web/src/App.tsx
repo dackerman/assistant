@@ -13,7 +13,6 @@ function ConversationPage() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Handle responsive behavior
   useEffect(() => {
@@ -45,8 +44,6 @@ function ConversationPage() {
 
   const handleConversationCreate = (conversationId: number) => {
     navigate(`/conversation/${conversationId}`)
-    // Trigger sidebar refresh to show the new conversation
-    setRefreshTrigger(prev => prev + 1)
   }
 
   const handleConversationDelete = (deletedConversationId: number) => {
@@ -54,13 +51,10 @@ function ConversationPage() {
     if (conversationId === deletedConversationId) {
       navigate('/')
     }
-    // Trigger sidebar refresh to remove the deleted conversation from the list
-    setRefreshTrigger(prev => prev + 1)
   }
 
   const handleTitleUpdate = () => {
-    // Trigger sidebar refresh to show the updated title
-    setRefreshTrigger(prev => prev + 1)
+    // TODO: Implement title update handling if needed
   }
 
   return (
@@ -97,7 +91,6 @@ function ConversationPage() {
             onNewConversation={handleNewConversation}
             onClose={() => setIsSidebarOpen(false)}
             isOpen={isSidebarOpen || isDesktop}
-            refreshTrigger={refreshTrigger}
             onConversationDelete={handleConversationDelete}
           />
         </div>

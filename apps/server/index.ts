@@ -138,8 +138,7 @@ app.post('/api/conversations/:id/messages', async c => {
 
   const result = await conversationService.createUserMessage(
     conversationId,
-    body.content,
-    model
+    body.content
   )
 
   return c.json(result)

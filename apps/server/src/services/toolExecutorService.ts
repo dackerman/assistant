@@ -57,7 +57,6 @@ export class ToolExecutorService {
     this.db = dbInstance
     this.logger = new Logger({ service: 'ToolExecutorService' })
     this.tools = new Map(tools.map(tool => [tool.name, tool]))
-    this.config = { timeout }
   }
 
   async initialize(): Promise<void> {
