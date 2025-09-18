@@ -12,6 +12,7 @@ export interface SnapshotBlock {
   content: string | null
   order?: number | null
   metadata?: Record<string, unknown> | null
+  toolCall?: SnapshotToolCall | null
 }
 
 export interface SnapshotMessage {
@@ -21,7 +22,7 @@ export interface SnapshotMessage {
   content: string | null
   createdAt: string
   updatedAt: string
-  status?: 'queued' | 'processing' | 'completed' | 'failed' | null
+  status?: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | null
   promptId?: number | null
   model?: string | null
   blocks?: SnapshotBlock[]
@@ -34,22 +35,28 @@ export interface SnapshotPrompt {
   status: 'queued' | 'streaming' | 'completed' | 'failed'
   model: string
   createdAt: string
-  updatedAt: string
+  completedAt: string | null
+  systemMessage?: string | null
   error?: string | null
 }
 
 export interface SnapshotToolCall {
   id: number
-  blockId: number
+  apiToolCallId?: string | null
+  blockId: number | null
   promptId: number
   name: string
   state: string
   output: string | null
+  input?: Record<string, unknown> | null
+  error?: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
   providerExecuted?: boolean
   dynamic?: boolean
+  startedAt?: string | null
+  timeoutAt?: string | null
 }
 
 export interface ConversationSnapshot {
@@ -68,7 +75,7 @@ export type ConversationStreamEvent =
       promptId: number
       messageId: number
       blockId: number
-      blockType: SnapshotBlock['type']
+      blockType?: SnapshotBlock['type']
     }
   | {
       type: 'block-delta'
@@ -91,7 +98,7 @@ export type ConversationStreamEvent =
   | {
       type: 'tool-call-progress'
       toolCallId: number
-      blockId: number
+      blockId: number | null
       output: string
     }
   | {
@@ -101,7 +108,7 @@ export type ConversationStreamEvent =
   | {
       type: 'tool-call-failed'
       toolCall: SnapshotToolCall
-      error: string
+      error: string | null
     }
 
 export interface ConversationStreamPayload {

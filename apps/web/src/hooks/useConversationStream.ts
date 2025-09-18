@@ -21,6 +21,7 @@ interface UseConversationStreamOptions {
   conversationId: number | null
   userId: number | null
   client: ConversationStreamClient
+  reloadKey?: number
 }
 
 interface UseConversationStreamResult {
@@ -28,6 +29,7 @@ interface UseConversationStreamResult {
   conversation: SnapshotConversation | null
   messages: Message[]
   error: string | null
+  isStreaming: boolean
 }
 
 interface InternalBlockState {
@@ -227,19 +229,24 @@ function appendToBlock(
   delta: string,
   blockType: SnapshotBlock['type'] = 'text'
 ): InternalMessageState {
-  const existing = message.blocks.get(blockId)
-  if (!existing) {
-    return ensureBlock(message, blockId, blockType)
+  let target = message
+  if (!message.blocks.has(blockId)) {
+    target = ensureBlock(message, blockId, blockType)
   }
 
-  const nextBlocks = new Map(message.blocks)
+  const existing = target.blocks.get(blockId)
+  if (!existing) {
+    return target
+  }
+
+  const nextBlocks = new Map(target.blocks)
   nextBlocks.set(blockId, {
     ...existing,
     content: existing.content + delta,
   })
 
   return {
-    ...message,
+    ...target,
     blocks: nextBlocks,
   }
 }
@@ -255,7 +262,7 @@ function applyEvent(
     }
     case 'block-start': {
       return updateMessage(state, event.messageId, message =>
-        ensureBlock(message, event.blockId, event.blockType)
+        ensureBlock(message, event.blockId, event.blockType ?? 'text')
       )
     }
     case 'block-delta': {
@@ -264,9 +271,31 @@ function applyEvent(
       )
     }
     case 'block-end':
-    case 'prompt-started':
-    case 'prompt-completed':
-    case 'prompt-failed':
+      return state
+    case 'prompt-started': {
+      return updateMessage(state, event.prompt.messageId, message => ({
+        ...message,
+        status: 'processing',
+        promptId: event.prompt.id,
+        model: event.prompt.model ?? message.model,
+      }))
+    }
+    case 'prompt-completed': {
+      return updateMessage(state, event.prompt.messageId, message => ({
+        ...message,
+        status: 'completed',
+        promptId: event.prompt.id,
+        model: event.prompt.model ?? message.model,
+      }))
+    }
+    case 'prompt-failed': {
+      return updateMessage(state, event.prompt.messageId, message => ({
+        ...message,
+        status: 'failed',
+        promptId: event.prompt.id,
+        model: event.prompt.model ?? message.model,
+      }))
+    }
     case 'tool-call-started':
     case 'tool-call-progress':
     case 'tool-call-completed':
@@ -311,6 +340,7 @@ export function useConversationStream({
   conversationId,
   userId,
   client,
+  reloadKey,
 }: UseConversationStreamOptions): UseConversationStreamResult {
   const [internalState, setInternalState] =
     useState<InternalConversationState | null>(null)
@@ -318,6 +348,7 @@ export function useConversationStream({
     'idle'
   )
   const [error, setError] = useState<string | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
   const iteratorRef = useRef<AsyncGenerator<ConversationStreamEvent> | null>(null)
   const activeEffectRef = useRef<number>(0)
 
@@ -326,6 +357,7 @@ export function useConversationStream({
       setInternalState(null)
       setStatus('idle')
       setError(null)
+      setIsStreaming(false)
       return
     }
 
@@ -336,6 +368,7 @@ export function useConversationStream({
     const start = async () => {
       setStatus('loading')
       setError(null)
+      setIsStreaming(false)
 
       try {
         const payload = await client.streamConversation(
@@ -377,6 +410,7 @@ export function useConversationStream({
             : 'Failed to stream conversation'
         setError(message)
         setStatus('error')
+        setIsStreaming(false)
       }
     }
 
@@ -388,8 +422,22 @@ export function useConversationStream({
         void iteratorRef.current.return()
       }
       iteratorRef.current = null
+      setIsStreaming(false)
     }
-  }, [conversationId, userId, client])
+  }, [conversationId, userId, client, reloadKey])
+
+  useEffect(() => {
+    if (!internalState) {
+      setIsStreaming(false)
+      return
+    }
+
+    const streaming = internalState.messages.some(message => {
+      return message.role === 'assistant' && message.status === 'processing'
+    })
+
+    setIsStreaming(streaming)
+  }, [internalState])
 
   const messages = useMemo(() => {
     if (!internalState) return []
@@ -398,5 +446,5 @@ export function useConversationStream({
 
   const conversation = internalState?.conversation ?? null
 
-  return { status, conversation, messages, error }
+  return { status, conversation, messages, error, isStreaming }
 }

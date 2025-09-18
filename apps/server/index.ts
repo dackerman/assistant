@@ -13,6 +13,10 @@ import { PromptService } from './src/services/promptService'
 import { ToolExecutorService } from './src/services/toolExecutorService'
 import { createBashTool } from './src/services/tools/bashTool'
 import { logger } from './src/utils/logger'
+import type {
+  ConversationState,
+  ConversationStreamEvent,
+} from './src/services/conversationService'
 
 const app = new Hono()
 
@@ -265,95 +269,90 @@ const server = createServer(async (req, res) => {
 // Create WebSocket server
 const wss = new WebSocketServer({ server })
 
-// Simple in-memory subscription registry
 type OutgoingMessage =
   | { type: 'subscribed'; conversationId: number }
-  | { type: 'conversation_updated'; conversationId: number; data: unknown }
-  | { type: 'message_created'; conversationId: number; message: unknown }
   | {
       type: 'snapshot'
       conversationId: number
-      activeStream: unknown
-    }
-  | { type: 'stream_started'; conversationId: number; promptId: number }
-  | {
-      type: 'stream_delta'
-      conversationId: number
-      promptId: number
-      delta: string
-    }
-  | { type: 'stream_complete'; conversationId: number; promptId: number }
-  | {
-      type: 'stream_error'
-      conversationId: number
-      promptId: number
-      error: string
+      snapshot: ConversationState
     }
   | {
-      type: 'tool_call_started'
+      type: 'event'
       conversationId: number
-      promptId: number
-      toolCallId: number
-      toolName: string
-      parameters: Record<string, unknown>
+      event: ConversationStreamEvent
     }
-  | {
-      type: 'tool_call_output_delta'
-      conversationId: number
-      promptId: number
-      toolCallId: number
-      stream: 'stdout' | 'stderr'
-      delta: string
-    }
-  | {
-      type: 'tool_call_completed'
-      conversationId: number
-      promptId: number
-      toolCallId: number
-      exitCode: number
-    }
-  | {
-      type: 'tool_call_error'
-      conversationId: number
-      promptId: number
-      toolCallId: number
-      error: string
-    }
+  | { type: 'error'; conversationId: number | null; error: string }
 
-type ClientMessage = { type: 'subscribe'; conversationId: number }
+interface ActiveSubscription {
+  iterator: AsyncGenerator<ConversationStreamEvent>
+  cancelled: boolean
+}
 
-const subscriptions = new Map<number, Set<WebSocket>>()
-const wsToConversations = new Map<WebSocket, Set<number>>()
+const subscriptionRegistry = new Map<
+  WebSocket,
+  Map<number, ActiveSubscription>
+>()
 
-function broadcast(conversationId: number, payload: OutgoingMessage) {
-  const subs = subscriptions.get(conversationId)
-  if (!subs) {
-    logger.debug(
-      `No subscribers for conversation ${conversationId}, skipping broadcast`
-    )
+function getSubscriptionMap(ws: WebSocket) {
+  let map = subscriptionRegistry.get(ws)
+  if (!map) {
+    map = new Map()
+    subscriptionRegistry.set(ws, map)
+  }
+  return map
+}
+
+async function closeSubscription(
+  ws: WebSocket,
+  conversationId: number,
+  wsLogger: ReturnType<typeof logger.child>
+) {
+  const map = subscriptionRegistry.get(ws)
+  const subscription = map?.get(conversationId)
+  if (!map || !subscription || subscription.cancelled) {
     return
   }
 
-  const broadcastLogger = logger.child({ conversationId })
-  const data = JSON.stringify(payload)
-  let sentCount = 0
-  let failedCount = 0
+  subscription.cancelled = true
 
-  for (const client of subs) {
-    if (client.readyState === client.OPEN) {
-      client.send(data)
-      sentCount++
-    } else {
-      failedCount++
-    }
+  try {
+    await subscription.iterator.return?.(undefined)
+  } catch (error) {
+    wsLogger.error('Failed to close conversation stream iterator', {
+      conversationId,
+      error,
+    })
   }
 
-  broadcastLogger.debug(`Broadcast ${payload.type}`, {
-    totalSubscribers: subs.size,
-    sentCount,
-    failedCount,
-    payloadSize: data.length,
+  map.delete(conversationId)
+  if (map.size === 0) {
+    subscriptionRegistry.delete(ws)
+  }
+}
+
+async function closeAllSubscriptions(
+  ws: WebSocket,
+  wsLogger: ReturnType<typeof logger.child>
+) {
+  const map = subscriptionRegistry.get(ws)
+  if (!map) return
+
+  const conversationIds = Array.from(map.keys())
+  wsLogger.wsEvent('connection_cleanup', {
+    conversationsCount: conversationIds.length,
+    conversationIds,
   })
+
+  await Promise.all(
+    conversationIds.map(conversationId =>
+      closeSubscription(ws, conversationId, wsLogger)
+    )
+  )
+}
+
+function send(ws: WebSocket, payload: OutgoingMessage) {
+  if (ws.readyState !== ws.OPEN) return
+  ws.send(JSON.stringify(payload))
 }
 
 wss.on('connection', (ws: WebSocket) => {
@@ -363,90 +362,109 @@ wss.on('connection', (ws: WebSocket) => {
 
   ws.on('message', async (data: RawData) => {
     try {
-      const message = JSON.parse(data.toString()) as ClientMessage
-      wsLogger.wsEvent('message_received', { type: message.type })
-
-      if (message.type === 'subscribe') {
-        const subscribeLogger = wsLogger.child({
-          conversationId: message.conversationId,
-        })
-
-        subscribeLogger.wsEvent('subscription_request')
-
-        // Subscribe to conversation updates
-        const convId: number = message.conversationId
-        const set = subscriptions.get(convId) ?? new Set()
-        set.add(ws)
-        subscriptions.set(convId, set)
-        const wsSet = wsToConversations.get(ws) ?? new Set<number>()
-        wsSet.add(convId)
-        wsToConversations.set(ws, wsSet)
-
-        subscribeLogger.wsEvent('subscription_confirmed', {
-          totalSubscribers: set.size,
-        })
-
-        ws.send(
-          JSON.stringify({
-            type: 'subscribed',
-            conversationId: convId,
-          })
-        )
-
-        // Send snapshot if an active stream exists
-        subscribeLogger.info('Checking for active stream')
-        const activeStream = await conversationService.getActiveStream(convId)
-
-        subscribeLogger.wsEvent('snapshot_sent', {
-          hasActiveStream: !!activeStream,
-        })
-
-        ws.send(
-          JSON.stringify({
-            type: 'snapshot',
-            conversationId: convId,
-            activeStream,
-          })
-        )
+      const raw = JSON.parse(data.toString()) as {
+        type: string
+        conversationId?: number
       }
+
+      if (raw.type !== 'subscribe') {
+        wsLogger.wsEvent('unknown_message', { receivedType: raw.type })
+        return
+      }
+
+      const conversationId = Number(raw.conversationId)
+      if (!Number.isFinite(conversationId)) {
+        send(ws, {
+          type: 'error',
+          conversationId: null,
+          error: 'Invalid conversation id',
+        })
+        return
+      }
+
+      wsLogger.wsEvent('subscription_request', { conversationId })
+
+      await closeSubscription(ws, conversationId, wsLogger)
+
+      const stream = await conversationService.streamConversation(
+        conversationId,
+        1
+      )
+
+      if (!stream) {
+        send(ws, {
+          type: 'error',
+          conversationId,
+          error: 'Conversation not found',
+        })
+        return
+      }
+
+      send(ws, { type: 'subscribed', conversationId })
+      send(ws, {
+        type: 'snapshot',
+        conversationId,
+        snapshot: stream.snapshot,
+      })
+
+      const subscription: ActiveSubscription = {
+        iterator: stream.events,
+        cancelled: false,
+      }
+
+      const map = getSubscriptionMap(ws)
+      map.set(conversationId, subscription)
+
+      wsLogger.wsEvent('subscription_confirmed', { conversationId })
+
+      void (async () => {
+        try {
+          for await (const event of stream.events) {
+            if (subscription.cancelled) {
+              break
+            }
+
+            send(ws, {
+              type: 'event',
+              conversationId,
+              event,
+            })
+          }
+        } catch (error) {
+          wsLogger.error('Failed to forward conversation events', {
+            conversationId,
+            error,
+          })
+          send(ws, {
+            type: 'error',
+            conversationId,
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Failed to stream conversation',
+          })
+        } finally {
+          const activeMap = subscriptionRegistry.get(ws)
+          if (activeMap?.get(conversationId) === subscription) {
+            activeMap.delete(conversationId)
+            if (activeMap.size === 0) {
+              subscriptionRegistry.delete(ws)
+            }
+          }
+        }
+      })()
     } catch (error) {
       wsLogger.error('WebSocket message handling error', error)
-      if (ws.readyState === ws.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'error',
-            error: error instanceof Error ? error.message : 'Unknown error',
-          })
-        )
-      }
+      send(ws, {
+        type: 'error',
+        conversationId: null,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
     }
   })
 
   ws.on('close', () => {
-    const convs = wsToConversations.get(ws)
-    if (convs) {
-      wsLogger.wsEvent('connection_cleanup', {
-        conversationsCount: convs.size,
-        conversationIds: Array.from(convs),
-      })
-
-      for (const id of convs) {
-        const set = subscriptions.get(id)
-        if (set) {
-          set.delete(ws)
-          wsLogger.debug(
-            `Unsubscribed from conversation ${id}, ${set.size} subscribers remaining`
-          )
-          if (set.size === 0) {
-            subscriptions.delete(id)
-            wsLogger.debug(
-              `No more subscribers for conversation ${id}, deleted subscription`
-            )
-          }
-        }
-      }
-      wsToConversations.delete(ws)
-    }
+    void closeAllSubscriptions(ws, wsLogger)
     wsLogger.wsEvent('connection_closed')
   })
 

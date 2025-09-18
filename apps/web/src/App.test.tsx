@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 describe('App', () => {
-  it('renders conversation view', () => {
+  it('renders conversation view', async () => {
     vi.spyOn(conversationService, 'listConversations').mockResolvedValue({
       conversations: [],
     })
@@ -19,8 +19,10 @@ describe('App', () => {
         <App />
       </MemoryRouter>
     )
-    expect(screen.getByText('New Conversation')).toBeInTheDocument()
-    expect(screen.getByText('0 messages • Ready')).toBeInTheDocument()
+    expect(await screen.findByText('New Conversation')).toBeInTheDocument()
+    expect(
+      screen.getByText('0 messages • Awaiting first message')
+    ).toBeInTheDocument()
     expect(
       screen.getByPlaceholderText('Type your message...')
     ).toBeInTheDocument()

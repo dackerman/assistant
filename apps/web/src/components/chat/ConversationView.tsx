@@ -6,7 +6,7 @@ import {
   WifiOff,
   X as XIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ConversationTitle } from '@/components/ui/ConversationTitle'
 import { Input } from '@/components/ui/input'
@@ -17,15 +17,13 @@ import {
   SUPPORTED_MODELS,
   type SupportedModel,
 } from '@/constants/models'
-import { useWebSocket } from '@/hooks/useWebSocket'
-import {
-  type ActiveStream,
-  type ApiBlock,
-  type ApiMessage,
-  conversationService,
-} from '@/services/conversationService'
-import type { Message, ToolCall, ToolResult } from '@/types/conversation'
+import { useConversationStream } from '@/hooks/useConversationStream'
+import { conversationStreamClient } from '@/services/conversationStreamClient'
+import { conversationService } from '@/services/conversationService'
+import type { Message } from '@/types/conversation'
 import { MessageBubble } from './MessageBubble'
+
+const STREAM_USER_ID = 1 // TODO: Replace once auth is wired
 
 interface ConversationViewProps {
   conversationId?: number
@@ -39,560 +37,114 @@ export function ConversationView({
   onTitleUpdate,
 }: ConversationViewProps) {
   const [inputValue, setInputValue] = useState('')
-  const [messages, setMessages] = useState<Message[]>([])
   const [selectedModel, setSelectedModel] =
     useState<SupportedModel>(DEFAULT_MODEL)
   const [currentConversationId, setCurrentConversationId] = useState<
     number | null
-  >(conversationId || null)
+  >(conversationId ?? null)
   const [conversationTitle, setConversationTitle] = useState('New Conversation')
-  const [isLoadingConversation, setIsLoadingConversation] = useState(false)
-  const [conversationError, setConversationError] = useState<string | null>(
-    null
-  )
   const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editingTitle, setEditingTitle] = useState('')
+  const [streamReloadKey, setStreamReloadKey] = useState(0)
+  const [isSending, setIsSending] = useState(false)
+  const previousTitleRef = useRef<string | null>(null)
 
-  // WebSocket handlers
-  const handleTextDelta = useCallback((promptId: number, delta: string) => {
-    setMessages(prev => {
-      const existingIndex = prev.findIndex(
-        m => m.metadata?.promptId === promptId && m.type === 'assistant'
-      )
-
-      if (existingIndex >= 0) {
-        // Update existing message
-        const updated = [...prev]
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          content: updated[existingIndex].content + delta,
-        }
-        return updated
-      } else {
-        // Create new assistant message
-        return [
-          ...prev,
-          {
-            id: `assistant-${promptId}`,
-            type: 'assistant' as const,
-            content: delta,
-            timestamp: new Date().toISOString(),
-            metadata: { promptId },
-          },
-        ]
-      }
-    })
-  }, [])
-
-  const handleStreamComplete = useCallback((promptId: number) => {
-    console.log('Stream completed for prompt:', promptId)
-    // TODO: Refresh conversation to get final state
-  }, [])
-
-  const handleStreamError = useCallback((promptId: number, error: string) => {
-    console.error('Stream error for prompt:', promptId, error)
-  }, [])
-
-  const handleSnapshot = useCallback(
-    (promptId: number, content: string, state: string) => {
-      console.log('Received snapshot for prompt:', promptId, 'state:', state, {
-        contentLength: content?.length || 0,
-        isStreaming: state === 'IN_PROGRESS' || state === 'WAITING_FOR_TOOLS',
-      })
-
-      setMessages(prev => {
-        const existingIndex = prev.findIndex(
-          m => m.metadata?.promptId === promptId && m.type === 'assistant'
-        )
-
-        const snapshotMessage = {
-          id: `assistant-${promptId}`,
-          type: 'assistant' as const,
-          content: content || '',
-          timestamp: new Date().toISOString(),
-          metadata: {
-            promptId,
-            streamState: state,
-          },
-        }
-
-        if (existingIndex >= 0) {
-          // Update existing message with snapshot content
-          const updated = [...prev]
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            ...snapshotMessage,
-            // Preserve original timestamp if it exists
-            timestamp:
-              updated[existingIndex].timestamp || snapshotMessage.timestamp,
-          }
-          return updated
-        } else {
-          // Create new assistant message from snapshot
-          return [...prev, snapshotMessage]
-        }
-      })
-    },
-    []
-  )
-
-  const handleTitleGenerated = useCallback(
-    (title: string) => {
-      console.log('Title generated:', title)
-      setShouldAnimateTitle(true) // Mark that this title change should animate
-      setConversationTitle(title)
-      // Notify parent component to refresh sidebar
-      onTitleUpdate?.()
-      // Reset animation flag after the component has had a chance to use it
-      setTimeout(() => setShouldAnimateTitle(false), 100)
-    },
-    [onTitleUpdate]
-  )
-
-  // Tool call handlers for streaming
-  const handleToolCallStarted = useCallback(
-    (
-      promptId: number,
-      toolCallId: number,
-      toolName: string,
-      parameters: Record<string, unknown>
-    ) => {
-      console.log('Tool call started:', toolName, toolCallId)
-
-      setMessages(prev => {
-        const messageIndex = prev.findIndex(
-          m => m.metadata?.promptId === promptId && m.type === 'assistant'
-        )
-
-        if (messageIndex >= 0) {
-          const updated = [...prev]
-          const message = updated[messageIndex]
-
-          // Initialize toolCalls array if it doesn't exist
-          if (!message.toolCalls) {
-            message.toolCalls = []
-          }
-
-          // Add or update tool call
-          const existingToolCallIndex = message.toolCalls.findIndex(
-            tc => tc.id === toolCallId.toString()
-          )
-          const toolCall = {
-            id: toolCallId.toString(),
-            name: toolName,
-            parameters: parameters,
-            status: 'running' as const,
-            startTime: new Date().toISOString(),
-          }
-
-          if (existingToolCallIndex >= 0) {
-            message.toolCalls[existingToolCallIndex] = toolCall
-          } else {
-            message.toolCalls.push(toolCall)
-          }
-
-          updated[messageIndex] = { ...message }
-          return updated
-        }
-
-        return prev
-      })
-    },
-    []
-  )
-
-  const handleToolCallOutputDelta = useCallback(
-    (
-      promptId: number,
-      toolCallId: number,
-      stream: 'stdout' | 'stderr',
-      delta: string
-    ) => {
-      console.log('Tool call output delta:', toolCallId, stream, delta.length)
-
-      setMessages(prev => {
-        const messageIndex = prev.findIndex(
-          m => m.metadata?.promptId === promptId && m.type === 'assistant'
-        )
-
-        if (messageIndex >= 0) {
-          const updated = [...prev]
-          const message = updated[messageIndex]
-
-          if (message.toolCalls) {
-            const toolCallIndex = message.toolCalls.findIndex(
-              tc => tc.id === toolCallId.toString()
-            )
-            if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] }
-
-              // Initialize result if it doesn't exist
-              if (!toolCall.result) {
-                toolCall.result = ''
-              }
-
-              // Append delta to result
-              if (typeof toolCall.result === 'string') {
-                toolCall.result += delta
-              } else {
-                toolCall.result = delta
-              }
-
-              message.toolCalls[toolCallIndex] = toolCall
-            }
-          }
-
-          updated[messageIndex] = { ...message }
-          return updated
-        }
-
-        return prev
-      })
-    },
-    []
-  )
-
-  const handleToolCallCompleted = useCallback(
-    (promptId: number, toolCallId: number, exitCode: number) => {
-      console.log('Tool call completed:', toolCallId, 'exit code:', exitCode)
-
-      setMessages(prev => {
-        const messageIndex = prev.findIndex(
-          m => m.metadata?.promptId === promptId && m.type === 'assistant'
-        )
-
-        if (messageIndex >= 0) {
-          const updated = [...prev]
-          const message = updated[messageIndex]
-
-          if (message.toolCalls) {
-            const toolCallIndex = message.toolCalls.findIndex(
-              tc => tc.id === toolCallId.toString()
-            )
-            if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] }
-              toolCall.status = 'completed'
-              toolCall.endTime = new Date().toISOString()
-
-              message.toolCalls[toolCallIndex] = toolCall
-            }
-          }
-
-          updated[messageIndex] = { ...message }
-          return updated
-        }
-
-        return prev
-      })
-    },
-    []
-  )
-
-  const handleToolCallError = useCallback(
-    (promptId: number, toolCallId: number, error: string) => {
-      console.log('Tool call error:', toolCallId, error)
-
-      setMessages(prev => {
-        const messageIndex = prev.findIndex(
-          m => m.metadata?.promptId === promptId && m.type === 'assistant'
-        )
-
-        if (messageIndex >= 0) {
-          const updated = [...prev]
-          const message = updated[messageIndex]
-
-          if (message.toolCalls) {
-            const toolCallIndex = message.toolCalls.findIndex(
-              tc => tc.id === toolCallId.toString()
-            )
-            if (toolCallIndex >= 0) {
-              const toolCall = { ...message.toolCalls[toolCallIndex] }
-              toolCall.status = 'error'
-              toolCall.error = error
-              toolCall.endTime = new Date().toISOString()
-
-              message.toolCalls[toolCallIndex] = toolCall
-            }
-          }
-
-          updated[messageIndex] = { ...message }
-          return updated
-        }
-
-        return prev
-      })
-    },
-    []
-  )
-
-  const { sendMessage, subscribe, isConnected, isStreaming } = useWebSocket(
-    handleTextDelta,
-    handleStreamComplete,
-    handleStreamError,
-    handleSnapshot,
-    handleTitleGenerated,
-    handleToolCallStarted,
-    handleToolCallOutputDelta,
-    handleToolCallCompleted,
-    handleToolCallError
-  )
-
-  // Sync internal state with conversation ID prop
   useEffect(() => {
-    console.log('ConversationView prop conversationId changed:', conversationId)
-    setCurrentConversationId(conversationId || null)
+    setCurrentConversationId(conversationId ?? null)
   }, [conversationId])
 
-  // Load conversation on mount or when ID changes
+  const {
+    status: streamStatus,
+    conversation: streamConversation,
+    messages: streamMessages,
+    error: streamError,
+    isStreaming,
+  } = useConversationStream({
+    conversationId: currentConversationId,
+    userId: STREAM_USER_ID,
+    client: conversationStreamClient,
+    reloadKey: streamReloadKey,
+  })
+
+  const messages = streamMessages
+
+  const canInteractWithStream =
+    currentConversationId == null || streamStatus === 'ready'
+  const isConnected = streamStatus === 'ready'
+  const isLoadingConversation = streamStatus === 'loading'
+  const conversationError = streamError
+
   useEffect(() => {
-    console.log(
-      'ConversationView currentConversationId changed:',
-      currentConversationId
-    )
-    if (currentConversationId) {
-      // Clear any existing error when switching conversations
-      setConversationError(null)
-      loadConversation(currentConversationId)
-      subscribe(currentConversationId)
-    } else {
-      // Clear messages and error when no conversation selected
-      setMessages([])
-      setConversationError(null)
+    if (isEditingTitle) return
+
+    if (!currentConversationId) {
+      previousTitleRef.current = null
       setConversationTitle('New Conversation')
-    }
-  }, [currentConversationId, subscribe])
-
-  const loadConversation = async (id: number) => {
-    try {
-      setIsLoadingConversation(true)
-      setConversationError(null)
-
-      console.log('Loading conversation:', id)
-      const result = await conversationService.getConversation(id)
-
-      if (!result) {
-        throw new Error('Conversation not found')
-      }
-
-      console.log('Backend messages raw data:', result.messages)
-      const formattedMessages = formatMessagesFromAPI(result.messages)
-      console.log('Formatted messages for UI:', formattedMessages)
-      setMessages(formattedMessages)
-      setConversationTitle(result.conversation.title || 'Conversation')
-
-      // Check for active streaming and restore streaming state
-      if (!isStreaming) {
-        const activeStreamResult = await conversationService.getActiveStream(id)
-        if (activeStreamResult.activeStream) {
-          console.log(
-            'Active stream detected:',
-            activeStreamResult.activeStream
-          )
-          await restoreActiveStream(activeStreamResult.activeStream)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load conversation:', error)
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to load conversation'
-      setConversationError(errorMessage)
-      // Don't clear messages on error - keep existing state
-    } finally {
-      setIsLoadingConversation(false)
-    }
-  }
-
-  const retryLoadConversation = () => {
-    if (currentConversationId) {
-      loadConversation(currentConversationId)
-    }
-  }
-
-  const formatUnknownValue = (value: unknown): string => {
-    if (value == null) return ''
-    if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return value.toString()
-    }
-    try {
-      return JSON.stringify(value, null, 2)
-    } catch (error) {
-      console.warn('Failed to stringify value', error)
-      return String(value)
-    }
-  }
-
-  const formatMessagesFromAPI = (apiMessages: ApiMessage[]): Message[] => {
-    return apiMessages.map(msg => {
-      // Combine text blocks for content
-      const textContent =
-        msg.blocks
-          ?.filter(b => b.type === 'text')
-          .map(b => b.content || '')
-          .join('') || ''
-
-      // Process tool calls from blocks
-      const toolCalls: ToolCall[] = []
-      const toolResults: ToolResult[] = []
-
-      msg.blocks?.forEach((block: ApiBlock) => {
-        if (block.type === 'tool_call' && block.toolCall) {
-          const toolCall: ToolCall = {
-            id: block.toolCall.apiToolCallId || block.id.toString(),
-            name: block.toolCall.toolName,
-            parameters: block.toolCall.request || {},
-            result: block.toolCall.response,
-            status: mapToolCallState(block.toolCall.state),
-            startTime: block.createdAt,
-            endTime: block.toolCall.completedAt,
-            providerExecuted: block.toolCall.providerExecuted,
-            dynamic: block.toolCall.dynamic,
-          }
-
-          if (toolCall.status === 'completed') {
-            const resultString = formatUnknownValue(block.toolCall.response)
-            const toolResult: ToolResult = {
-              id: toolCall.id,
-              name: toolCall.name,
-              parameters: toolCall.parameters,
-              output: toolCall.result,
-              status: 'completed',
-              startTime: toolCall.startTime,
-              endTime: toolCall.endTime || toolCall.startTime,
-              result: resultString,
-              providerExecuted: toolCall.providerExecuted,
-              dynamic: toolCall.dynamic,
-            }
-
-            toolResults.push(toolResult)
-          } else {
-            toolCalls.push(toolCall)
-          }
-        }
-      })
-
-      return {
-        id: msg.id.toString(),
-        type: msg.role,
-        content: textContent,
-        timestamp: msg.createdAt,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        toolResults: toolResults.length > 0 ? toolResults : undefined,
-        metadata: {
-          promptId: msg.promptId,
-          model: msg.model,
-        },
-      }
-    })
-  }
-
-  const mapToolCallState = (dbState: string) => {
-    switch (dbState) {
-      case 'created':
-        return 'pending'
-      case 'running':
-        return 'running'
-      case 'completed':
-        return 'completed'
-      case 'failed':
-      case 'canceled':
-        return 'error'
-      default:
-        return 'pending'
-    }
-  }
-
-  const restoreActiveStream = async (activeStream: ActiveStream) => {
-    const { prompt, blocks } = activeStream
-
-    console.log('Restoring active stream:', {
-      promptId: prompt.id,
-      blockCount: blocks.length,
-    })
-
-    // Build current content from streaming blocks
-    const streamingContent = blocks
-      .filter(b => b.type === 'text')
-      .map(b => b.content || '')
-      .join('')
-
-    if (streamingContent) {
-      // Add or update the assistant message with current streaming content
-      const assistantMessage: Message = {
-        id: `assistant-${prompt.id}`,
-        type: 'assistant',
-        content: streamingContent,
-        timestamp: prompt.createdAt,
-        metadata: {
-          promptId: prompt.id,
-          model: prompt.model,
-        },
-      }
-
-      setMessages(prev => {
-        // Check if we already have this assistant message
-        const existingIndex = prev.findIndex(
-          m => m.metadata?.promptId === prompt.id && m.type === 'assistant'
-        )
-
-        if (existingIndex >= 0) {
-          // Update existing message
-          const updated = [...prev]
-          updated[existingIndex] = assistantMessage
-          return updated
-        } else {
-          // Add new assistant message
-          return [...prev, assistantMessage]
-        }
-      })
+      return
     }
 
-    // Set streaming state based on prompt state
-    if (prompt.state === 'IN_PROGRESS') {
-      // WebSocket should handle continued streaming
-      console.log(
-        'Stream is actively IN_PROGRESS - WebSocket will handle updates'
+    if (!streamConversation) {
+      setConversationTitle(prev =>
+        prev === 'New Conversation' ? 'Conversation' : prev
       )
-    } else if (prompt.state === 'WAITING_FOR_TOOLS') {
-      console.log('Stream is waiting for tools - monitoring for completion')
-      // Could add UI indicator for tool execution status
-    } else {
-      console.log(
-        `Stream in ${prompt.state} state - may need manual intervention`
-      )
+      return
     }
-  }
+
+    const incomingTitle = streamConversation.title?.trim().length
+      ? streamConversation.title.trim()
+      : 'Conversation'
+
+    if (
+      previousTitleRef.current &&
+      previousTitleRef.current !== incomingTitle
+    ) {
+      setShouldAnimateTitle(true)
+    }
+
+    previousTitleRef.current = incomingTitle
+    setConversationTitle(incomingTitle)
+  }, [streamConversation, currentConversationId, isEditingTitle])
+
+  useEffect(() => {
+    if (!shouldAnimateTitle) return
+    const timer = window.setTimeout(() => setShouldAnimateTitle(false), 200)
+    return () => window.clearTimeout(timer)
+  }, [shouldAnimateTitle])
+
+  const statusLabel = useMemo(() => {
+    if (isStreaming) return 'AI is typing...'
+    if (isConnected) return 'Ready'
+    if (currentConversationId == null) return 'Awaiting first message'
+    if (streamStatus === 'loading') return 'Loading...'
+    if (streamStatus === 'error') return 'Disconnected'
+    return 'Idle'
+  }, [isStreaming, isConnected, currentConversationId, streamStatus])
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isStreaming) return
+    if (!inputValue.trim() || isStreaming || isSending) return
 
+    setIsSending(true)
     try {
       let conversationIdToUse = currentConversationId
 
-      // Create conversation if none exists
       if (!conversationIdToUse) {
         const newConv = await conversationService.createConversation()
         conversationIdToUse = newConv.id
         setCurrentConversationId(conversationIdToUse)
-        // No need to call subscribe here - useEffect will handle it
         onConversationCreate?.(conversationIdToUse)
       }
 
-      // Add user message to UI
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        type: 'user',
-        content: inputValue,
-        timestamp: new Date().toISOString(),
-      }
-      setMessages(prev => [...prev, userMessage])
-
-      // Send message via WebSocket
-      sendMessage(conversationIdToUse, inputValue, selectedModel)
+      await conversationService.sendMessage(
+        conversationIdToUse,
+        inputValue,
+        selectedModel
+      )
       setInputValue('')
     } catch (error) {
       console.error('Failed to send message:', error)
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -621,7 +173,7 @@ export function ConversationView({
       setConversationTitle(editingTitle.trim())
       setIsEditingTitle(false)
       setEditingTitle('')
-      // Notify parent to refresh sidebar
+      setShouldAnimateTitle(true)
       onTitleUpdate?.()
     } catch (error) {
       console.error('Failed to update conversation title:', error)
@@ -642,6 +194,10 @@ export function ConversationView({
       e.preventDefault()
       handleTitleEditCancel()
     }
+  }
+
+  const retryLoadConversation = () => {
+    setStreamReloadKey(prev => prev + 1)
   }
 
   return (
@@ -710,8 +266,7 @@ export function ConversationView({
               )}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              {messages.length} messages •{' '}
-              {isStreaming ? 'AI is typing...' : 'Ready'}
+              {messages.length} messages • {statusLabel}
             </p>
             <select
               value={selectedModel}
@@ -733,7 +288,6 @@ export function ConversationView({
 
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="max-w-4xl mx-auto space-y-2 sm:space-y-4">
-          {/* Loading state */}
           {isLoadingConversation && (
             <div className="flex items-center justify-center py-8">
               <div className="text-muted-foreground">
@@ -742,7 +296,6 @@ export function ConversationView({
             </div>
           )}
 
-          {/* Error state */}
           {conversationError && !isLoadingConversation && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <div className="text-red-500 mb-2">{conversationError}</div>
@@ -756,12 +309,17 @@ export function ConversationView({
             </div>
           )}
 
-          {/* Messages */}
-          {!isLoadingConversation &&
-            !conversationError &&
-            messages.map(message => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
+          {!isLoadingConversation && !conversationError && (
+            messages.length > 0 ? (
+              messages.map((message: Message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground py-8 text-center">
+                Start a conversation by sending a message.
+              </div>
+            )
+          )}
         </div>
       </div>
 
@@ -775,11 +333,16 @@ export function ConversationView({
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyPress}
             className="flex-1 text-sm"
-            disabled={!isConnected || isStreaming}
+            disabled={!canInteractWithStream || isStreaming}
           />
           <Button
             onClick={handleSend}
-            disabled={!inputValue.trim() || !isConnected || isStreaming}
+            disabled={
+              !inputValue.trim() ||
+              !canInteractWithStream ||
+              isStreaming ||
+              isSending
+            }
             size="sm"
             className="px-3"
           >
