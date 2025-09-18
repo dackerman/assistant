@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
-import type { z } from 'zod'
+import { z } from 'zod'
+import { db as defaultDb } from '../db'
 import type { DB } from '../db'
 import {
   blocks,
@@ -31,6 +32,12 @@ export interface ToolDefinition<TInput = unknown> {
   ): AsyncIterable<ToolStreamEvent> | AsyncGenerator<ToolStreamEvent>
 }
 
+export interface ToolExecutionHandlers {
+  onChunk?: (chunk: string) => Promise<void> | void
+  onResult?: (output: string) => Promise<void> | void
+  onError?: (error: string) => Promise<void> | void
+}
+
 export interface ToolExecutorConfig {
   timeout?: number
 }
@@ -42,8 +49,8 @@ export class ToolExecutorService {
   private tools: Map<string, ToolDefinition<unknown>>
 
   constructor(
+    dbInstance: DB = defaultDb,
     tools: ToolDefinition<unknown>[],
-    dbInstance: DB,
     config: ToolExecutorConfig = {}
   ) {
     const timeout = config.timeout || 300000
@@ -58,7 +65,10 @@ export class ToolExecutorService {
     this.logger.info('ToolExecutorService initialized')
   }
 
-  async executeToolCall(toolCallId: number): Promise<void> {
+  async executeToolCall(
+    toolCallId: number,
+    handlers?: ToolExecutionHandlers
+  ): Promise<void> {
     const [toolCall] = await this.db
       .select()
       .from(toolCalls)
@@ -79,6 +89,7 @@ export class ToolExecutorService {
     const toolDefinition = this.tools.get(toolCall.name)
     if (!toolDefinition) {
       await this.failToolCall(toolCall, `Unsupported tool: ${toolCall.name}`)
+      await handlers?.onError?.(`Unsupported tool: ${toolCall.name}`)
       return
     }
 
@@ -86,10 +97,9 @@ export class ToolExecutorService {
     try {
       parsedInput = toolDefinition.inputSchema.parse(toolCall.input)
     } catch (error) {
-      await this.failToolCall(
-        toolCall,
-        error instanceof Error ? error.message : String(error)
-      )
+      const message = error instanceof Error ? error.message : String(error)
+      await this.failToolCall(toolCall, message)
+      await handlers?.onError?.(message)
       return
     }
 
@@ -104,44 +114,47 @@ export class ToolExecutorService {
     }
 
     let collectedOutput = ''
-    let hasEmittedResult = false
     let blockInitialized = false
+    let resultHandled = false
 
     try {
       for await (const event of toolDefinition.execute(context)) {
-        switch (event.type) {
-          case 'chunk': {
-            collectedOutput += event.chunk
-            await this.persistToolProgress(toolCall, collectedOutput)
-            if (toolCall.blockId) {
-              await this.updateToolResultBlock(
-                toolCall.blockId,
-                event.chunk,
-                blockInitialized
-              )
-              blockInitialized = true
-            }
-            break
+        if (event.type === 'chunk') {
+          collectedOutput += event.chunk
+          await this.appendToolOutput(toolCall, event.chunk)
+          if (toolCall.blockId) {
+            await this.updateToolResultBlock(
+              toolCall.blockId,
+              event.chunk,
+              blockInitialized
+            )
+            blockInitialized = true
           }
-          case 'result': {
-            hasEmittedResult = true
-            if (event.output !== undefined) {
-              collectedOutput = event.output
-            }
-            await this.persistToolProgress(toolCall, collectedOutput)
-            break
+          await handlers?.onChunk?.(event.chunk)
+          continue
+        }
+
+        if (event.type === 'result') {
+          if (event.output !== undefined) {
+            collectedOutput = event.output
           }
-          case 'error': {
-            throw event.error instanceof Error
-              ? event.error
-              : new Error(String(event.error))
-          }
+          resultHandled = true
+          await handlers?.onResult?.(collectedOutput)
+          continue
+        }
+
+        if (event.type === 'error') {
+          throw event.error instanceof Error
+            ? event.error
+            : new Error(String(event.error))
         }
       }
 
-      if (!hasEmittedResult) {
-        await this.persistToolProgress(toolCall, collectedOutput)
+      if (!resultHandled) {
+        await handlers?.onResult?.(collectedOutput)
       }
+
+      await this.setToolOutput(toolCall, collectedOutput)
 
       await this.db
         .update(toolCalls)
@@ -183,6 +196,8 @@ export class ToolExecutorService {
         error: message,
       })
 
+      await handlers?.onError?.(message)
+
       throw error
     }
   }
@@ -208,7 +223,24 @@ export class ToolExecutorService {
     })
   }
 
-  private async persistToolProgress(toolCall: ToolCall, output: string) {
+  private async appendToolOutput(toolCall: ToolCall, chunk: string) {
+    if (!chunk) return
+
+    const [current] = await this.db
+      .select({ output: toolCalls.output })
+      .from(toolCalls)
+      .where(eq(toolCalls.id, toolCall.id))
+
+    await this.db
+      .update(toolCalls)
+      .set({
+        output: `${current?.output ?? ''}${chunk}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(toolCalls.id, toolCall.id))
+  }
+
+  private async setToolOutput(toolCall: ToolCall, output: string) {
     await this.db
       .update(toolCalls)
       .set({

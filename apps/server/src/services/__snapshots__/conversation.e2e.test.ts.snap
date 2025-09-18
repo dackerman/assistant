@@ -136,17 +136,21 @@ Execute the commands and then explain the results in a helpful way.",
   {
     "blockId": 2,
     "output": "testing tool output.
-this is just a test!",
+",
     "toolCallId": 1,
     "type": "tool-call-progress",
   },
   {
     "blockId": 2,
-    "content": "testing tool output.
-this is just a test!",
-    "messageId": 2,
-    "promptId": 1,
-    "type": "block-delta",
+    "output": "this is just ",
+    "toolCallId": 1,
+    "type": "tool-call-progress",
+  },
+  {
+    "blockId": 2,
+    "output": "a test!",
+    "toolCallId": 1,
+    "type": "tool-call-progress",
   },
   {
     "toolCall": {
@@ -610,17 +614,21 @@ Execute the commands and then explain the results in a helpful way.",
   {
     "blockId": 5,
     "output": "testing tool output.
-this is just a test!",
+",
     "toolCallId": 2,
     "type": "tool-call-progress",
   },
   {
     "blockId": 5,
-    "content": "testing tool output.
-this is just a test!",
-    "messageId": 4,
-    "promptId": 2,
-    "type": "block-delta",
+    "output": "this is just ",
+    "toolCallId": 2,
+    "type": "tool-call-progress",
+  },
+  {
+    "blockId": 5,
+    "output": "a test!",
+    "toolCallId": 2,
+    "type": "tool-call-progress",
   },
   {
     "toolCall": {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { BashSessionManager } from '../bashSessionManager'
 import type { ToolDefinition } from '../toolExecutorService'
+import type { BashSessionManager } from '../bashSessionManager'
 
 const BashToolInputSchema = z.object({
   command: z.string().min(1, 'Command is required'),
@@ -22,6 +22,7 @@ export function createBashTool(
 
       const result = await session.exec(input.command, {
         onStdout: chunk => {
+          if (!chunk) return
           chunks.push(chunk)
           logger.debug('Bash tool stdout', { chunkLength: chunk.length })
         },
@@ -33,8 +34,6 @@ export function createBashTool(
         },
       })
 
-      const output = chunks.join('')
-
       if (!result.success) {
         yield {
           type: 'error',
@@ -43,11 +42,15 @@ export function createBashTool(
         return
       }
 
-      if (output) {
-        yield { type: 'chunk', chunk: output } as const
+      if (chunks.length === 0 && result.stdout) {
+        chunks.push(result.stdout)
       }
 
-      yield { type: 'result', output } as const
+      for (const chunk of chunks) {
+        yield { type: 'chunk', chunk } as const
+      }
+
+      yield { type: 'result', output: chunks.join('') } as const
     },
   }
 }

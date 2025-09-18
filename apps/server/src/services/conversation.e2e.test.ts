@@ -318,22 +318,18 @@ describe('ConversationService – createConversation', () => {
         expect(event.input.command).toBe('weather --city tokyo')
       })
 
-      await expectEvent('tool-call-progress', event => {
-        expect(event.toolCallId).toBe(firstToolStarted.toolCall.id)
-        expect(event.output).toBe('testing tool output.\nthis is just a test!')
-      })
+      for (let i = 0; i < 3; i++) {
+        await waitForEvent('tool-call-progress', event => {
+          expect(event.toolCallId).toBe(firstToolStarted.toolCall.id)
+        })
+      }
 
-      await expectEvent('block-delta', event => {
-        expect(event.blockId).toBe(firstToolStarted.toolCall.blockId)
-        expect(event.content).toBe('testing tool output.\nthis is just a test!')
-      })
-
-      await expectEvent('tool-call-completed', event => {
+      await waitForEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(firstToolStarted.toolCall.id)
         expect(event.toolCall.output).toBe('testing tool output.\nthis is just a test!')
       })
 
-      await expectEvent('block-end', event => {
+      await waitForEvent('block-end', event => {
         expect(event.blockId).toBe(firstToolStarted.toolCall.blockId)
       })
 
@@ -537,15 +533,11 @@ describe('ConversationService – createConversation', () => {
         }
       )
 
-      await waitForEvent('tool-call-progress', event => {
-        expect(event.toolCallId).toBe(secondToolStarted.toolCall.id)
-        expect(event.output).toBe('testing tool output.\nthis is just a test!')
-      })
-
-      await waitForEvent('block-delta', event => {
-        expect(event.blockId).toBe(secondToolStarted.toolCall.blockId)
-        expect(event.content).toBe('testing tool output.\nthis is just a test!')
-      })
+      for (let i = 0; i < 3; i++) {
+        await waitForEvent('tool-call-progress', event => {
+          expect(event.toolCallId).toBe(secondToolStarted.toolCall.id)
+        })
+      }
 
       await waitForEvent('tool-call-completed', event => {
         expect(event.toolCall.id).toBe(secondToolStarted.toolCall.id)
@@ -655,18 +647,29 @@ describe('ConversationService – createConversation', () => {
         'testing tool output.\nthis is just a test!',
       ])
 
+      const progressChunks = events
+        .filter(event => event.type === 'tool-call-progress')
+        .map(event => (event as any).output)
+
+      expect(progressChunks).toEqual([
+        'testing tool output.\n',
+        'this is just ',
+        'a test!',
+        'testing tool output.\n',
+        'this is just ',
+        'a test!',
+      ])
+
       const blockDeltas = events
         .filter(event => event.type === 'block-delta')
         .map(event => 'content' in event && event.content)
 
       expect(blockDeltas).toEqual([
         'Using bash tool...',
-        'testing tool output.\nthis is just a test!',
         'The weather report is above. ',
         'The weather report is above. ',
         'Let me know if you need more details.',
         'Using bash tool...',
-        'testing tool output.\nthis is just a test!',
         "Here's something funny: Why did the scarecrow win an award? ",
         'Because he was outstanding in his field.',
       ])
@@ -679,7 +682,7 @@ describe('ConversationService – createConversation', () => {
       ).toBe(2)
       expect(
         events.filter(event => event.type === 'tool-call-progress').length
-      ).toBe(2)
+      ).toBe(6)
 
       expect(
         events.filter(event => event.type === 'prompt-completed').length

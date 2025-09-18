@@ -109,7 +109,7 @@ export class PromptService {
       this.toolExecutor = options.toolExecutor
     } else {
       const tools = options.tools ?? []
-      this.toolExecutor = new ToolExecutorService(tools, dbInstance)
+      this.toolExecutor = new ToolExecutorService(dbInstance, tools)
     }
     this.client = options.anthropicClient
   }
@@ -531,9 +531,17 @@ export class PromptService {
                     parsedInput
                   )
 
+                  let latestOutput = ''
                   try {
                     // Start tool execution
-                    await this.toolExecutor.executeToolCall(toolCall.id)
+                    await this.toolExecutor.executeToolCall(toolCall.id, {
+                      onChunk: async chunk => {
+                        await callbacks?.onToolProgress?.(toolCall.id, chunk)
+                      },
+                      onResult: async output => {
+                        latestOutput = output
+                      },
+                    })
                   } catch (error) {
                     const [failedTool] = await this.db
                       .select()
@@ -559,17 +567,13 @@ export class PromptService {
                     .where(eq(toolCalls.id, toolCall.id))
 
                   if (completedTool) {
-                    const outputText = completedTool.output || ''
+                    const outputText =
+                      latestOutput || completedTool.output || ''
 
                     toolResults.push({
                       tool_use_id: toolData.toolUseId,
                       content: outputText || 'No output',
                     })
-
-                    if (outputText) {
-                      await callbacks?.onToolProgress?.(toolCall.id, outputText)
-                      await callbacks?.onBlockDelta?.(blockId, outputText)
-                    }
 
                     await callbacks?.onToolEnd?.(
                       toolCall.id,

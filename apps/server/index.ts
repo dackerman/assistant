@@ -28,8 +28,8 @@ const anthropic = new Anthropic({
 
 const bashSessionManager = new BashSessionManager()
 const toolExecutorService = new ToolExecutorService(
-  [createBashTool(bashSessionManager)],
-  defaultDb
+  defaultDb,
+  [createBashTool(bashSessionManager)]
 )
 toolExecutorService.initialize()
 
