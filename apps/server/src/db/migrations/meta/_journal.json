@@ -29,6 +29,13 @@
       "when": 1757331083118,
       "tag": "0003_amused_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1758225634534,
+      "tag": "0008_sync_conversation_schema",
+      "breakpoints": true
     }
   ]
 }
