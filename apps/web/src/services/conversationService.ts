@@ -36,6 +36,25 @@ export interface ActiveStream {
   blocks: Block[]
 }
 
+export interface IConversationService {
+  createConversation(title?: string): Promise<{ id: number }>
+  getConversation(conversationId: number): Promise<{
+    conversation: ApiConversation
+    messages: ApiMessage[]
+  }>
+  getActiveStream(conversationId: number): Promise<{
+    activeStream: ActiveStream | null
+  }>
+  sendMessage(
+    conversationId: number,
+    content: string,
+    model?: string
+  ): Promise<{ userMessageId: number; promptId: number }>
+  listConversations(): Promise<{ conversations: ApiConversation[] }>
+  updateTitle(conversationId: number, title: string): Promise<void>
+  deleteConversation(conversationId: number): Promise<void>
+}
+
 export interface ApiToolCall {
   id: number
   apiToolCallId?: string
@@ -72,7 +91,7 @@ export interface ApiConversation {
   updatedAt: string
 }
 
-export class ConversationService {
+export class ConversationService implements IConversationService {
   /**
    * Create a new conversation
    */
