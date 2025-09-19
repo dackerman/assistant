@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Message } from '@/types/conversation'
+import type { Message, Block } from '@/types/conversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -240,11 +240,9 @@ function updateMessageWhere(
   return { ...state, messages: nextMessages }
 }
 
-function mapToolStatus(state: string | undefined):
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'error' {
+function mapToolStatus(
+  state: string | undefined
+): 'pending' | 'running' | 'completed' | 'error' {
   switch (state) {
     case 'pending':
       return 'pending'
@@ -371,11 +369,10 @@ function applyEvent(
             id: event.toolCall.id,
             name: event.toolCall.name,
             status: mapToolStatus(event.toolCall.state),
-            input:
-              (event.input ?? event.toolCall.input ?? {}) as Record<
-                string,
-                unknown
-              >,
+            input: (event.input ?? event.toolCall.input ?? {}) as Record<
+              string,
+              unknown
+            >,
             output: event.toolCall.output ?? null,
             error: event.toolCall.error ?? null,
             providerExecuted: event.toolCall.providerExecuted ?? undefined,
@@ -390,11 +387,10 @@ function applyEvent(
             ...existing,
             name: event.toolCall.name,
             status: mapToolStatus(event.toolCall.state),
-            input:
-              (event.input ?? event.toolCall.input ?? existing.input ?? {}) as Record<
-                string,
-                unknown
-              >,
+            input: (event.input ??
+              event.toolCall.input ??
+              existing.input ??
+              {}) as Record<string, unknown>,
             output: existing.output ?? event.toolCall.output ?? null,
             error: event.toolCall.error ?? existing.error ?? null,
             providerExecuted:
@@ -405,7 +401,9 @@ function applyEvent(
             blockId: event.toolCall.blockId ?? existing.blockId ?? null,
           })
 
-          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+          const toolCallOrder = message.toolCallOrder.includes(
+            event.toolCall.id
+          )
             ? message.toolCallOrder
             : [...message.toolCallOrder, event.toolCall.id]
 
@@ -441,7 +439,7 @@ function applyEvent(
           const combinedOutput =
             existing.output != null
               ? `${existing.output}${event.output ?? ''}`
-              : event.output ?? null
+              : (event.output ?? null)
 
           const toolCalls = new Map(message.toolCalls)
           toolCalls.set(event.toolCallId, {
@@ -472,8 +470,7 @@ function applyEvent(
             id: event.toolCall.id,
             name: event.toolCall.name,
             status: mapToolStatus(event.toolCall.state),
-            input:
-              (event.toolCall.input ?? {}) as Record<string, unknown>,
+            input: (event.toolCall.input ?? {}) as Record<string, unknown>,
             output: null,
             error: event.toolCall.error ?? null,
             providerExecuted: event.toolCall.providerExecuted ?? undefined,
@@ -502,7 +499,9 @@ function applyEvent(
             completedAt: event.toolCall.completedAt ?? existing.completedAt,
           })
 
-          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+          const toolCallOrder = message.toolCallOrder.includes(
+            event.toolCall.id
+          )
             ? message.toolCallOrder
             : [...message.toolCallOrder, event.toolCall.id]
 
@@ -523,8 +522,7 @@ function applyEvent(
             id: event.toolCall.id,
             name: event.toolCall.name,
             status: 'error',
-            input:
-              (event.toolCall.input ?? {}) as Record<string, unknown>,
+            input: (event.toolCall.input ?? {}) as Record<string, unknown>,
             output: event.toolCall.output ?? null,
             error: event.error ?? event.toolCall.error ?? null,
             providerExecuted: event.toolCall.providerExecuted ?? undefined,
@@ -540,7 +538,8 @@ function applyEvent(
             name: event.toolCall.name,
             status: 'error',
             output: event.toolCall.output ?? existing.output ?? null,
-            error: event.error ?? event.toolCall.error ?? existing.error ?? null,
+            error:
+              event.error ?? event.toolCall.error ?? existing.error ?? null,
             providerExecuted:
               event.toolCall.providerExecuted ?? existing.providerExecuted,
             dynamic: event.toolCall.dynamic ?? existing.dynamic,
@@ -548,7 +547,9 @@ function applyEvent(
             completedAt: event.toolCall.completedAt ?? existing.completedAt,
           })
 
-          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+          const toolCallOrder = message.toolCallOrder.includes(
+            event.toolCall.id
+          )
             ? message.toolCallOrder
             : [...message.toolCallOrder, event.toolCall.id]
 
@@ -574,16 +575,58 @@ function applyEvent(
 }
 
 function toUiMessage(message: InternalMessageState): Message {
-  const blocks = message.blockOrder
-    .map(blockId => message.blocks.get(blockId))
-    .filter((block): block is InternalBlockState => Boolean(block))
+  // Preserve blocks in their original order
+  const orderedBlocks = message.blockOrder
+    .map(blockId => {
+      const block = message.blocks.get(blockId)
+      if (!block) return null
 
-  const textContent = blocks
-    .filter(block => block.type === 'text')
-    .map(block => block.content)
-    .join('')
+      // Convert internal block to UI block
+      const uiBlock: Block = {
+        id: blockId.toString(),
+        type: block.type,
+        content: block.content,
+        metadata: undefined,
+      }
 
-  const content = textContent.length > 0 ? textContent : message.content
+      // Preserve block metadata if it exists
+      if (block.metadata && typeof block.metadata === 'object') {
+        uiBlock.metadata = {}
+
+        // Copy relevant fields from block metadata
+        const meta = block.metadata as Record<string, unknown>
+        if (meta.toolName) uiBlock.metadata.toolName = String(meta.toolName)
+        if (meta.toolUseId) uiBlock.metadata.toolUseId = String(meta.toolUseId)
+        if (meta.toolCallId)
+          uiBlock.metadata.toolCallId = String(meta.toolCallId)
+        if (meta.input && typeof meta.input === 'object') {
+          uiBlock.metadata.input = meta.input as Record<string, unknown>
+        }
+        if (meta.output !== undefined) uiBlock.metadata.output = meta.output
+        if (meta.error) uiBlock.metadata.error = String(meta.error)
+      }
+
+      // For tool_use/tool_result blocks, find corresponding tool call by blockId
+      if (block.type === 'tool_use' || block.type === 'tool_result') {
+        const toolCall = Array.from(message.toolCalls.values()).find(
+          tc => tc.blockId === blockId
+        )
+        if (toolCall && uiBlock.metadata) {
+          if (toolCall.input && typeof toolCall.input === 'object') {
+            uiBlock.metadata.input = toolCall.input
+          }
+          if (toolCall.output !== undefined && toolCall.output !== null) {
+            uiBlock.metadata.output = toolCall.output
+          }
+          if (toolCall.error) {
+            uiBlock.metadata.error = String(toolCall.error)
+          }
+        }
+      }
+
+      return uiBlock
+    })
+    .filter((block): block is Block => block !== null)
 
   const metadataEntries: Array<[string, number | string]> = []
   if (message.promptId != null) {
@@ -596,6 +639,7 @@ function toUiMessage(message: InternalMessageState): Message {
   const metadata =
     metadataEntries.length > 0 ? Object.fromEntries(metadataEntries) : undefined
 
+  // Keep toolCalls for backward compatibility but it's deprecated
   const toolCalls = message.toolCallOrder
     .map(id => message.toolCalls.get(id))
     .filter((toolCall): toolCall is InternalToolCallState => Boolean(toolCall))
@@ -615,9 +659,14 @@ function toUiMessage(message: InternalMessageState): Message {
   return {
     id: message.id.toString(),
     type: message.role,
-    content,
+    blocks: orderedBlocks,
     timestamp: message.createdAt,
     metadata,
+    // Deprecated fields kept for backward compatibility
+    content: orderedBlocks
+      .filter(b => b.type === 'text')
+      .map(b => b.content)
+      .join(''),
     toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
   }
 }

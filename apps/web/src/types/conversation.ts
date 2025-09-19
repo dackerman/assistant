@@ -78,11 +78,27 @@ export interface StreamPart {
   dynamic?: boolean
 }
 
+export interface Block {
+  id: string
+  type: 'text' | 'tool_use' | 'tool_result' | 'thinking'
+  content: string
+  metadata?: {
+    toolName?: string
+    toolUseId?: string
+    toolCallId?: string
+    input?: Record<string, unknown>
+    output?: unknown
+    error?: string
+  }
+}
+
 export interface Message {
   id: string
   type: 'user' | 'assistant' | 'system'
-  content: string
+  blocks: Block[] // Ordered array of blocks
   timestamp: string
+  // Deprecated - use blocks instead
+  content?: string
   toolCalls?: ToolCall[]
   toolResults?: ToolResult[]
   toolErrors?: ToolError[]

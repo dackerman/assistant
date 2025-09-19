@@ -1,12 +1,14 @@
 import { Bot, Settings, User } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import type { Message } from '@/types/conversation'
+import { BlockRenderer } from './BlockRenderer'
+import { ToolCallDisplay } from './ToolCallDisplay'
+// Legacy imports for backward compatibility
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import type { Message } from '@/types/conversation'
-import { ToolCallDisplay } from './ToolCallDisplay'
 
 interface MessageBubbleProps {
   message: Message
@@ -67,118 +69,128 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           }
         `}
         >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight, rehypeRaw]}
-            components={{
-              // Code blocks
-              code: ({ className, children, ...props }) => {
-                const match = /language-(\w+)/.exec(className || '')
-                const isInline = !match
+          {/* Render blocks in order if available, otherwise fall back to legacy content */}
+          {message.blocks && message.blocks.length > 0 ? (
+            <div className="blocks-container space-y-2">
+              {message.blocks.map(block => (
+                <BlockRenderer key={block.id} block={block} isUser={isUser} />
+              ))}
+            </div>
+          ) : message.content ? (
+            // Legacy rendering for backward compatibility
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeHighlight, rehypeRaw]}
+              components={{
+                // Code blocks
+                code: ({ className, children, ...props }) => {
+                  const match = /language-(\w+)/.exec(className || '')
+                  const isInline = !match
 
-                if (isInline) {
+                  if (isInline) {
+                    return (
+                      <code
+                        className="bg-black/15 dark:bg-white/15 rounded px-1.5 py-0.5 text-xs font-mono"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    )
+                  }
+
                   return (
                     <code
-                      className="bg-black/15 dark:bg-white/15 rounded px-1.5 py-0.5 text-xs font-mono"
+                      className={`${className || ''} block overflow-x-auto text-xs font-mono`}
                       {...props}
                     >
                       {children}
                     </code>
                   )
-                }
-
-                return (
-                  <code
-                    className={`${className || ''} block overflow-x-auto text-xs font-mono`}
-                    {...props}
+                },
+                // Pre blocks (for code)
+                pre: ({ children }) => (
+                  <pre className="bg-black/15 dark:bg-white/15 rounded-lg p-3 my-3 overflow-x-auto border border-black/10 dark:border-white/10">
+                    {children}
+                  </pre>
+                ),
+                // Headings
+                h1: ({ children }) => (
+                  <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-base font-bold mt-3 mb-2 first:mt-0">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-sm font-semibold mt-3 mb-1 first:mt-0">
+                    {children}
+                  </h3>
+                ),
+                // Lists
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside my-2 space-y-1">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside my-2 space-y-1">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => <li className="ml-2">{children}</li>,
+                // Paragraphs
+                p: ({ children }) => (
+                  <p className="my-2 first:mt-0 last:mb-0">{children}</p>
+                ),
+                // Links
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    className="underline hover:no-underline opacity-90 hover:opacity-100"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     {children}
-                  </code>
-                )
-              },
-              // Pre blocks (for code)
-              pre: ({ children }) => (
-                <pre className="bg-black/15 dark:bg-white/15 rounded-lg p-3 my-3 overflow-x-auto border border-black/10 dark:border-white/10">
-                  {children}
-                </pre>
-              ),
-              // Headings
-              h1: ({ children }) => (
-                <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0">
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-base font-bold mt-3 mb-2 first:mt-0">
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-sm font-semibold mt-3 mb-1 first:mt-0">
-                  {children}
-                </h3>
-              ),
-              // Lists
-              ul: ({ children }) => (
-                <ul className="list-disc list-inside my-2 space-y-1">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-inside my-2 space-y-1">
-                  {children}
-                </ol>
-              ),
-              li: ({ children }) => <li className="ml-2">{children}</li>,
-              // Paragraphs
-              p: ({ children }) => (
-                <p className="my-2 first:mt-0 last:mb-0">{children}</p>
-              ),
-              // Links
-              a: ({ href, children }) => (
-                <a
-                  href={href}
-                  className="underline hover:no-underline opacity-90 hover:opacity-100"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {children}
-                </a>
-              ),
-              // Blockquotes
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-4 border-current/30 pl-3 my-2 italic opacity-90">
-                  {children}
-                </blockquote>
-              ),
-              // Tables
-              table: ({ children }) => (
-                <div className="my-2 overflow-x-auto">
-                  <table className="min-w-full border-collapse">
+                  </a>
+                ),
+                // Blockquotes
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-current/30 pl-3 my-2 italic opacity-90">
                     {children}
-                  </table>
-                </div>
-              ),
-              th: ({ children }) => (
-                <th className="border border-current/20 px-2 py-1 text-left font-semibold bg-current/5">
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td className="border border-current/20 px-2 py-1">
-                  {children}
-                </td>
-              ),
-              // Strong/Bold
-              strong: ({ children }) => (
-                <strong className="font-semibold">{children}</strong>
-              ),
-              // Emphasis/Italic
-              em: ({ children }) => <em className="italic">{children}</em>,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
+                  </blockquote>
+                ),
+                // Tables
+                table: ({ children }) => (
+                  <div className="my-2 overflow-x-auto">
+                    <table className="min-w-full border-collapse">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-current/20 px-2 py-1 text-left font-semibold bg-current/5">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-current/20 px-2 py-1">
+                    {children}
+                  </td>
+                ),
+                // Strong/Bold
+                strong: ({ children }) => (
+                  <strong className="font-semibold">{children}</strong>
+                ),
+                // Emphasis/Italic
+                em: ({ children }) => <em className="italic">{children}</em>,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          ) : null}
         </div>
 
         {/* Reasoning Display */}
@@ -193,14 +205,16 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
-        {/* Tool Calls Display */}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="mt-1 sm:mt-1.5 space-y-1 sm:space-y-1">
-            {message.toolCalls.map(toolCall => (
-              <ToolCallDisplay key={toolCall.id} toolCall={toolCall} />
-            ))}
-          </div>
-        )}
+        {/* Legacy Tool Calls Display - only show if no blocks */}
+        {!message.blocks &&
+          message.toolCalls &&
+          message.toolCalls.length > 0 && (
+            <div className="mt-1 sm:mt-1.5 space-y-1 sm:space-y-1">
+              {message.toolCalls.map(toolCall => (
+                <ToolCallDisplay key={toolCall.id} toolCall={toolCall} />
+              ))}
+            </div>
+          )}
 
         {/* Tool Results Display */}
         {message.toolResults && message.toolResults.length > 0 && (

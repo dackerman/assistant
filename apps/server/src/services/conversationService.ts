@@ -1395,25 +1395,13 @@ Execute the commands and then explain the results in a helpful way.`
     promptId: number
   ): Promise<void> {
     await this.db.transaction(async tx => {
-      const textBlocks = await tx
-        .select({ type: blocks.type, content: blocks.content })
-        .from(blocks)
-        .where(eq(blocks.messageId, assistantMessageId))
-        .orderBy(asc(blocks.order))
-
-      const combinedContent = textBlocks
-        .filter(
-          block => block.type === 'text' && typeof block.content === 'string'
-        )
-        .map(block => block.content as string)
-        .join('')
-
+      // Don't aggregate content - blocks contain the actual content
       await tx
         .update(messages)
         .set({
           status: 'completed',
           updatedAt: new Date(),
-          content: combinedContent.length > 0 ? combinedContent : null,
+          content: null, // Messages no longer store aggregated content
         })
         .where(eq(messages.id, assistantMessageId))
 

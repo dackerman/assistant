@@ -5,10 +5,7 @@ import {
   proteinEvents,
   proteinSnapshot,
 } from '@/test/fixtures/proteinConversation'
-import {
-  bashEvents,
-  bashSnapshot,
-} from '@/test/fixtures/bashToolConversation'
+import { bashEvents, bashSnapshot } from '@/test/fixtures/bashToolConversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -49,7 +46,12 @@ function ConversationHarness({ client }: HarnessProps) {
           >
             <div data-testid={`message-${message.id}-role`}>{message.type}</div>
             <div data-testid={`message-${message.id}-content`}>
-              {message.content}
+              {message.blocks
+                ? message.blocks
+                    .filter(block => block.type === 'text')
+                    .map(block => block.content)
+                    .join('')
+                : message.content}
             </div>
             {message.toolCalls?.map(toolCall => (
               <div
@@ -57,7 +59,8 @@ function ConversationHarness({ client }: HarnessProps) {
                 data-testid={`message-${message.id}-toolcall-${toolCall.id}`}
                 data-status={toolCall.status}
               >
-                {toolCall.name}:{toolCall.status}:{String(toolCall.result ?? '')}
+                {toolCall.name}:{toolCall.status}:
+                {String(toolCall.result ?? '')}
               </div>
             ))}
           </li>
@@ -234,9 +237,7 @@ describe('useConversationStream', () => {
       'Here are the repository files:'
     )
 
-    const toolCallElement = screen.getByTestId(
-      'message-302-toolcall-901'
-    )
+    const toolCallElement = screen.getByTestId('message-302-toolcall-901')
     expect(toolCallElement.dataset.status).toBe('completed')
     expect(toolCallElement).toHaveTextContent('bash:completed:README.md')
 
