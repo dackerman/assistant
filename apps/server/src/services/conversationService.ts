@@ -942,7 +942,9 @@ export class ConversationService {
     userId: number
   ): Promise<{
     snapshot: ConversationState
-    events: AsyncGenerator<ConversationStreamEvent>
+    events: AsyncGenerator<ConversationStreamEvent> & {
+      return: (value?: any) => Promise<IteratorResult<ConversationStreamEvent>>
+    }
   } | null> {
     const queue = new AsyncEventQueue<ConversationStreamEvent>()
     let sqlClient: ReturnType<typeof postgres> | null = null
@@ -968,7 +970,21 @@ export class ConversationService {
         }
         sqlClient = null
       }
+      // Clear the timeout if cleanup is called explicitly
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
     }
+
+    // Add timeout-based cleanup to prevent connection leaks
+    // if client doesn't explicitly close the stream
+    let timeoutId: NodeJS.Timeout | null = setTimeout(async () => {
+      this.logger.warn('Stream timeout - cleaning up abandoned connection', {
+        conversationId,
+      })
+      await cleanup()
+    }, 30 * 60 * 1000) // 30 minutes timeout
 
     const connectionString = this.getConnectionString()
 
@@ -1222,13 +1238,23 @@ export class ConversationService {
           yield value
         }
       } finally {
-        await cleanup()
+        // DO NOT cleanup here - this creates a race condition!
+        // The database connection must stay alive until explicitly closed
+        // by the client or conversation is finished
       }
     })()
 
+    // Return stream with explicit cleanup method
     return {
       snapshot: sanitizedSnapshot,
-      events,
+      events: {
+        [Symbol.asyncIterator]: () => events[Symbol.asyncIterator](),
+        return: async (value?: any) => {
+          // Client is explicitly closing the stream
+          await cleanup()
+          return await events.return?.(value) ?? { done: true, value }
+        }
+      },
     }
   }
 
