@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { createStreamServiceStub } from '@/test/conversationStreamTestUtils'
+import { bashEvents, bashSnapshot } from '@/test/fixtures/bashToolConversation'
 import {
   proteinEvents,
   proteinSnapshot,
 } from '@/test/fixtures/proteinConversation'
-import { bashEvents, bashSnapshot } from '@/test/fixtures/bashToolConversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -46,7 +46,7 @@ function ConversationHarness({ client }: HarnessProps) {
           >
             <div data-testid={`message-${message.id}-role`}>{message.type}</div>
             <div data-testid={`message-${message.id}-content`}>
-              {message.blocks
+              {message.blocks && message.blocks.length > 0
                 ? message.blocks
                     .filter(block => block.type === 'text')
                     .map(block => block.content)

@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParamsStreaming } from '@anthropic-ai/sdk/resources/messages.js'
-import { and, eq, or } from 'drizzle-orm'
+import { and, desc, eq, or } from 'drizzle-orm'
 import postgres from 'postgres'
 import type { DB } from '../db'
 import { db as defaultDb } from '../db'
@@ -18,7 +18,7 @@ import {
   toolCalls,
 } from '../db/schema'
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
-import { Logger, createSdkLogger, logger as rootLogger } from '../utils/logger'
+import { createSdkLogger, Logger, logger as rootLogger } from '../utils/logger'
 import { sanitizeShellOutput } from '../utils/sanitize'
 import { type ToolDefinition, ToolExecutorService } from './toolExecutorService'
 
@@ -442,6 +442,17 @@ export class PromptService {
     const assistantContent: Anthropic.Messages.ContentBlockParam[] = []
     let hasToolCalls = false
 
+    // Get current highest block order for this message to maintain sequential ordering
+    const messageId = await this.getMessageIdForPrompt(promptId)
+    const [lastBlock] = await this.db
+      .select({ order: blocks.order })
+      .from(blocks)
+      .where(eq(blocks.messageId, messageId))
+      .orderBy(desc(blocks.order))
+      .limit(1)
+
+    let nextBlockOrder = (lastBlock?.order ?? -1) + 1
+
     try {
       for await (const event of stream) {
         this.logger.anthropicEvent('stream_event', {
@@ -461,14 +472,14 @@ export class PromptService {
               // Track text content for assistant message
               assistantContent.push({ type: 'text', text: '' })
 
-              // Create text block
+              // Create text block with sequential order
               const [block] = await this.db
                 .insert(blocks)
                 .values({
-                  messageId: await this.getMessageIdForPrompt(promptId),
+                  messageId: messageId,
                   type: 'text',
                   content: '',
-                  order: event.index,
+                  order: nextBlockOrder++,
                 } as NewBlock)
                 .returning()
 
@@ -487,14 +498,14 @@ export class PromptService {
                 input: {},
               })
 
-              // Create tool_use block
+              // Create tool_use block with sequential order
               const [block] = await this.db
                 .insert(blocks)
                 .values({
-                  messageId: await this.getMessageIdForPrompt(promptId),
+                  messageId: messageId,
                   type: 'tool_use',
                   content: `Using ${event.content_block.name} tool...`,
-                  order: event.index,
+                  order: nextBlockOrder++,
                   metadata: {
                     toolName: event.content_block.name,
                     toolUseId: event.content_block.id,

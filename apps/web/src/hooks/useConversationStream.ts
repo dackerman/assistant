@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Message, Block } from '@/types/conversation'
+import type { Block, Message } from '@/types/conversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -261,7 +261,8 @@ function mapToolStatus(
 function ensureBlock(
   message: InternalMessageState,
   blockId: number,
-  blockType: SnapshotBlock['type']
+  blockType: SnapshotBlock['type'],
+  metadata?: Record<string, unknown> | null
 ): InternalMessageState {
   if (message.blocks.has(blockId)) {
     return message
@@ -272,6 +273,7 @@ function ensureBlock(
     id: blockId,
     type: blockType,
     content: '',
+    metadata,
   })
 
   const nextBlockOrder = message.blockOrder.includes(blockId)
@@ -325,7 +327,12 @@ function applyEvent(
     }
     case 'block-start': {
       return updateMessage(state, event.messageId, message =>
-        ensureBlock(message, event.blockId, event.blockType ?? 'text')
+        ensureBlock(
+          message,
+          event.blockId,
+          event.blockType ?? 'text',
+          event.metadata
+        )
       )
     }
     case 'block-delta': {
@@ -663,10 +670,13 @@ function toUiMessage(message: InternalMessageState): Message {
     timestamp: message.createdAt,
     metadata,
     // Deprecated fields kept for backward compatibility
-    content: orderedBlocks
-      .filter(b => b.type === 'text')
-      .map(b => b.content)
-      .join(''),
+    content:
+      orderedBlocks.length > 0
+        ? orderedBlocks
+            .filter(b => b.type === 'text')
+            .map(b => b.content)
+            .join('')
+        : message.content,
     toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
   }
 }

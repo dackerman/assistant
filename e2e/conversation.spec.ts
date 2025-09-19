@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.describe('Conversation Functionality', () => {
   test('should be able to start a new conversation', async ({ page }) => {
@@ -12,12 +12,18 @@ test.describe('Conversation Functionality', () => {
       await messageInput.fill('Hello, this is a test message')
 
       // Look for send button
-      const sendButton = page.locator('button:has-text("Send"), button[type="submit"], button:has(svg)').last()
+      const sendButton = page
+        .locator(
+          'button:has-text("Send"), button[type="submit"], button:has(svg)'
+        )
+        .last()
       if (await sendButton.isVisible()) {
         await sendButton.click()
 
         // Wait for message to appear
-        await expect(page.locator('text=Hello, this is a test message')).toBeVisible({ timeout: 10000 })
+        await expect(
+          page.locator('text=Hello, this is a test message')
+        ).toBeVisible({ timeout: 10000 })
       }
     }
   })
@@ -30,14 +36,20 @@ test.describe('Conversation Functionality', () => {
 
     // Should load without errors
     await expect(page).toHaveURL(/\/conversation\/1/)
-    await expect(page.locator('[data-testid="conversation-view"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('[data-testid="conversation-view"]')).toBeVisible(
+      { timeout: 10000 }
+    )
   })
 
   test('should handle conversation creation', async ({ page }) => {
     await page.goto('/')
 
     // Look for new conversation button
-    const newConversationButton = page.locator('button:has-text("New"), button:has-text("Start"), [data-testid="new-conversation"]').first()
+    const newConversationButton = page
+      .locator(
+        'button:has-text("New"), button:has-text("Start"), [data-testid="new-conversation"]'
+      )
+      .first()
 
     if (await newConversationButton.isVisible()) {
       await newConversationButton.click()

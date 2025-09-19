@@ -1,12 +1,12 @@
-import { and, asc, desc, eq } from 'drizzle-orm'
-import postgres from 'postgres'
-import type { Conversation, DB, Prompt, ToolCall } from '../db'
-import { db as defaultDb } from '../db'
 import {
   CONVERSATION_STREAM_NOTIFICATION_TYPES,
   type ConversationStreamEventType,
   type ConversationStreamNotificationType,
 } from '@core/types/conversationStream'
+import { and, asc, desc, eq } from 'drizzle-orm'
+import postgres from 'postgres'
+import type { Conversation, DB, Prompt, ToolCall } from '../db'
+import { db as defaultDb } from '../db'
 import {
   type Block,
   type BlockType,
@@ -23,8 +23,8 @@ import {
 } from '../db/schema'
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
 import { Logger } from '../utils/logger'
-import { PromptService } from './promptService'
 import { sanitizeShellOutput } from '../utils/sanitize'
+import { PromptService } from './promptService'
 import { TitleService } from './titleService'
 
 export interface ConversationState {
@@ -114,6 +114,7 @@ export type ConversationStreamEvent =
       messageId: number
       blockId: number
       blockType: BlockType
+      metadata?: Record<string, unknown> | null
     }
   | {
       type: Extract<ConversationStreamEventType, 'block-delta'>
@@ -544,7 +545,10 @@ export class ConversationService {
           },
           onBlockStart: async (blockId, blockType) => {
             const [blockRecord] = await this.db
-              .select({ messageId: blocks.messageId })
+              .select({
+                messageId: blocks.messageId,
+                metadata: blocks.metadata,
+              })
               .from(blocks)
               .where(eq(blocks.id, blockId))
 
@@ -562,6 +566,7 @@ export class ConversationService {
               messageId: blockRecord.messageId,
               blockId,
               blockType: blockType as BlockType,
+              metadata: blockRecord.metadata as Record<string, unknown> | null,
             })
           },
           onBlockDelta: async (blockId, content) => {

@@ -3,8 +3,8 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import * as schema from '../db/schema'
 import { createPostgresClient } from '../db'
+import * as schema from '../db/schema'
 
 let container: StartedPostgreSqlContainer | null = null
 let sqlClient: ReturnType<typeof createPostgresClient> | null = null
@@ -319,10 +319,14 @@ export async function setupTestDatabase() {
       IF TG_OP = 'INSERT' THEN
         event_type := 'message_created';
       ELSIF TG_OP = 'UPDATE' THEN
-        IF NEW.status IS DISTINCT FROM OLD.status
-          OR NEW.content IS DISTINCT FROM OLD.content
+        IF NEW.content IS DISTINCT FROM OLD.content
           OR COALESCE(NEW.queue_order, -1) IS DISTINCT FROM COALESCE(OLD.queue_order, -1)
         THEN
+          event_type := 'message_updated';
+        ELSIF NEW.status IS DISTINCT FROM OLD.status AND NEW.content IS NOT NULL
+        THEN
+          -- Only send message_updated for status changes if the message has content
+          -- Messages with null content rely on blocks for display
           event_type := 'message_updated';
         ELSE
           RETURN NEW;

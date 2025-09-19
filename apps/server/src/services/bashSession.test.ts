@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { BashSession } from './bashSession'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Logger } from '../utils/logger'
+import { BashSession } from './bashSession'
 
 describe('BashSession', () => {
   let session: BashSession

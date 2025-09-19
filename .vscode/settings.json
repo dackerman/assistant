@@ -6,6 +6,7 @@
     "source.organizeImports.biome": "explicit",
     "source.addMissingImports": "explicit"
   },
+  "biome.lsp.bin": "pnpm biome",
   "[typescript]": {
     "editor.defaultFormatter": "biomejs.biome"
   },

@@ -41,7 +41,8 @@ export const CONVERSATION_STREAM_NOTIFICATION_TYPES = {
   conversation_updated: 'conversation-updated',
 } as const satisfies Record<string, ConversationStreamEventType>
 
-export type ConversationStreamNotificationType = keyof typeof CONVERSATION_STREAM_NOTIFICATION_TYPES
+export type ConversationStreamNotificationType =
+  keyof typeof CONVERSATION_STREAM_NOTIFICATION_TYPES
 
 export function toConversationStreamEventType(
   notificationType: ConversationStreamNotificationType

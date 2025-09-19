@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.describe('Basic App Functionality', () => {
   test('should load the home page', async ({ page }) => {
@@ -8,7 +8,9 @@ test.describe('Basic App Functionality', () => {
     await expect(page).toHaveTitle(/.*/)
 
     // Check for main UI elements
-    await expect(page.locator('[data-testid="conversation-view"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('[data-testid="conversation-view"]')).toBeVisible(
+      { timeout: 10000 }
+    )
   })
 
   test('should show mobile menu button on mobile', async ({ page }) => {
@@ -17,7 +19,9 @@ test.describe('Basic App Functionality', () => {
     await page.goto('/')
 
     // Mobile menu button should be visible
-    await expect(page.locator('button[aria-label="Open menu"], button:has(svg)').first()).toBeVisible()
+    await expect(
+      page.locator('button[aria-label="Open menu"], button:has(svg)').first()
+    ).toBeVisible()
   })
 
   test('should have sidebar visible on desktop', async ({ page }) => {
@@ -26,6 +30,8 @@ test.describe('Basic App Functionality', () => {
     await page.goto('/')
 
     // Sidebar should be visible on desktop
-    await expect(page.locator('[data-testid="conversation-sidebar"]')).toBeVisible({ timeout: 10000 })
+    await expect(
+      page.locator('[data-testid="conversation-sidebar"]')
+    ).toBeVisible({ timeout: 10000 })
   })
 })

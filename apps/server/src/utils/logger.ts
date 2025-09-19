@@ -193,7 +193,12 @@ function createSdkLogger(base: Logger): SdkLogger {
 
   return {
     error: (message: string, ...rest: unknown[]) => {
-      const payload = rest.length === 1 ? rest[0] : rest.length > 1 ? { args: rest } : undefined
+      const payload =
+        rest.length === 1
+          ? rest[0]
+          : rest.length > 1
+            ? { args: rest }
+            : undefined
       base.error(message, payload)
     },
     warn: (message: string, ...rest: unknown[]) => {

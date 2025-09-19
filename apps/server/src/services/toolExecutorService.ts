@@ -308,7 +308,7 @@ export class ToolExecutorService {
       .from(blocks)
       .where(eq(blocks.id, blockId))
 
-    const existingContent = append ? current?.content ?? '' : ''
+    const existingContent = append ? (current?.content ?? '') : ''
     const combined = `${existingContent}${sanitized}`
     const metadata = {
       ...(current?.metadata ?? {}),

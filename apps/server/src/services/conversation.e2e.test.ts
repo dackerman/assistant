@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { drizzle as drizzlePostgresJs } from 'drizzle-orm/postgres-js'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { toolCalls, users } from '../db/schema'
+import { createPostgresClient } from '../db'
 import * as dbSchema from '../db/schema'
+import { toolCalls, users } from '../db/schema'
 import {
   createConversationServiceFixture,
   expectMessagesState,
@@ -12,7 +13,6 @@ import {
   ConversationService,
   type ConversationStreamEvent,
 } from './conversationService'
-import { createPostgresClient } from '../db'
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -755,10 +755,11 @@ describe('ConversationService – createConversation', () => {
       await fixture.truncateAll()
 
       const [user] = await fixture.insertUser('regression@example.com')
-      const conversationId = await fixture.conversationService.createConversation(
-        user.id,
-        'Regression Test'
-      )
+      const conversationId =
+        await fixture.conversationService.createConversation(
+          user.id,
+          'Regression Test'
+        )
       fixture.enqueueStream()
 
       await expect(

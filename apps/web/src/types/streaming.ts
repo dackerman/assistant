@@ -94,6 +94,7 @@ export type ConversationStreamEvent =
       messageId: number
       blockId: number
       blockType?: SnapshotBlock['type']
+      metadata?: Record<string, unknown> | null
     }
   | {
       type: Extract<ConversationStreamEventType, 'block-delta'>

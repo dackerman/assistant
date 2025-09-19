@@ -1,3 +1,7 @@
+import {
+  type ConversationStreamEventType,
+  isConversationStreamEventType,
+} from '@core/types/conversationStream'
 import type { ConversationStreamClient } from '@/hooks/useConversationStream'
 import type {
   ConversationSnapshot,
@@ -8,10 +12,6 @@ import type {
   SnapshotPrompt,
   SnapshotToolCall,
 } from '@/types/streaming'
-import {
-  isConversationStreamEventType,
-  type ConversationStreamEventType,
-} from '@core/types/conversationStream'
 
 interface ServerConversationState {
   conversation: ServerConversation

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 describe('Block Preservation', () => {
   it('should preserve block structure in messages', () => {

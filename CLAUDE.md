@@ -22,6 +22,9 @@ pnpm install
 # Start both frontend and backend in development
 pnpm run dev
 
+# Start with file logging enabled
+pnpm run dev:logs
+
 # Frontend only (from apps/web)
 pnpm run dev  # Runs on http://localhost:4000
 
@@ -36,15 +39,20 @@ pnpm run dev  # Runs on http://localhost:4001
 
 ```bash
 # Development database setup (PostgreSQL container on port 55432)
-./scripts/dev-db.sh setup  # Start DB + run migrations + seed data
+./apps/server/scripts/dev-db.sh setup  # Start DB + run migrations + seed data
 
 # Clear all conversations and start fresh (development only)
 ./scripts/clear-conversations.sh
 
-# Test database (separate container)
-./scripts/test-db.sh start
+# Test database (separate container on port 55433)
+./apps/server/scripts/test-db.sh start
 RUN_DB_TESTS=1 pnpm run test conversationService.test.ts
-./scripts/test-db.sh stop
+./apps/server/scripts/test-db.sh stop
+
+# Database migrations (from apps/server)
+pnpm run db:generate  # Generate migration files
+pnpm run db:migrate   # Apply migrations
+pnpm run db:studio    # Open Drizzle Studio
 ```
 
 ### Testing
@@ -59,6 +67,13 @@ pnpm run test sessionManager.simple.test.ts toolExecutorService.simple.test.ts
 # Server database tests (requires test DB running)
 RUN_DB_TESTS=1 pnpm run test conversationService.test.ts
 
+# Frontend tests only (from apps/web)
+pnpm run test        # Run tests once
+pnpm run test:watch  # Watch mode
+
+# End-to-end tests with Docker
+pnpm run test:e2e
+
 # IMPORTANT: Use "pnpm run test" (Vitest) for proper mocking support
 ```
 
@@ -66,8 +81,9 @@ RUN_DB_TESTS=1 pnpm run test conversationService.test.ts
 
 ```bash
 pnpm run build      # Build all apps
-pnpm run lint       # ESLint + Biome
-pnpm run format     # Prettier formatting
+pnpm run lint       # Lint with Biome
+pnpm run fix        # Lint and fix with Biome
+pnpm run clean      # Clean build artifacts
 ```
 
 ## Architecture & Key Services
@@ -116,7 +132,8 @@ Complex streaming conversation system with these key tables:
 
 - Use Drizzle Kit: `pnpm run db:generate` → `pnpm run db:migrate`
 - Development DB runs in Docker container (port 55432)
-- Always run migrations via `./scripts/dev-db.sh setup` for development
+- Test DB runs in separate Docker container (port 55433)
+- Always run migrations via `./apps/server/scripts/dev-db.sh setup` for development
 
 ### Testing Strategy
 
