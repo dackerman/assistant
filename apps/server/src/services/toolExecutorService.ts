@@ -10,6 +10,7 @@ import {
   toolCalls,
 } from '../db/schema'
 import { Logger } from '../utils/logger'
+import { sanitizeShellOutput } from '../utils/sanitize'
 
 export type ToolStreamEvent =
   | { type: 'chunk'; chunk: string }
@@ -118,23 +119,25 @@ export class ToolExecutorService {
     try {
       for await (const event of toolDefinition.execute(context)) {
         if (event.type === 'chunk') {
-          collectedOutput += event.chunk
-          await this.appendToolOutput(toolCall, event.chunk)
+          const cleanChunk = sanitizeShellOutput(event.chunk)
+          collectedOutput += cleanChunk
+          await this.appendToolOutput(toolCall, cleanChunk)
           if (toolCall.blockId) {
             await this.updateToolResultBlock(
               toolCall.blockId,
-              event.chunk,
-              blockInitialized
+              cleanChunk,
+              blockInitialized,
+              toolCall
             )
             blockInitialized = true
           }
-          await handlers?.onChunk?.(event.chunk)
+          await handlers?.onChunk?.(cleanChunk)
           continue
         }
 
         if (event.type === 'result') {
           if (event.output !== undefined) {
-            collectedOutput = event.output
+            collectedOutput = sanitizeShellOutput(event.output)
           }
           resultHandled = true
           await handlers?.onResult?.(collectedOutput)
@@ -165,7 +168,11 @@ export class ToolExecutorService {
         .where(eq(toolCalls.id, toolCallId))
 
       if (toolCall.blockId) {
-        await this.replaceToolResultBlock(toolCall.blockId, collectedOutput)
+        await this.replaceToolResultBlock(
+          toolCall.blockId,
+          collectedOutput,
+          toolCall
+        )
       }
 
       this.logger.info('Tool call completed successfully', {
@@ -186,7 +193,11 @@ export class ToolExecutorService {
         .where(eq(toolCalls.id, toolCallId))
 
       if (toolCall.blockId) {
-        await this.replaceToolResultBlock(toolCall.blockId, `Error: ${message}`)
+        await this.replaceToolResultBlock(
+          toolCall.blockId,
+          `Error: ${message}`,
+          toolCall
+        )
       }
 
       this.logger.error('Tool call failed', {
@@ -212,7 +223,11 @@ export class ToolExecutorService {
       .where(eq(toolCalls.id, toolCall.id))
 
     if (toolCall.blockId) {
-      await this.replaceToolResultBlock(toolCall.blockId, `Error: ${message}`)
+      await this.replaceToolResultBlock(
+        toolCall.blockId,
+        `Error: ${message}`,
+        toolCall
+      )
     }
 
     this.logger.error('Tool call failed', {
@@ -229,20 +244,23 @@ export class ToolExecutorService {
       .from(toolCalls)
       .where(eq(toolCalls.id, toolCall.id))
 
+    const sanitized = sanitizeShellOutput(chunk)
+
     await this.db
       .update(toolCalls)
       .set({
-        output: `${current?.output ?? ''}${chunk}`,
+        output: `${current?.output ?? ''}${sanitized}`,
         updatedAt: new Date(),
       })
       .where(eq(toolCalls.id, toolCall.id))
   }
 
   private async setToolOutput(toolCall: ToolCall, output: string) {
+    const sanitized = sanitizeShellOutput(output)
     await this.db
       .update(toolCalls)
       .set({
-        output,
+        output: sanitized,
         updatedAt: new Date(),
       })
       .where(eq(toolCalls.id, toolCall.id))
@@ -278,40 +296,63 @@ export class ToolExecutorService {
   private async updateToolResultBlock(
     blockId: number,
     delta: string,
-    append: boolean
+    append: boolean,
+    toolCall: ToolCall
   ) {
     if (!delta) return
 
-    if (append) {
-      const [current] = await this.db
-        .select({ content: blocks.content })
-        .from(blocks)
-        .where(eq(blocks.id, blockId))
+    const sanitized = sanitizeShellOutput(delta)
 
-      const combined = `${current?.content || ''}${delta}`
-      await this.db
-        .update(blocks)
-        .set({ content: combined, updatedAt: new Date() })
-        .where(eq(blocks.id, blockId))
-      return
+    const [current] = await this.db
+      .select({ content: blocks.content, metadata: blocks.metadata })
+      .from(blocks)
+      .where(eq(blocks.id, blockId))
+
+    const existingContent = append ? current?.content ?? '' : ''
+    const combined = `${existingContent}${sanitized}`
+    const metadata = {
+      ...(current?.metadata ?? {}),
+      toolUseId: toolCall.apiToolCallId,
+      toolName: toolCall.name,
+      input: toolCall.input,
     }
 
     await this.db
       .update(blocks)
       .set({
         type: 'tool_result',
-        content: delta,
+        content: combined,
+        metadata,
         updatedAt: new Date(),
       })
       .where(eq(blocks.id, blockId))
   }
 
-  private async replaceToolResultBlock(blockId: number, result: string) {
+  private async replaceToolResultBlock(
+    blockId: number,
+    result: string,
+    toolCall: ToolCall
+  ) {
+    const sanitized = sanitizeShellOutput(result)
+
+    const [current] = await this.db
+      .select({ metadata: blocks.metadata })
+      .from(blocks)
+      .where(eq(blocks.id, blockId))
+
+    const metadata = {
+      ...(current?.metadata ?? {}),
+      toolUseId: toolCall.apiToolCallId,
+      toolName: toolCall.name,
+      input: toolCall.input,
+    }
+
     await this.db
       .update(blocks)
       .set({
         type: 'tool_result',
-        content: result,
+        content: sanitized,
+        metadata,
         updatedAt: new Date(),
       })
       .where(eq(blocks.id, blockId))

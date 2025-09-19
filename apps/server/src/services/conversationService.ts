@@ -24,6 +24,7 @@ import {
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
 import { Logger } from '../utils/logger'
 import { PromptService } from './promptService'
+import { sanitizeShellOutput } from '../utils/sanitize'
 import { TitleService } from './titleService'
 
 export interface ConversationState {
@@ -624,11 +625,13 @@ export class ConversationService {
               return
             }
 
+            const cleanOutput = sanitizeShellOutput(output)
+
             this.broadcastConversationEvent(conversationId, {
               type: 'tool-call-progress',
               toolCallId: record.toolCall.id,
               blockId: record.toolCall.blockId ?? null,
-              output,
+              output: cleanOutput,
             })
           },
           onToolEnd: async (toolCallId, output, success) => {
@@ -641,14 +644,22 @@ export class ConversationService {
               this.broadcastConversationEvent(conversationId, {
                 type: 'tool-call-failed',
                 toolCall: record.toolCall,
-                error: output || record.toolCall.error || null,
+                error:
+                  sanitizeShellOutput(output || record.toolCall.error || ''),
               })
               return
             }
 
+            const cleanResult = sanitizeShellOutput(
+              output || record.toolCall.output || ''
+            )
+
             this.broadcastConversationEvent(conversationId, {
               type: 'tool-call-completed',
-              toolCall: record.toolCall,
+              toolCall: {
+                ...record.toolCall,
+                output: cleanResult,
+              },
             })
           },
           onComplete: async promptId => {
