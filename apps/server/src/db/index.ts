@@ -18,28 +18,7 @@ const connectionString =
 let queryClient: ReturnType<typeof postgres> | null = null
 
 if (connectionString) {
-  const dbLogger = logger.child({ service: 'Database' })
-  queryClient = postgres(connectionString, {
-    debug: (connectionId, query, parameters) => {
-      const sql = typeof query === 'string' ? query : String(query)
-      const operation = getSqlOperation(sql)
-      const payload = {
-        connectionId,
-        sql,
-        parameters,
-      }
-
-      if (operation === 'read') {
-        dbLogger.debug('DB read query', payload)
-      } else if (operation === 'write') {
-        dbLogger.debug('DB write query', payload)
-      } else {
-        dbLogger.debug('DB query', payload)
-      }
-    },
-  })
-
-  instrumentQueryClient(queryClient, dbLogger)
+  queryClient = createPostgresClient(connectionString)
 }
 
 // Create drizzle instance (guarded for test environments without DB)
@@ -63,6 +42,50 @@ export * from './schema'
 export async function closeDatabase() {
   if (queryClient) await queryClient.end()
 }
+
+type CreatePostgresClientOptions = {
+  enableLogging?: boolean
+}
+
+function createPostgresClient(
+  connectionString: string,
+  options: CreatePostgresClientOptions = {}
+) {
+  const { enableLogging = true } = options
+  const dbLogger = logger.child({ service: 'Database' })
+  const client = postgres(connectionString, {
+    max: 1,
+    ...(enableLogging
+      ? {
+          debug: (connectionId: number, query: unknown, parameters: unknown) => {
+            const sql = typeof query === 'string' ? query : String(query)
+            const operation = getSqlOperation(sql)
+            const payload = {
+              connectionId,
+              sql,
+              parameters,
+            }
+
+            if (operation === 'read') {
+              dbLogger.debug('DB read query', payload)
+            } else if (operation === 'write') {
+              dbLogger.debug('DB write query', payload)
+            } else {
+              dbLogger.debug('DB query', payload)
+            }
+          },
+        }
+      : {}),
+  })
+
+  if (enableLogging) {
+    instrumentQueryClient(client, dbLogger)
+  }
+
+  return client
+}
+
+export { createPostgresClient, type CreatePostgresClientOptions }
 
 function instrumentQueryClient(
   client: ReturnType<typeof postgres>,

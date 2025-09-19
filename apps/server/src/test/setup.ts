@@ -2,13 +2,13 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql'
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '../db/schema'
+import { createPostgresClient } from '../db'
 
 let container: StartedPostgreSqlContainer | null = null
-let pool: Pool | null = null
-export let testDb: NodePgDatabase<typeof schema>
+let sqlClient: ReturnType<typeof createPostgresClient> | null = null
+export let testDb: PostgresJsDatabase<typeof schema>
 
 export async function setupTestDatabase() {
   if (!container) {
@@ -19,11 +19,12 @@ export async function setupTestDatabase() {
       .start()
   }
 
-  pool = new Pool({
-    connectionString: container.getConnectionUri(),
-  })
   process.env.TEST_DATABASE_URL = container.getConnectionUri()
-  await pool.query(`
+
+  const connectionString = container.getConnectionUri()
+  sqlClient = createPostgresClient(connectionString, { enableLogging: false })
+
+  await sqlClient.unsafe(`
     DROP TABLE IF EXISTS tool_calls CASCADE;
     DROP TABLE IF EXISTS prompt_events CASCADE;
     DROP TABLE IF EXISTS prompts CASCADE;
@@ -411,15 +412,14 @@ export async function setupTestDatabase() {
       EXECUTE FUNCTION notify_prompt_event();
   `)
 
-  testDb = drizzle(pool, { schema })
+  testDb = drizzle(sqlClient, { schema })
 }
 
 export async function teardownTestDatabase() {
-  if (pool) {
-    await pool.end()
-    pool = null
+  if (sqlClient) {
+    await sqlClient.end()
+    sqlClient = null
   }
-
   if (container) {
     await container.stop()
     container = null
