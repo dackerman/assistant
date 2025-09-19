@@ -1,4 +1,4 @@
-import * as pty from 'node-pty'
+import { spawn } from 'child_process'
 import type { Logger } from '../utils/logger.js'
 
 export interface BashSessionConfig {
@@ -40,337 +40,330 @@ export type BashSessionFactory = (
 ) => BashSessionLike | Promise<BashSessionLike>
 
 /**
- * BashSession maintains a persistent bash process for executing commands.
- * It provides both streaming and buffered execution modes without any database interactions.
+ * BashSession maintains session state (cwd, env vars) between commands
+ * without using PTY. This provides clean output but doesn't support interactive
+ * programs. Similar to Python's subprocess.run with shell=True.
  */
 export class BashSession implements BashSessionLike {
-  private ptyProcess?: pty.IPty
-  private readonly config: Required<BashSessionConfig>
   private readonly logger: Logger
-  private commandBuffer = ''
-  private commandQueue: Array<{
-    id: string
-    command: string
-    resolver: (result: CommandResult) => void
-    rejecter: (error: Error) => void
-    stdout: string
-    stderr: string
-    callbacks: StreamingCallbacks
-    timeoutHandle?: NodeJS.Timeout
-  }> = []
-  private isProcessingCommand = false
-  private isInitialized = false
+  private readonly config: Required<BashSessionConfig>
 
-  // Public properties for compatibility
-  get pid(): number | undefined {
-    return this.ptyProcess?.pid
+  // Session state that persists between commands
+  private sessionEnv: Record<string, string>
+  private sessionCwd: string
+  private sessionExports: Record<string, string> = {}
+  private sessionAliases: Map<string, string> = new Map()
+
+  // For compatibility with existing code
+  get alive(): boolean {
+    return true
   }
 
-  get alive(): boolean {
-    return this.ptyProcess !== undefined
+  get pid(): number {
+    return process.pid
   }
 
   constructor(logger: Logger, config: BashSessionConfig = {}) {
     this.logger = logger
     this.config = {
       workingDirectory: config.workingDirectory ?? process.cwd(),
-      timeout: config.timeout ?? 120000,
+      timeout: config.timeout ?? 30000,
       environment: config.environment ?? {},
     }
+
+    // Initialize session state
+    this.sessionCwd = this.config.workingDirectory
+    // Filter out undefined values from process.env
+    const cleanEnv: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        cleanEnv[key] = value
+      }
+    }
+    this.sessionEnv = {
+      ...cleanEnv,
+      ...this.config.environment,
+    }
   }
 
-  /**
-   * Start the bash session
-   */
   async start(): Promise<void> {
-    if (this.ptyProcess) {
-      return
-    }
-
-    this.logger.info('Starting bash session', {
-      workingDirectory: this.config.workingDirectory,
+    this.logger.info('Simple bash session initialized', {
+      workingDirectory: this.sessionCwd,
     })
+  }
 
-    try {
-      this.ptyProcess = pty.spawn('bash', ['--norc', '--noprofile'], {
-        name: 'xterm-color',
-        cwd: this.config.workingDirectory,
-        env: {
-          ...process.env,
-          ...this.config.environment,
-          TERM: 'xterm-256color',
-          // Disable bracketed paste mode
-          INPUTRC: '/dev/null',
-        } as Record<string, string>,
-      })
-
-      this.ptyProcess.onExit(({ exitCode, signal }) => {
-        this.logger.info('Bash session exited', { exitCode, signal })
-
-        // Reject all pending commands
-        for (const cmd of this.commandQueue) {
-          const error = new Error(
-            `Bash session exited unexpectedly: ${exitCode || signal}`
-          )
-          if (cmd.timeoutHandle) {
-            clearTimeout(cmd.timeoutHandle)
-          }
-          cmd.callbacks.onError?.(error)
-          cmd.rejecter(error)
-        }
-        this.commandQueue = []
-        this.isProcessingCommand = false
-        this.ptyProcess = undefined
-      })
-
-      // Set up data handler first
-      this.ptyProcess.onData((data: string) => {
-        this.handlePtyData(data)
-      })
-
-      // Configure the terminal for cleaner output
-      const setupCommands = [
-        // Disable command echo
-        'stty -echo',
-        // Set a simple prompt that's easy to detect
-        'export PS1="\\n__READY__\\$ "',
-        // Disable history expansion
-        'set +H',
-        // Create a function to run commands and capture exit codes
-        `run_cmd() {
-          # Enable echo temporarily to show command output
-          stty echo
-          # Run the command
-          eval "$1"
-          local exit_code=$?
-          # Disable echo again
-          stty -echo
-          # Output exit code marker
-          echo "
-__EXIT_CODE__:$exit_code"
-          return $exit_code
-        }`,
-      ]
-
-      for (const cmd of setupCommands) {
-        this.ptyProcess.write(`${cmd}\n`)
-        // Wait a bit for each command to process
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-
-      // Wait for the prompt to appear
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          this.logger.error('Timeout waiting for initial prompt', {
-            bufferLength: this.commandBuffer.length,
-            bufferSample: this.commandBuffer.substring(0, 500),
-          })
-          reject(new Error('Timeout waiting for initial prompt'))
-        }, 5000)
-
-        const checkInterval = setInterval(() => {
-          if (this.commandBuffer.includes('__READY__')) {
-            clearInterval(checkInterval)
-            clearTimeout(timeout)
-            this.commandBuffer = '' // Clear the initial buffer
-            this.isInitialized = true
-            resolve()
-          }
-        }, 100)
-      })
-
-      this.logger.info('Bash session started successfully')
-    } catch (error) {
-      this.logger.error('Failed to start bash session', { error })
-      this.ptyProcess = undefined
-      throw error
-    }
+  async stop(): Promise<void> {
+    this.logger.info('Simple bash session stopped')
   }
 
   /**
-   * Handle data from the PTY process
-   */
-  private handlePtyData(data: string): void {
-    // Always accumulate data in the buffer
-    this.commandBuffer += data
-
-    // Stream data to the current command if one is being processed
-    const currentCmd = this.commandQueue[0]
-    if (currentCmd && this.isProcessingCommand) {
-      // Accumulate raw output
-      currentCmd.stdout += data
-
-      // Stream clean data to callbacks
-      if (!data.includes('__READY__') && !data.includes('__EXIT_CODE__')) {
-        // Remove ANSI escape codes for streaming
-        const cleanData = data
-          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '')
-          .replace(/\u001b\[\?[0-9]+[hl]/g, '')
-          .replace(/\r/g, '')
-
-        if (cleanData.trim()) {
-          currentCmd.callbacks.onStdout?.(cleanData)
-        }
-      }
-    }
-
-    // Check if we have a complete command response
-    if (this.commandBuffer.includes('__READY__')) {
-      if (currentCmd && this.isProcessingCommand) {
-        // Extract exit code
-        const exitCodeMatch = this.commandBuffer.match(/__EXIT_CODE__:(\d+)/)
-        const exitCode = exitCodeMatch?.[1]
-          ? Number.parseInt(exitCodeMatch[1], 10)
-          : 0
-
-        // Extract the actual output (everything before the exit code marker)
-        let output = currentCmd.stdout
-        const exitCodeIndex = output.indexOf('__EXIT_CODE__')
-        if (exitCodeIndex !== -1) {
-          output = output.substring(0, exitCodeIndex)
-        }
-
-        // Clean up the output
-        const cleanOutput = output
-          .replace(/__READY__\$/g, '')
-          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '') // Remove ANSI escape codes
-          .replace(/\u001b\[\?[0-9]+[hl]/g, '') // Remove bracketed paste mode
-          .replace(/\r/g, '') // Remove carriage returns
-          .trim()
-
-        // Clear timeout
-        if (currentCmd.timeoutHandle) {
-          clearTimeout(currentCmd.timeoutHandle)
-        }
-
-        // Call exit callback
-        currentCmd.callbacks.onExit?.(exitCode, null)
-
-        // Resolve the command
-        currentCmd.resolver({
-          success: exitCode === 0,
-          exitCode,
-          stdout: cleanOutput,
-          stderr: '', // PTY combines stdout/stderr
-          error:
-            exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined,
-        })
-
-        // Remove from queue and reset state
-        this.commandQueue.shift()
-        this.isProcessingCommand = false
-        this.commandBuffer = ''
-
-        // Process next command if any
-        this.processNextCommand()
-      }
-    }
-  }
-
-  /**
-   * Process the next command in the queue
-   */
-  private processNextCommand(): void {
-    const cmd = this.commandQueue[0]
-    if (this.isProcessingCommand || !cmd || !this.ptyProcess) {
-      return
-    }
-
-    this.logger.info('Processing command from queue', {
-      id: cmd.id,
-      command: cmd.command,
-      queueLength: this.commandQueue.length,
-    })
-
-    this.isProcessingCommand = true
-
-    // Set up timeout
-    cmd.timeoutHandle = setTimeout(() => {
-      const error = new Error(
-        `Command timed out after ${this.config.timeout}ms`
-      )
-      cmd.callbacks.onError?.(error)
-      cmd.rejecter(error)
-
-      // Remove from queue and process next
-      this.commandQueue.shift()
-      this.isProcessingCommand = false
-      this.commandBuffer = ''
-      this.processNextCommand()
-    }, this.config.timeout)
-
-    // Execute command using our wrapper function
-    // Escape single quotes in the command
-    const escapedCommand = cmd.command.replace(/'/g, "'\\''")
-    this.ptyProcess.write(`run_cmd '${escapedCommand}'\n`)
-  }
-
-  /**
-   * Execute a command with streaming callbacks
+   * Execute a command with session state preservation
    */
   async exec(
     command: string,
     callbacks: StreamingCallbacks = {}
   ): Promise<CommandResult> {
-    if (!this.ptyProcess) {
-      throw new Error('Bash session not started')
+    this.logger.info('Executing command', { command, cwd: this.sessionCwd })
+
+    // Handle special commands that modify session state
+    const stateChanged = await this.handleStateCommands(command)
+    if (stateChanged) {
+      return stateChanged
     }
 
-    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    this.logger.info('Queuing command', {
-      commandId,
-      command,
-      queueLength: this.commandQueue.length,
-    })
+    // Build the actual command with session state
+    const wrappedCommand = this.wrapCommand(command)
 
-    return new Promise((resolve, reject) => {
-      // Add to queue
-      this.commandQueue.push({
-        id: commandId,
-        command,
-        resolver: resolve,
-        rejecter: reject,
-        stdout: '',
-        stderr: '',
-        callbacks,
+    return new Promise(resolve => {
+      let stdout = ''
+      let stderr = ''
+      let processExited = false
+      let timeoutHandle: NodeJS.Timeout | undefined
+
+      // Spawn the command
+      const proc = spawn('bash', ['-c', wrappedCommand], {
+        cwd: this.sessionCwd,
+        env: this.sessionEnv,
+        // Don't use shell: true since we're already using bash -c
       })
 
-      // Start processing if not already
-      this.processNextCommand()
+      // Set up timeout
+      timeoutHandle = setTimeout(() => {
+        if (!processExited) {
+          proc.kill('SIGKILL')
+          const error = new Error(
+            `Command timed out after ${this.config.timeout}ms`
+          )
+          callbacks.onError?.(error)
+          resolve({
+            success: false,
+            exitCode: null,
+            stdout,
+            stderr,
+            error: error.message,
+          })
+        }
+      }, this.config.timeout)
+
+      // Handle stdout
+      proc.stdout.on('data', data => {
+        const chunk = data.toString()
+        stdout += chunk
+        callbacks.onStdout?.(chunk)
+      })
+
+      // Handle stderr
+      proc.stderr.on('data', data => {
+        const chunk = data.toString()
+        stderr += chunk
+        callbacks.onStderr?.(chunk)
+      })
+
+      // Handle exit
+      proc.on('exit', (code, signal) => {
+        processExited = true
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle)
+        }
+
+        callbacks.onExit?.(code, signal)
+
+        // Capture any environment variable changes if we can
+        this.captureStateChanges(stdout)
+
+        resolve({
+          success: code === 0,
+          exitCode: code,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          error: code !== 0 ? `Process exited with code ${code}` : undefined,
+        })
+      })
+
+      // Handle errors
+      proc.on('error', error => {
+        processExited = true
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle)
+        }
+
+        callbacks.onError?.(error)
+        resolve({
+          success: false,
+          exitCode: null,
+          stdout,
+          stderr,
+          error: error.message,
+        })
+      })
     })
   }
 
   /**
-   * Write raw input to the PTY (for interactive use)
+   * Handle commands that change session state
    */
-  writeInput(input: string): void {
-    if (!this.ptyProcess) {
-      throw new Error('Bash session not started')
+  private async handleStateCommands(
+    command: string
+  ): Promise<CommandResult | null> {
+    const trimmed = command.trim()
+
+    // Handle cd command
+    if (trimmed.startsWith('cd ')) {
+      const dir = trimmed.substring(3).trim()
+      const targetDir = this.resolvePath(dir)
+
+      // Verify the directory exists
+      const { exitCode } = await this.execRaw(`test -d "${targetDir}"`)
+      if (exitCode === 0) {
+        this.sessionCwd = targetDir
+        return {
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }
+      } else {
+        return {
+          success: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: `cd: ${dir}: No such file or directory`,
+          error: 'Directory not found',
+        }
+      }
     }
-    this.ptyProcess.write(input)
+
+    // Handle export command
+    if (trimmed.startsWith('export ')) {
+      const exportCmd = trimmed.substring(7).trim()
+      const match = exportCmd.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+      if (match) {
+        const [, name, value] = match
+        if (name && value) {
+          // Remove quotes if present
+          const cleanValue = value.replace(/^["']|["']$/g, '')
+          this.sessionExports[name] = cleanValue
+          this.sessionEnv[name] = cleanValue
+          return {
+            success: true,
+            exitCode: 0,
+            stdout: '',
+            stderr: '',
+          }
+        }
+      }
+    }
+
+    // Handle alias command
+    if (trimmed.startsWith('alias ')) {
+      const aliasCmd = trimmed.substring(6).trim()
+      const match = aliasCmd.match(/^([^=]+)=(.*)$/)
+      if (match) {
+        const [, name, value] = match
+        if (name && value) {
+          this.sessionAliases.set(name, value.replace(/^["']|["']$/g, ''))
+          return {
+            success: true,
+            exitCode: 0,
+            stdout: '',
+            stderr: '',
+          }
+        }
+      }
+    }
+
+    return null
   }
 
   /**
-   * Stop the bash session
+   * Wrap command with session state (exports, aliases, etc.)
    */
-  async stop(): Promise<void> {
-    if (!this.ptyProcess) {
-      return
+  private wrapCommand(command: string): string {
+    let wrapped = ''
+
+    // Apply exports
+    for (const [key, value] of Object.entries(this.sessionExports)) {
+      wrapped += `export ${key}="${value}"; `
     }
 
-    this.logger.info('Stopping bash session')
+    // Apply aliases (note: aliases don't work in non-interactive bash by default)
+    // We'd need to expand them manually or use bash -i which has other issues
 
-    // Give the process a chance to exit gracefully
-    this.ptyProcess.kill('SIGTERM')
+    // Add the actual command
+    wrapped += command
 
-    // Wait a bit for graceful shutdown
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    return wrapped
+  }
 
-    // Force kill if still running
-    if (this.ptyProcess) {
-      this.logger.warn('Force killing bash session')
-      this.ptyProcess.kill('SIGKILL')
-      this.ptyProcess = undefined
+  /**
+   * Execute a raw command without state handling (internal use)
+   */
+  private execRaw(command: string): Promise<{ exitCode: number | null }> {
+    return new Promise(resolve => {
+      const proc = spawn('bash', ['-c', command], {
+        cwd: this.sessionCwd,
+        env: this.sessionEnv,
+      })
+
+      proc.on('exit', code => {
+        resolve({ exitCode: code })
+      })
+
+      proc.on('error', () => {
+        resolve({ exitCode: -1 })
+      })
+    })
+  }
+
+  /**
+   * Resolve a path relative to current directory
+   */
+  private resolvePath(path: string): string {
+    if (path.startsWith('/')) {
+      return path
     }
+    if (path === '~' || path.startsWith('~/')) {
+      const home = this.sessionEnv.HOME || process.env.HOME || '/'
+      return path === '~' ? home : path.replace('~', home)
+    }
+    if (path === '-') {
+      // TODO: Track OLDPWD
+      return this.sessionCwd
+    }
+
+    // Handle relative paths
+    const parts = this.sessionCwd.split('/').filter(Boolean)
+    const pathParts = path.split('/')
+
+    for (const part of pathParts) {
+      if (part === '..') {
+        parts.pop()
+      } else if (part !== '.' && part !== '') {
+        parts.push(part)
+      }
+    }
+
+    return '/' + parts.join('/')
+  }
+
+  /**
+   * Try to capture state changes from command output
+   * (This is a best-effort approach)
+   */
+  private captureStateChanges(_output: string): void {
+    // Look for common patterns that indicate state changes
+    // This is limited but can catch some cases
+    // Check if pwd was called and update cwd
+    // const pwdMatch = output.match(/^(\/[^\n]*)/m)
+    // if (pwdMatch && output.split('\n').length === 1) {
+    //   // Single line output that looks like a path, might be pwd
+    //   // We could verify this is a real path, but that's expensive
+    // }
+  }
+
+  writeInput(_input: string): void {
+    throw new Error(
+      'writeInput not supported in BashSession - use exec() instead'
+    )
   }
 }
