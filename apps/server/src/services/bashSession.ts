@@ -22,13 +22,16 @@ export interface StreamingCallbacks {
   onError?: (error: Error) => void
 }
 
+/**
+ * Simple interface to mock/swap BashSession implementations
+ */
 export interface BashSessionLike {
-  start(): Promise<void>
   exec(command: string, callbacks?: StreamingCallbacks): Promise<CommandResult>
+  start(): Promise<void>
   stop(): Promise<void>
-  readonly alive: boolean
-  readonly pid: number | undefined
   writeInput(input: string): void
+  readonly pid?: number
+  readonly alive: boolean
 }
 
 export type BashSessionFactory = (
@@ -56,21 +59,28 @@ export class BashSession implements BashSessionLike {
     timeoutHandle?: NodeJS.Timeout
   }> = []
   private isProcessingCommand = false
+  private isInitialized = false
+
+  // Public properties for compatibility
+  get pid(): number | undefined {
+    return this.ptyProcess?.pid
+  }
+
+  get alive(): boolean {
+    return this.ptyProcess !== undefined
+  }
 
   constructor(logger: Logger, config: BashSessionConfig = {}) {
+    this.logger = logger
     this.config = {
-      workingDirectory: config.workingDirectory || process.cwd(),
-      timeout: config.timeout || 300000, // 5 minutes default
-      environment: {
-        ...(process.env as Record<string, string>),
-        ...config.environment,
-      },
+      workingDirectory: config.workingDirectory ?? process.cwd(),
+      timeout: config.timeout ?? 120000,
+      environment: config.environment ?? {},
     }
-    this.logger = logger.child({ service: 'BashSession' })
   }
 
   /**
-   * Start the persistent bash session
+   * Start the bash session
    */
   async start(): Promise<void> {
     if (this.ptyProcess) {
@@ -82,21 +92,26 @@ export class BashSession implements BashSessionLike {
     })
 
     try {
-      this.ptyProcess = pty.spawn('bash', [], {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 30,
+      this.ptyProcess = pty.spawn('bash', ['--norc', '--noprofile'], {
+        name: 'xterm-color',
         cwd: this.config.workingDirectory,
-        env: this.config.environment,
+        env: {
+          ...process.env,
+          ...this.config.environment,
+          TERM: 'xterm-256color',
+          // Disable bracketed paste mode
+          INPUTRC: '/dev/null',
+        } as Record<string, string>,
       })
 
-      // Handle process exit
       this.ptyProcess.onExit(({ exitCode, signal }) => {
         this.logger.info('Bash session exited', { exitCode, signal })
 
         // Reject all pending commands
-        const error = new Error('Bash session exited unexpectedly')
         for (const cmd of this.commandQueue) {
+          const error = new Error(
+            `Bash session exited unexpectedly: ${exitCode || signal}`
+          )
           if (cmd.timeoutHandle) {
             clearTimeout(cmd.timeoutHandle)
           }
@@ -113,29 +128,52 @@ export class BashSession implements BashSessionLike {
         this.handlePtyData(data)
       })
 
-      // Set up a custom prompt to make command completion detection reliable
-      // Use a unique prompt that won't appear in normal output
-      const promptMarker = '__PTY_PROMPT__'
-      this.ptyProcess.write(`export PS1="${promptMarker}$ "\n`)
-      // Send an empty command to trigger the new prompt
-      this.ptyProcess.write('\n')
+      // Configure the terminal for cleaner output
+      const setupCommands = [
+        // Disable command echo
+        'stty -echo',
+        // Set a simple prompt that's easy to detect
+        'export PS1="\\n__READY__\\$ "',
+        // Disable history expansion
+        'set +H',
+        // Create a function to run commands and capture exit codes
+        `run_cmd() {
+          # Enable echo temporarily to show command output
+          stty echo
+          # Run the command
+          eval "$1"
+          local exit_code=$?
+          # Disable echo again
+          stty -echo
+          # Output exit code marker
+          echo "
+__EXIT_CODE__:$exit_code"
+          return $exit_code
+        }`,
+      ]
+
+      for (const cmd of setupCommands) {
+        this.ptyProcess.write(`${cmd}\n`)
+        // Wait a bit for each command to process
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
 
       // Wait for the prompt to appear
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           this.logger.error('Timeout waiting for initial prompt', {
             bufferLength: this.commandBuffer.length,
-            bufferSample: this.commandBuffer.substring(0, 200),
-            includesMarker: this.commandBuffer.includes(promptMarker),
+            bufferSample: this.commandBuffer.substring(0, 500),
           })
           reject(new Error('Timeout waiting for initial prompt'))
         }, 5000)
 
         const checkInterval = setInterval(() => {
-          if (this.commandBuffer.includes(promptMarker)) {
+          if (this.commandBuffer.includes('__READY__')) {
             clearInterval(checkInterval)
             clearTimeout(timeout)
             this.commandBuffer = '' // Clear the initial buffer
+            this.isInitialized = true
             resolve()
           }
         }, 100)
@@ -159,56 +197,46 @@ export class BashSession implements BashSessionLike {
     // Stream data to the current command if one is being processed
     const currentCmd = this.commandQueue[0]
     if (currentCmd && this.isProcessingCommand) {
-      // Filter out prompt markers and exit codes for streaming
-      const cleanData = data
-        .replace(/__PTY_PROMPT__\$/g, '')
-        .replace(/EXIT_CODE:\d+\n?/g, '')
+      // Accumulate raw output
+      currentCmd.stdout += data
 
-      // Only stream data that's not part of our internal markers
-      if (
-        cleanData &&
-        !data.includes('__PTY_PROMPT__') &&
-        !data.includes('EXIT_CODE:')
-      ) {
-        currentCmd.callbacks.onStdout?.(cleanData)
-      }
+      // Stream clean data to callbacks
+      if (!data.includes('__READY__') && !data.includes('__EXIT_CODE__')) {
+        // Remove ANSI escape codes for streaming
+        const cleanData = data
+          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '')
+          .replace(/\u001b\[\?[0-9]+[hl]/g, '')
+          .replace(/\r/g, '')
 
-      // Always accumulate raw data for exit code extraction
-      if (!data.includes('__PTY_PROMPT__')) {
-        currentCmd.stdout += data
+        if (cleanData.trim()) {
+          currentCmd.callbacks.onStdout?.(cleanData)
+        }
       }
     }
 
-    // Check if we have a complete command response (prompt appeared)
-    if (this.commandBuffer.includes('__PTY_PROMPT__')) {
-      this.logger.debug('Prompt detected in buffer', {
-        bufferLength: this.commandBuffer.length,
-        isProcessing: this.isProcessingCommand,
-        hasCurrentCmd: !!currentCmd,
-      })
+    // Check if we have a complete command response
+    if (this.commandBuffer.includes('__READY__')) {
       if (currentCmd && this.isProcessingCommand) {
-        // Extract exit code from the command buffer (includes PROMPT_COMMAND output)
-        const exitCodeMatch = this.commandBuffer.match(/EXIT_CODE:(\d+)/)
+        // Extract exit code
+        const exitCodeMatch = this.commandBuffer.match(/__EXIT_CODE__:(\d+)/)
         const exitCode = exitCodeMatch?.[1]
           ? Number.parseInt(exitCodeMatch[1], 10)
           : 0
 
-        // Clean up the output - remove prompt markers, exit codes, ANSI codes, and the command echo
-        let cleanOutput = currentCmd.stdout
-          .replace(/__PTY_PROMPT__\$/g, '')
-          .replace(/EXIT_CODE:\d+\r?\n?/g, '')
-          .replace(/\r\n/g, '\n') // Normalize line endings
-          .replace(/\r/g, '\n')
-          // Remove ANSI escape sequences
-          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '')
-          .replace(/\u001b\[\?[0-9]+[hl]/g, '')
-
-        // Remove the first line if it's the command echo (contains our modification)
-        const lines = cleanOutput.split('\n')
-        if (lines[0]?.includes('; echo "EXIT_CODE:$?"')) {
-          lines.shift() // Remove the command echo line
+        // Extract the actual output (everything before the exit code marker)
+        let output = currentCmd.stdout
+        const exitCodeIndex = output.indexOf('__EXIT_CODE__')
+        if (exitCodeIndex !== -1) {
+          output = output.substring(0, exitCodeIndex)
         }
-        cleanOutput = lines.join('\n').trim()
+
+        // Clean up the output
+        const cleanOutput = output
+          .replace(/__READY__\$/g, '')
+          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '') // Remove ANSI escape codes
+          .replace(/\u001b\[\?[0-9]+[hl]/g, '') // Remove bracketed paste mode
+          .replace(/\r/g, '') // Remove carriage returns
+          .trim()
 
         // Clear timeout
         if (currentCmd.timeoutHandle) {
@@ -228,7 +256,7 @@ export class BashSession implements BashSessionLike {
             exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined,
         })
 
-        // Remove from queue and process next
+        // Remove from queue and reset state
         this.commandQueue.shift()
         this.isProcessingCommand = false
         this.commandBuffer = ''
@@ -248,13 +276,13 @@ export class BashSession implements BashSessionLike {
       return
     }
 
-    this.isProcessingCommand = true
-
     this.logger.info('Processing command from queue', {
       id: cmd.id,
       command: cmd.command,
       queueLength: this.commandQueue.length,
     })
+
+    this.isProcessingCommand = true
 
     // Set up timeout
     cmd.timeoutHandle = setTimeout(() => {
@@ -271,9 +299,10 @@ export class BashSession implements BashSessionLike {
       this.processNextCommand()
     }, this.config.timeout)
 
-    // Execute command and capture exit code
-    // Send command first, then capture exit code after it completes
-    this.ptyProcess.write(`${cmd.command}; echo "EXIT_CODE:$?"\n`)
+    // Execute command using our wrapper function
+    // Escape single quotes in the command
+    const escapedCommand = cmd.command.replace(/'/g, "'\\''")
+    this.ptyProcess.write(`run_cmd '${escapedCommand}'\n`)
   }
 
   /**
@@ -287,7 +316,7 @@ export class BashSession implements BashSessionLike {
       throw new Error('Bash session not started')
     }
 
-    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     this.logger.info('Queuing command', {
       commandId,
       command,
@@ -312,17 +341,13 @@ export class BashSession implements BashSessionLike {
   }
 
   /**
-   * Check if the session is alive
+   * Write raw input to the PTY (for interactive use)
    */
-  get alive(): boolean {
-    return this.ptyProcess !== undefined
-  }
-
-  /**
-   * Get process PID
-   */
-  get pid(): number | undefined {
-    return this.ptyProcess?.pid
+  writeInput(input: string): void {
+    if (!this.ptyProcess) {
+      throw new Error('Bash session not started')
+    }
+    this.ptyProcess.write(input)
   }
 
   /**
@@ -335,69 +360,17 @@ export class BashSession implements BashSessionLike {
 
     this.logger.info('Stopping bash session')
 
-    return new Promise(resolve => {
-      if (!this.ptyProcess) {
-        resolve()
-        return
-      }
+    // Give the process a chance to exit gracefully
+    this.ptyProcess.kill('SIGTERM')
 
-      const cleanup = () => {
-        // Reject all pending commands
-        const error = new Error('Bash session stopped')
-        for (const cmd of this.commandQueue) {
-          if (cmd.timeoutHandle) {
-            clearTimeout(cmd.timeoutHandle)
-          }
-          cmd.callbacks.onError?.(error)
-          cmd.rejecter(error)
-        }
+    // Wait a bit for graceful shutdown
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
-        // Clean up all state
-        this.commandQueue = []
-        this.isProcessingCommand = false
-        this.commandBuffer = ''
-
-        // Destroy the PTY process
-        try {
-          this.ptyProcess?.kill()
-        } catch {
-          // Ignore errors during kill
-        }
-
-        this.ptyProcess = undefined
-        resolve()
-      }
-
-      // Set timeout for forceful termination
-      const forceKillTimeout = setTimeout(() => {
-        this.logger.warn('Force killing bash session')
-        cleanup()
-      }, 1000)
-
-      // Set up exit handler
-      this.ptyProcess.onExit(() => {
-        clearTimeout(forceKillTimeout)
-        cleanup()
-      })
-
-      // Try graceful termination first
-      try {
-        this.ptyProcess.write('exit\n')
-      } catch {
-        // If write fails, just kill it
-        cleanup()
-      }
-    })
-  }
-
-  /**
-   * Send raw input to the bash process
-   * Use with caution - prefer exec for command execution
-   */
-  writeInput(input: string): void {
-    if (!this.ptyProcess) {
-      throw new Error('Bash session not started')
+    // Force kill if still running
+    if (this.ptyProcess) {
+      this.logger.warn('Force killing bash session')
+      this.ptyProcess.kill('SIGKILL')
+      this.ptyProcess = undefined
     }
-    this.ptyProcess.write(input)
   }
 }
