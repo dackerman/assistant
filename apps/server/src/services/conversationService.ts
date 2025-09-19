@@ -370,7 +370,15 @@ export class ConversationService {
     // If no active prompt, start processing the queue
     const activePrompt = await this.getActivePrompt(conversationId)
     if (!activePrompt) {
-      await this.processQueue(conversationId)
+      try {
+        await this.processQueue(conversationId)
+      } catch (error) {
+        this.logger.error('Failed to process queue after enqueue', {
+          conversationId,
+          error,
+        })
+        throw error
+      }
     }
 
     if (!message) {
@@ -1302,9 +1310,24 @@ Execute the commands and then explain the results in a helpful way.`
     promptId: number
   ): Promise<void> {
     await this.db.transaction(async tx => {
+      const textBlocks = await tx
+        .select({ type: blocks.type, content: blocks.content })
+        .from(blocks)
+        .where(eq(blocks.messageId, assistantMessageId))
+        .orderBy(asc(blocks.order))
+
+      const combinedContent = textBlocks
+        .filter(block => block.type === 'text' && typeof block.content === 'string')
+        .map(block => block.content as string)
+        .join('')
+
       await tx
         .update(messages)
-        .set({ status: 'completed', updatedAt: new Date() })
+        .set({
+          status: 'completed',
+          updatedAt: new Date(),
+          content: combinedContent.length > 0 ? combinedContent : null,
+        })
         .where(eq(messages.id, assistantMessageId))
 
       await tx

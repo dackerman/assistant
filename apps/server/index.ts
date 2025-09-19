@@ -18,6 +18,22 @@ import { ToolExecutorService } from './src/services/toolExecutorService'
 import { createBashTool } from './src/services/tools/bashTool'
 import { createSdkLogger, logger } from './src/utils/logger'
 
+if (process.listenerCount('unhandledRejection') === 0) {
+  process.on('unhandledRejection', reason => {
+    if (reason instanceof Error) {
+      logger.error('Unhandled promise rejection', reason)
+    } else {
+      logger.error('Unhandled promise rejection', { reason })
+    }
+  })
+}
+
+if (process.listenerCount('uncaughtException') === 0) {
+  process.on('uncaughtException', error => {
+    logger.error('Uncaught exception', error)
+  })
+}
+
 const app = new Hono()
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY
