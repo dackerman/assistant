@@ -86,6 +86,11 @@ interface ServerPrompt {
 interface ServerStreamEvent {
   type: ConversationStreamEventType | string
   conversationId?: number
+  conversation?: {
+    id: number
+    title?: string | null
+    updatedAt?: string | Date | null
+  }
   message?: ServerMessage
   prompt?: ServerPrompt
   toolCall?: ServerToolCall
@@ -323,6 +328,23 @@ function normalizeEvent(event: ServerStreamEvent): ConversationStreamEvent {
           assert(event.toolCall, 'Missing tool call payload in stream event')
         ),
         error: event.error ?? null,
+      }
+    case 'conversation-updated':
+      return {
+        type: 'conversation-updated',
+        conversation: {
+          id: assert(
+            event.conversation?.id,
+            'Missing conversation id in conversation_updated event'
+          ),
+          title: event.conversation?.title ?? null,
+          updatedAt: toIso(
+            assert(
+              event.conversation?.updatedAt,
+              'Missing updatedAt in conversation_updated event'
+            )
+          ),
+        },
       }
     default:
       throw new Error(`Unknown event type: ${event.type}`)

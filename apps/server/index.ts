@@ -16,6 +16,7 @@ import { ConversationService } from './src/services/conversationService'
 import { PromptService } from './src/services/promptService'
 import { ToolExecutorService } from './src/services/toolExecutorService'
 import { createBashTool } from './src/services/tools/bashTool'
+import { TitleService } from './src/services/titleService'
 import { createSdkLogger, logger } from './src/utils/logger'
 
 if (process.listenerCount('unhandledRejection') === 0) {
@@ -61,8 +62,14 @@ const promptService = new PromptService(undefined, {
   toolExecutor: toolExecutorService,
 })
 
+const titleService = new TitleService(
+  anthropic,
+  logger.child({ service: 'TitleService' })
+)
+
 const conversationService = new ConversationService(undefined, {
   promptService,
+  titleService,
 })
 
 // Enable CORS for frontend

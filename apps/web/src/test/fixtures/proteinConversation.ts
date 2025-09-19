@@ -163,6 +163,14 @@ export const proteinEvents: ConversationStreamEvent[] = [
     },
   },
   {
+    type: 'conversation-updated',
+    conversation: {
+      id: 8,
+      title: 'What Is A Protein',
+      updatedAt: '2025-09-19T07:20:34.950Z',
+    },
+  },
+  {
     type: 'prompt-started',
     prompt: {
       id: 6,

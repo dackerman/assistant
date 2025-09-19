@@ -304,6 +304,15 @@ function applyEvent(
     case 'tool-call-completed':
     case 'tool-call-failed':
       return state
+    case 'conversation-updated':
+      return {
+        ...state,
+        conversation: {
+          ...state.conversation,
+          title: event.conversation.title ?? state.conversation.title,
+          updatedAt: event.conversation.updatedAt,
+        },
+      }
     default:
       return state
   }

@@ -11,6 +11,7 @@ export const CONVERSATION_STREAM_EVENT_TYPES = [
   'tool-call-progress',
   'tool-call-completed',
   'tool-call-failed',
+  'conversation-updated',
 ] as const
 
 export type ConversationStreamEventType =
@@ -37,6 +38,7 @@ export const CONVERSATION_STREAM_NOTIFICATION_TYPES = {
   tool_call_progress: 'tool-call-progress',
   tool_call_completed: 'tool-call-completed',
   tool_call_failed: 'tool-call-failed',
+  conversation_updated: 'conversation-updated',
 } as const satisfies Record<string, ConversationStreamEventType>
 
 export type ConversationStreamNotificationType = keyof typeof CONVERSATION_STREAM_NOTIFICATION_TYPES

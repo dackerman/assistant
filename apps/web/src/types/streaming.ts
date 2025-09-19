@@ -128,6 +128,14 @@ export type ConversationStreamEvent =
       toolCall: SnapshotToolCall
       error: string | null
     }
+  | {
+      type: Extract<ConversationStreamEventType, 'conversation-updated'>
+      conversation: {
+        id: number
+        title: string | null
+        updatedAt: string
+      }
+    }
 
 export interface ConversationStreamPayload {
   snapshot: ConversationSnapshot

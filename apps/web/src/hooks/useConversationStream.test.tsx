@@ -21,7 +21,7 @@ interface HarnessProps {
 }
 
 function ConversationHarness({ client }: HarnessProps) {
-  const { status, messages } = useConversationStream({
+  const { status, messages, conversation } = useConversationStream({
     conversationId: 42,
     userId: 7,
     client,
@@ -33,6 +33,9 @@ function ConversationHarness({ client }: HarnessProps) {
 
   return (
     <div>
+      <div data-testid="conversation-title">
+        {conversation?.title ?? 'Untitled conversation'}
+      </div>
       <ul data-testid="messages">
         {messages.map(message => (
           <li
@@ -95,6 +98,10 @@ describe('useConversationStream', () => {
 
     expect(await screen.findByTestId('message-1-content')).toHaveTextContent(
       "What's the weather in Tokyo?"
+    )
+
+    expect(screen.getByTestId('conversation-title')).toHaveTextContent(
+      'Trip research'
     )
 
     const assistantCreated: ConversationStreamEvent = {
@@ -188,6 +195,10 @@ describe('useConversationStream', () => {
 
     expect(screen.getByTestId('message-16-content')).toHaveTextContent(
       'A protein is a large, complex molecule made up of amino acids'
+    )
+
+    expect(screen.getByTestId('conversation-title')).toHaveTextContent(
+      'What Is A Protein'
     )
   })
 })

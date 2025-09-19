@@ -24,6 +24,7 @@ import {
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
 import { Logger } from '../utils/logger'
 import { PromptService } from './promptService'
+import { TitleService } from './titleService'
 
 export interface ConversationState {
   conversation: Conversation
@@ -146,9 +147,18 @@ export type ConversationStreamEvent =
       toolCall: ToolCall
       error: string | null
     }
+  | {
+      type: Extract<ConversationStreamEventType, 'conversation-updated'>
+      conversation: {
+        id: number
+        title: string | null
+        updatedAt: Date
+      }
+    }
 
 interface ConversationServiceOptions {
   promptService?: PromptService
+  titleService?: TitleService
   logger?: Logger
 }
 
@@ -156,6 +166,8 @@ export class ConversationService {
   private db: DB
   private logger: Logger
   private promptService: PromptService
+  private titleService?: TitleService
+  private titleGenerationInFlight = new Set<number>()
   private conversationStreams = new Map<
     number,
     Set<AsyncEventQueue<ConversationStreamEvent>>
@@ -169,6 +181,7 @@ export class ConversationService {
     this.logger =
       options.logger ?? new Logger({ service: 'ConversationService' })
     this.promptService = options.promptService ?? new PromptService(dbInstance)
+    this.titleService = options.titleService
   }
 
   private addConversationStream(
@@ -366,6 +379,8 @@ export class ConversationService {
       queueOrder: nextQueueOrder,
       contentLength: content.length,
     })
+
+    void this.generateConversationTitle(conversationId, content)
 
     // If no active prompt, start processing the queue
     const activePrompt = await this.getActivePrompt(conversationId)
@@ -787,10 +802,29 @@ export class ConversationService {
    * Set conversation title
    */
   async setTitle(conversationId: number, title: string): Promise<void> {
-    await this.db
+    const now = new Date()
+
+    const [updated] = await this.db
       .update(conversations)
-      .set({ title, updatedAt: new Date() })
+      .set({ title, updatedAt: now })
       .where(eq(conversations.id, conversationId))
+      .returning()
+
+    if (!updated) {
+      this.logger.warn('Attempted to set title for missing conversation', {
+        conversationId,
+      })
+      return
+    }
+
+    this.broadcastConversationEvent(conversationId, {
+      type: 'conversation-updated',
+      conversation: {
+        id: updated.id,
+        title: updated.title,
+        updatedAt: updated.updatedAt,
+      },
+    })
   }
 
   /**
@@ -1198,6 +1232,44 @@ export class ConversationService {
     return {
       userMessageId,
       promptId: activePrompt?.id || 0, // Fallback for compatibility
+    }
+  }
+
+  private async generateConversationTitle(
+    conversationId: number,
+    userContent: string
+  ): Promise<void> {
+    if (!this.titleService) return
+    if (this.titleGenerationInFlight.has(conversationId)) return
+
+    const trimmed = userContent.trim()
+    if (trimmed.length === 0) return
+
+    this.titleGenerationInFlight.add(conversationId)
+
+    try {
+      const [conversation] = await this.db
+        .select({ title: conversations.title })
+        .from(conversations)
+        .where(eq(conversations.id, conversationId))
+        .limit(1)
+
+      if (!conversation) return
+      if (conversation.title && conversation.title !== 'New Conversation') {
+        return
+      }
+
+      const generated = await this.titleService.generateTitleFromMessage(trimmed)
+      if (!generated) return
+
+      await this.setTitle(conversationId, generated)
+    } catch (error) {
+      this.logger.error('Failed to auto-generate conversation title', {
+        conversationId,
+        error,
+      })
+    } finally {
+      this.titleGenerationInFlight.delete(conversationId)
     }
   }
 
