@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <rect width="180" height="180" fill="#f8fafc"/>
+  <!-- Outer ring -->
+  <circle cx="90" cy="90" r="70" stroke="#64748b" stroke-width="8" fill="none"/>
+  <!-- Core -->
+  <circle cx="90" cy="90" r="32" fill="#0f172a"/>
+  <!-- Accent dot -->
+  <circle cx="90" cy="90" r="12" fill="#3b82f6"/>
+</svg>

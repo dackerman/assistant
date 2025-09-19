@@ -18,11 +18,7 @@ import {
   toolCalls,
 } from '../db/schema'
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
-import {
-  Logger,
-  createSdkLogger,
-  logger as rootLogger,
-} from '../utils/logger'
+import { Logger, createSdkLogger, logger as rootLogger } from '../utils/logger'
 import { sanitizeShellOutput } from '../utils/sanitize'
 import { type ToolDefinition, ToolExecutorService } from './toolExecutorService'
 
@@ -125,9 +121,7 @@ export class PromptService {
       this.client = new Anthropic({
         apiKey: process.env.ANTHROPIC_API_KEY,
         logLevel: 'debug',
-        logger: createSdkLogger(
-          rootLogger.child({ service: 'AnthropicSDK' })
-        ),
+        logger: createSdkLogger(rootLogger.child({ service: 'AnthropicSDK' })),
       })
     }
     return this.client
@@ -375,7 +369,7 @@ export class PromptService {
   ): Promise<void> {
     const client = await this.getAnthropicClient()
     let currentRequest = request
-    const toolCallResults: ToolResult[] = []
+    const allMessages: Anthropic.Messages.MessageParam[] = [...request.messages]
 
     // Keep looping until no more tool calls are needed
     while (true) {
@@ -387,11 +381,13 @@ export class PromptService {
       this.logger.anthropicEvent('response_stream_started', {
         promptId,
       })
-      const { hasToolCalls, newToolResults } = await this.handleStreamEvents(
-        promptId,
-        stream,
-        callbacks
-      )
+      const { hasToolCalls, newToolResults, assistantMessage } =
+        await this.handleStreamEvents(promptId, stream, callbacks)
+
+      // Add the assistant's message to our message history
+      if (assistantMessage && assistantMessage.content.length > 0) {
+        allMessages.push(assistantMessage)
+      }
 
       if (!hasToolCalls) {
         // No tools called, we're done
@@ -402,27 +398,28 @@ export class PromptService {
       // Wait for all tool calls to complete
       await this.waitForToolCallsToComplete(promptId)
 
-      // Build continuation request with tool results
-      toolCallResults.push(...newToolResults)
+      // Add tool results as separate user messages
+      for (const result of newToolResults) {
+        allMessages.push({
+          role: 'user' as const,
+          content: [
+            {
+              type: 'tool_result' as const,
+              tool_use_id: result.tool_use_id,
+              content: result.content,
+            },
+          ],
+        })
+      }
+
       this.logger.anthropicEvent('tool_results_prepared', {
         promptId,
-        toolResultsCount: toolCallResults.length,
+        toolResultsCount: newToolResults.length,
       })
+
       currentRequest = {
         ...request,
-        messages: [
-          ...request.messages,
-          ...toolCallResults.map(result => ({
-            role: 'user' as const,
-            content: [
-              {
-                type: 'tool_result' as const,
-                tool_use_id: result.tool_use_id,
-                content: result.content,
-              },
-            ],
-          })),
-        ],
+        messages: allMessages,
       }
     }
   }
@@ -434,10 +431,15 @@ export class PromptService {
     promptId: number,
     stream: AsyncIterable<Anthropic.Messages.RawMessageStreamEvent>,
     callbacks?: StreamingCallbacks
-  ): Promise<{ hasToolCalls: boolean; newToolResults: ToolResult[] }> {
+  ): Promise<{
+    hasToolCalls: boolean
+    newToolResults: ToolResult[]
+    assistantMessage: Anthropic.Messages.MessageParam
+  }> {
     const blockMap = new Map<number, number>() // stream index -> block id
     const toolInputs = new Map<number, ToolData>() // stream index -> tool data
     const toolResults: ToolResult[] = []
+    const assistantContent: Anthropic.Messages.ContentBlockParam[] = []
     let hasToolCalls = false
 
     try {
@@ -456,6 +458,9 @@ export class PromptService {
         switch (event.type) {
           case 'content_block_start': {
             if (event.content_block.type === 'text') {
+              // Track text content for assistant message
+              assistantContent.push({ type: 'text', text: '' })
+
               // Create text block
               const [block] = await this.db
                 .insert(blocks)
@@ -473,6 +478,14 @@ export class PromptService {
               }
             } else if (event.content_block.type === 'tool_use') {
               hasToolCalls = true
+
+              // Track tool use for assistant message
+              assistantContent.push({
+                type: 'tool_use',
+                id: event.content_block.id,
+                name: event.content_block.name,
+                input: {},
+              })
 
               // Create tool_use block
               const [block] = await this.db
@@ -512,6 +525,12 @@ export class PromptService {
             if (!blockId) break
 
             if (event.delta.type === 'text_delta') {
+              // Update assistant message content
+              const contentItem = assistantContent[event.index]
+              if (contentItem && contentItem.type === 'text') {
+                ;(contentItem as any).text += event.delta.text
+              }
+
               // Update text block
               await this.updateBlockContent(blockId, event.delta.text, true)
               await callbacks?.onBlockDelta?.(blockId, event.delta.text)
@@ -534,6 +553,12 @@ export class PromptService {
               // Tool call complete - start execution
               try {
                 const parsedInput = JSON.parse(toolData.input)
+
+                // Update the tool use input in assistant message
+                const contentBlock = assistantContent[event.index]
+                if (contentBlock && contentBlock.type === 'tool_use') {
+                  ;(contentBlock as any).input = parsedInput
+                }
 
                 await this.db
                   .update(blocks)
@@ -641,7 +666,14 @@ export class PromptService {
       throw error
     }
 
-    return { hasToolCalls, newToolResults: toolResults }
+    return {
+      hasToolCalls,
+      newToolResults: toolResults,
+      assistantMessage: {
+        role: 'assistant',
+        content: assistantContent,
+      },
+    }
   }
 
   /**
@@ -793,7 +825,8 @@ export class PromptService {
       })
 
       if (message.role === 'assistant') {
-        const toolCallRowsForMessage = toolCallsByMessageId.get(message.id) ?? []
+        const toolCallRowsForMessage =
+          toolCallsByMessageId.get(message.id) ?? []
 
         const contentParts: Anthropic.Messages.ContentBlockParam[] = []
 
@@ -808,8 +841,7 @@ export class PromptService {
             type: 'tool_use',
             id: toolCall.apiToolCallId,
             name: toolCall.name,
-            input:
-              (toolCall.input as Record<string, unknown>) ?? {},
+            input: (toolCall.input as Record<string, unknown>) ?? {},
           })
         }
 
