@@ -16,7 +16,7 @@ import { ConversationService } from './src/services/conversationService'
 import { PromptService } from './src/services/promptService'
 import { ToolExecutorService } from './src/services/toolExecutorService'
 import { createBashTool } from './src/services/tools/bashTool'
-import { logger } from './src/utils/logger'
+import { createSdkLogger, logger } from './src/utils/logger'
 
 const app = new Hono()
 
@@ -26,8 +26,12 @@ if (!anthropicApiKey) {
 }
 
 // Initialize services
+const anthropicSdkLogger = logger.child({ service: 'AnthropicSDK' })
+
 const anthropic = new Anthropic({
   apiKey: anthropicApiKey,
+  logLevel: 'debug',
+  logger: createSdkLogger(anthropicSdkLogger),
 })
 
 const bashSessionManager = new BashSessionManager()
@@ -348,8 +352,13 @@ async function closeAllSubscriptions(
   )
 }
 
-function send(ws: WebSocket, payload: OutgoingMessage) {
+function send(
+  ws: WebSocket,
+  wsLogger: ReturnType<typeof logger.child>,
+  payload: OutgoingMessage
+) {
   if (ws.readyState !== ws.OPEN) return
+  wsLogger.wsEvent('outgoing_message', { payload })
   ws.send(JSON.stringify(payload))
 }
 
@@ -359,8 +368,10 @@ wss.on('connection', (ws: WebSocket) => {
   wsLogger.wsEvent('connection_established')
 
   ws.on('message', async (data: RawData) => {
+    const rawMessage = data.toString()
+    wsLogger.wsEvent('incoming_message', { raw: rawMessage })
     try {
-      const raw = JSON.parse(data.toString()) as {
+      const raw = JSON.parse(rawMessage) as {
         type: string
         conversationId?: number
       }
@@ -372,7 +383,7 @@ wss.on('connection', (ws: WebSocket) => {
 
       const conversationId = Number(raw.conversationId)
       if (!Number.isFinite(conversationId)) {
-        send(ws, {
+        send(ws, wsLogger, {
           type: 'error',
           conversationId: null,
           error: 'Invalid conversation id',
@@ -390,7 +401,7 @@ wss.on('connection', (ws: WebSocket) => {
       )
 
       if (!stream) {
-        send(ws, {
+        send(ws, wsLogger, {
           type: 'error',
           conversationId,
           error: 'Conversation not found',
@@ -398,8 +409,8 @@ wss.on('connection', (ws: WebSocket) => {
         return
       }
 
-      send(ws, { type: 'subscribed', conversationId })
-      send(ws, {
+      send(ws, wsLogger, { type: 'subscribed', conversationId })
+      send(ws, wsLogger, {
         type: 'snapshot',
         conversationId,
         snapshot: stream.snapshot,
@@ -422,7 +433,7 @@ wss.on('connection', (ws: WebSocket) => {
               break
             }
 
-            send(ws, {
+            send(ws, wsLogger, {
               type: 'event',
               conversationId,
               event,
@@ -433,7 +444,7 @@ wss.on('connection', (ws: WebSocket) => {
             conversationId,
             error,
           })
-          send(ws, {
+          send(ws, wsLogger, {
             type: 'error',
             conversationId,
             error:
@@ -453,7 +464,7 @@ wss.on('connection', (ws: WebSocket) => {
       })()
     } catch (error) {
       wsLogger.error('WebSocket message handling error', error)
-      send(ws, {
+      send(ws, wsLogger, {
         type: 'error',
         conversationId: null,
         error: error instanceof Error ? error.message : 'Unknown error',

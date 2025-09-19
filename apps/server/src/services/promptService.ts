@@ -18,7 +18,11 @@ import {
   toolCalls,
 } from '../db/schema'
 import { AsyncEventQueue } from '../utils/asyncEventQueue'
-import { Logger } from '../utils/logger'
+import {
+  Logger,
+  createSdkLogger,
+  logger as rootLogger,
+} from '../utils/logger'
 import { type ToolDefinition, ToolExecutorService } from './toolExecutorService'
 
 // Types for tool handling
@@ -119,6 +123,10 @@ export class PromptService {
       const Anthropic = (await import('@anthropic-ai/sdk')).default
       this.client = new Anthropic({
         apiKey: process.env.ANTHROPIC_API_KEY,
+        logLevel: 'debug',
+        logger: createSdkLogger(
+          rootLogger.child({ service: 'AnthropicSDK' })
+        ),
       })
     }
     return this.client
@@ -370,7 +378,14 @@ export class PromptService {
 
     // Keep looping until no more tool calls are needed
     while (true) {
+      this.logger.anthropicEvent('request', {
+        promptId,
+        request: currentRequest,
+      })
       const stream = await client.messages.create(currentRequest)
+      this.logger.anthropicEvent('response_stream_started', {
+        promptId,
+      })
       const { hasToolCalls, newToolResults } = await this.handleStreamEvents(
         promptId,
         stream,
@@ -388,6 +403,10 @@ export class PromptService {
 
       // Build continuation request with tool results
       toolCallResults.push(...newToolResults)
+      this.logger.anthropicEvent('tool_results_prepared', {
+        promptId,
+        toolResultsCount: toolCallResults.length,
+      })
       currentRequest = {
         ...request,
         messages: [
@@ -422,6 +441,10 @@ export class PromptService {
 
     try {
       for await (const event of stream) {
+        this.logger.anthropicEvent('stream_event', {
+          promptId,
+          event,
+        })
         // Store raw event
         await this.db.insert(promptEvents).values({
           promptId,

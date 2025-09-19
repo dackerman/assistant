@@ -167,7 +167,48 @@ class Logger {
   }
 }
 
+type SdkLogger = {
+  error: (message: string, ...rest: unknown[]) => void
+  warn: (message: string, ...rest: unknown[]) => void
+  info: (message: string, ...rest: unknown[]) => void
+  debug: (message: string, ...rest: unknown[]) => void
+}
+
+function createSdkLogger(base: Logger): SdkLogger {
+  const toPayload = (rest: unknown[]): Record<string, unknown> | undefined => {
+    if (rest.length === 0) return undefined
+
+    if (rest.length === 1) {
+      const [value] = rest
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value as Record<string, unknown>
+      }
+
+      return { value }
+    }
+
+    return { args: rest }
+  }
+
+  return {
+    error: (message: string, ...rest: unknown[]) => {
+      const payload = rest.length === 1 ? rest[0] : rest.length > 1 ? { args: rest } : undefined
+      base.error(message, payload)
+    },
+    warn: (message: string, ...rest: unknown[]) => {
+      base.warn(message, toPayload(rest))
+    },
+    info: (message: string, ...rest: unknown[]) => {
+      base.info(message, toPayload(rest))
+    },
+    debug: (message: string, ...rest: unknown[]) => {
+      base.debug(message, toPayload(rest))
+    },
+  }
+}
+
 // Create global logger instance
 const logger = new Logger()
 
-export { Logger, logger, type LogContext }
+export { Logger, logger, createSdkLogger, type LogContext, type SdkLogger }

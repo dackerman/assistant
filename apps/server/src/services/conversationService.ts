@@ -2,13 +2,11 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import postgres from 'postgres'
 import type { Conversation, DB, Prompt, ToolCall } from '../db'
 import { db as defaultDb } from '../db'
-import type {
-  ConversationStreamEventType,
-  ConversationStreamNotificationType,
-} from '../../../../types/conversationStream'
 import {
-  toConversationStreamEventType,
-} from '../../../../types/conversationStream'
+  CONVERSATION_STREAM_NOTIFICATION_TYPES,
+  type ConversationStreamEventType,
+  type ConversationStreamNotificationType,
+} from '../types/conversationStream'
 import {
   type Block,
   type BlockType,
@@ -938,53 +936,51 @@ export class ConversationService {
             const data = JSON.parse(payload) as ConversationNotification
             if (data.conversationId !== conversationId) return
 
-            const streamType = toConversationStreamEventType(data.type)
-
-            switch (streamType) {
-              case 'message-created': {
+            switch (data.type) {
+              case 'message_created': {
                 const message = this.normalizeMessageNotification(data.message)
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'message-created',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.message_created,
                   message,
                 })
                 break
               }
-              case 'message-updated': {
+              case 'message_updated': {
                 const message = this.normalizeMessageNotification(data.message)
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'message-updated',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.message_updated,
                   message,
                 })
                 break
               }
-              case 'prompt-started': {
+              case 'prompt_started': {
                 const prompt = this.normalizePromptNotification(data.prompt)
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'prompt-started',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.prompt_started,
                   prompt,
                 })
                 break
               }
-              case 'prompt-completed': {
+              case 'prompt_completed': {
                 const prompt = this.normalizePromptNotification(data.prompt)
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'prompt-completed',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.prompt_completed,
                   prompt,
                 })
                 break
               }
-              case 'prompt-failed': {
+              case 'prompt_failed': {
                 const prompt = this.normalizePromptNotification(data.prompt)
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'prompt-failed',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.prompt_failed,
                   prompt,
                   error: data.error ?? prompt.error,
                 })
                 break
               }
-              case 'block-start': {
+              case 'block_start': {
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'block-start',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.block_start,
                   promptId: data.promptId,
                   messageId: data.messageId,
                   blockId: data.blockId,
@@ -992,10 +988,10 @@ export class ConversationService {
                 })
                 break
               }
-              case 'block-delta': {
+              case 'block_delta': {
                 if (data.delta) {
                   this.broadcastConversationEvent(conversationId, {
-                    type: 'block-delta',
+                    type: CONVERSATION_STREAM_NOTIFICATION_TYPES.block_delta,
                     promptId: data.promptId,
                     messageId: data.messageId,
                     blockId: data.blockId,
@@ -1004,9 +1000,9 @@ export class ConversationService {
                 }
                 break
               }
-              case 'block-end': {
+              case 'block_end': {
                 this.broadcastConversationEvent(conversationId, {
-                  type: 'block-end',
+                  type: CONVERSATION_STREAM_NOTIFICATION_TYPES.block_end,
                   promptId: data.promptId,
                   messageId: data.messageId,
                   blockId: data.blockId,
