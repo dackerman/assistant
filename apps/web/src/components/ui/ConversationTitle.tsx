@@ -26,8 +26,8 @@ export function ConversationTitle({
     // Only animate when explicitly told to via shouldAnimate prop
     if (
       shouldAnimate &&
-      previousTitle === 'New Conversation' &&
-      title !== 'New Conversation'
+      previousTitle === 'Untitled Conversation' &&
+      title !== 'Untitled Conversation'
     ) {
       setIsAnimating(true)
       setSparkleKey(prev => prev + 1)

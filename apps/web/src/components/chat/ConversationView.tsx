@@ -42,7 +42,9 @@ export function ConversationView({
   const [currentConversationId, setCurrentConversationId] = useState<
     number | null
   >(conversationId ?? null)
-  const [conversationTitle, setConversationTitle] = useState('New Conversation')
+  const [conversationTitle, setConversationTitle] = useState(
+    'Untitled Conversation'
+  )
   const [shouldAnimateTitle, setShouldAnimateTitle] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editingTitle, setEditingTitle] = useState('')
@@ -79,20 +81,20 @@ export function ConversationView({
 
     if (!currentConversationId) {
       previousTitleRef.current = null
-      setConversationTitle('New Conversation')
+      setConversationTitle('Untitled Conversation')
       return
     }
 
     if (!streamConversation) {
       setConversationTitle(prev =>
-        prev === 'New Conversation' ? 'Conversation' : prev
+        prev === 'Untitled Conversation' ? 'Conversation' : prev
       )
       return
     }
 
     const incomingTitle = streamConversation.title?.trim().length
       ? streamConversation.title.trim()
-      : 'Conversation'
+      : 'Untitled Conversation'
 
     if (
       previousTitleRef.current &&
@@ -236,13 +238,13 @@ export function ConversationView({
                 <div
                   onClick={
                     currentConversationId &&
-                    conversationTitle !== 'New Conversation'
+                    conversationTitle !== 'Untitled Conversation'
                       ? handleTitleEditStart
                       : undefined
                   }
                   className={`${
                     currentConversationId &&
-                    conversationTitle !== 'New Conversation'
+                    conversationTitle !== 'Untitled Conversation'
                       ? 'cursor-pointer hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 -my-0.5 transition-colors'
                       : ''
                   }`}

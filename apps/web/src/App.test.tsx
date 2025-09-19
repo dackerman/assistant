@@ -19,7 +19,7 @@ describe('App', () => {
         <App />
       </MemoryRouter>
     )
-    expect(await screen.findByText('New Conversation')).toBeInTheDocument()
+    expect(await screen.findByText('Untitled Conversation')).toBeInTheDocument()
     expect(
       screen.getByText('0 messages • Awaiting first message')
     ).toBeInTheDocument()

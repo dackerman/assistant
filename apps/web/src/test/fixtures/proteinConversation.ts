@@ -6,7 +6,7 @@ import type {
 export const proteinSnapshot: ConversationSnapshot = {
   conversation: {
     id: 8,
-    title: 'New Conversation',
+    title: null,
     createdAt: '2025-09-19T03:02:53.053Z',
     updatedAt: '2025-09-19T03:19:53.801Z',
   },

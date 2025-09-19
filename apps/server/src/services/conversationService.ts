@@ -225,7 +225,7 @@ export class ConversationService {
       .insert(conversations)
       .values({
         userId,
-        title: title || 'New Conversation',
+        title: title || null,
       } as NewConversation)
       .returning()
 
@@ -644,8 +644,9 @@ export class ConversationService {
               this.broadcastConversationEvent(conversationId, {
                 type: 'tool-call-failed',
                 toolCall: record.toolCall,
-                error:
-                  sanitizeShellOutput(output || record.toolCall.error || ''),
+                error: sanitizeShellOutput(
+                  output || record.toolCall.error || ''
+                ),
               })
               return
             }
@@ -1266,11 +1267,12 @@ export class ConversationService {
         .limit(1)
 
       if (!conversation) return
-      if (conversation.title && conversation.title !== 'New Conversation') {
+      if (conversation.title && conversation.title !== null) {
         return
       }
 
-      const generated = await this.titleService.generateTitleFromMessage(trimmed)
+      const generated =
+        await this.titleService.generateTitleFromMessage(trimmed)
       if (!generated) return
 
       await this.setTitle(conversationId, generated)
@@ -1400,7 +1402,9 @@ Execute the commands and then explain the results in a helpful way.`
         .orderBy(asc(blocks.order))
 
       const combinedContent = textBlocks
-        .filter(block => block.type === 'text' && typeof block.content === 'string')
+        .filter(
+          block => block.type === 'text' && typeof block.content === 'string'
+        )
         .map(block => block.content as string)
         .join('')
 

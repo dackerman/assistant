@@ -1,4 +1,7 @@
-import type { ConversationSnapshot, ConversationStreamEvent } from '@/types/streaming'
+import type {
+  ConversationSnapshot,
+  ConversationStreamEvent,
+} from '@/types/streaming'
 
 const ISO = (value: string) => new Date(value).toISOString()
 
@@ -7,7 +10,7 @@ const BASE_TIME = '2025-09-19T08:15:00Z'
 export const bashSnapshot: ConversationSnapshot = {
   conversation: {
     id: 9,
-    title: 'New Conversation',
+    title: null,
     createdAt: ISO(BASE_TIME),
     updatedAt: ISO(BASE_TIME),
   },
@@ -194,7 +197,8 @@ export const bashEvents: ConversationStreamEvent[] = [
           id: 5002,
           messageId: 302,
           type: 'text',
-          content: 'Here are the repository files:\n- README.md\n- package.json',
+          content:
+            'Here are the repository files:\n- README.md\n- package.json',
           order: 1,
           metadata: null,
         },

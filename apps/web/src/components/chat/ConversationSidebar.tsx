@@ -54,7 +54,7 @@ export function ConversationSidebar({
       const formattedConversations: Conversation[] = result.conversations.map(
         (conv: ApiConversation) => ({
           id: conv.id.toString(),
-          title: conv.title || 'New Conversation',
+          title: conv.title || 'Untitled Conversation',
           messages: [], // We don't need full messages for the sidebar
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
@@ -76,8 +76,9 @@ export function ConversationSidebar({
             // Trigger animation if title moved away from the placeholder or changed
             if (
               prevTitle &&
-              (prevTitle === 'New Conversation' || prevTitle !== conv.title) &&
-              conv.title !== 'New Conversation'
+              (prevTitle === 'Untitled Conversation' ||
+                prevTitle !== conv.title) &&
+              conv.title !== 'Untitled Conversation'
             ) {
               const nextCount = (prevTriggers.get(conv.id) || 0) + 1
               if (nextCount !== prevTriggers.get(conv.id)) {
