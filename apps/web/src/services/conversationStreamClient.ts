@@ -11,7 +11,7 @@ import type {
 import {
   isConversationStreamEventType,
   type ConversationStreamEventType,
-} from '../../../../types/conversationStream'
+} from '@core/types/conversationStream'
 
 interface ServerConversationState {
   conversation: ServerConversation

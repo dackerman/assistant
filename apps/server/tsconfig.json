@@ -10,7 +10,7 @@
     "types": ["vitest", "node"],
 
     // Node.js build mode
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "outDir": "dist",

@@ -6,7 +6,7 @@ import {
   CONVERSATION_STREAM_NOTIFICATION_TYPES,
   type ConversationStreamEventType,
   type ConversationStreamNotificationType,
-} from '../types/conversationStream'
+} from '@core/types/conversationStream'
 import {
   type Block,
   type BlockType,

@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.61.0",
+    "@core/types": "workspace:*",
     "@hono/node-server": "^1.19.1",
     "@hono/node-ws": "^1.2.0",
     "@types/ws": "^8.18.1",

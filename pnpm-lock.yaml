@@ -30,6 +30,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.61.0
         version: 0.61.0
+      '@core/types':
+        specifier: workspace:*
+        version: link:../../packages/core-types
       '@hono/node-server':
         specifier: ^1.19.1
         version: 1.19.1(hono@4.9.6)
@@ -97,6 +100,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@core/types':
+        specifier: workspace:*
+        version: link:../../packages/core-types
       '@radix-ui/react-avatar':
         specifier: ^1.1.10
         version: 1.1.10(@types/react-dom@19.1.9(@types/react@19.1.12))(@types/react@19.1.12)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -182,6 +188,12 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.3.1)(@vitest/ui@3.2.4)(jiti@1.21.7)(jsdom@26.1.0)(tsx@4.20.5)(yaml@2.8.1)
+
+  packages/core-types:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.2
 
 packages:
 

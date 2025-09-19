@@ -1,4 +1,4 @@
-import type { ConversationStreamEventType } from '../../../../types/conversationStream'
+import type { ConversationStreamEventType } from '@core/types/conversationStream'
 
 export interface SnapshotConversation {
   id: number
@@ -134,4 +134,4 @@ export interface ConversationStreamPayload {
   events: AsyncGenerator<ConversationStreamEvent>
 }
 
-export type { ConversationStreamEventType } from '../../../../types/conversationStream'
+export type { ConversationStreamEventType } from '@core/types/conversationStream'
