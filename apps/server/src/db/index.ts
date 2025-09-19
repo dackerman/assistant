@@ -45,16 +45,18 @@ export async function closeDatabase() {
 
 type CreatePostgresClientOptions = {
   enableLogging?: boolean
+  poolOptions?: Parameters<typeof postgres>[1]
 }
 
 function createPostgresClient(
   connectionString: string,
   options: CreatePostgresClientOptions = {}
 ) {
-  const { enableLogging = true } = options
+  const { enableLogging = true, poolOptions } = options
   const dbLogger = logger.child({ service: 'Database' })
   const client = postgres(connectionString, {
     max: 1,
+    ...poolOptions,
     ...(enableLogging
       ? {
           debug: (connectionId: number, query: unknown, parameters: unknown) => {

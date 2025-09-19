@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm'
+import { drizzle as drizzlePostgresJs } from 'drizzle-orm/postgres-js'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { toolCalls, users } from '../db/schema'
+import * as dbSchema from '../db/schema'
 import {
   createConversationServiceFixture,
   expectMessagesState,
@@ -10,6 +12,7 @@ import {
   ConversationService,
   type ConversationStreamEvent,
 } from './conversationService'
+import { createPostgresClient } from '../db'
 
 const truncateAll = async () => {
   await testDb.execute(sql`
@@ -734,6 +737,38 @@ describe('ConversationService – createConversation', () => {
       await firstQueuePromise?.catch(() => undefined)
       await secondQueuePromise?.catch(() => undefined)
       await iterator.return?.(undefined)
+    }
+  })
+
+  it('fails when using a Postgres client without single-connection configuration (regression)', async () => {
+    const connectionString = process.env.TEST_DATABASE_URL
+    expect(connectionString).toBeTruthy()
+    if (!connectionString) return
+
+    const rawClient = createPostgresClient(connectionString, {
+      poolOptions: { max: 5 },
+    })
+    const rawDb = drizzlePostgresJs(rawClient, { schema: dbSchema })
+    const fixture = createConversationServiceFixture(rawDb)
+
+    try {
+      await fixture.truncateAll()
+
+      const [user] = await fixture.insertUser('regression@example.com')
+      const conversationId = await fixture.conversationService.createConversation(
+        user.id,
+        'Regression Test'
+      )
+      fixture.enqueueStream()
+
+      await expect(
+        fixture.conversationService.queueMessage(
+          conversationId,
+          'Should trigger UNSAFE_TRANSACTION'
+        )
+      ).rejects.toThrow(/UNSAFE_TRANSACTION/i)
+    } finally {
+      await rawClient.end()
     }
   })
 })
