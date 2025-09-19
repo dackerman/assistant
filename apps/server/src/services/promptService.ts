@@ -1,7 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParamsStreaming } from '@anthropic-ai/sdk/resources/messages.js'
 import { and, desc, eq, or } from 'drizzle-orm'
-import postgres from 'postgres'
 import type { DB } from '../db'
 import { db as defaultDb } from '../db'
 import {
@@ -17,7 +16,6 @@ import {
   prompts,
   toolCalls,
 } from '../db/schema'
-import { AsyncEventQueue } from '../utils/asyncEventQueue'
 import { createSdkLogger, Logger, logger as rootLogger } from '../utils/logger'
 import { sanitizeShellOutput } from '../utils/sanitize'
 import { type ToolDefinition, ToolExecutorService } from './toolExecutorService'
@@ -46,16 +44,6 @@ export type PromptStreamEvent =
   | { type: 'block-start'; blockId: number; blockType: BlockType }
   | { type: 'block-delta'; blockId: number; content: string }
   | { type: 'block-end'; blockId: number }
-
-type PromptStreamNotification = {
-  type: 'block_start' | 'block_delta' | 'block_end'
-  promptId: number
-  conversationId: number
-  messageId: number
-  blockId: number
-  blockType: BlockType
-  delta?: string
-}
 
 export interface CreatePromptParams {
   conversationId: number
@@ -214,148 +202,6 @@ export class PromptService {
 
       await callbacks?.onError?.(promptId, normalizedError)
       throw error
-    }
-  }
-
-  async streamPrompt(promptId: number, options: StreamPromptOptions = {}) {
-    const includeExistingBlocks = options.includeExistingBlocks ?? true
-
-    const [prompt] = await this.db
-      .select()
-      .from(prompts)
-      .where(eq(prompts.id, promptId))
-
-    if (!prompt) {
-      return null
-    }
-
-    const streamingBlocks = await this.db
-      .select()
-      .from(blocks)
-      .where(eq(blocks.messageId, prompt.messageId))
-      .orderBy(blocks.order)
-
-    const queue = new AsyncEventQueue<PromptStreamEvent>()
-    queue.push({ type: 'prompt-created', promptId: prompt.id })
-
-    const connectionString = this.getConnectionString()
-    let sqlClient: ReturnType<typeof postgres> | null = null
-
-    if (!connectionString) {
-      this.logger.warn('No database connection string for prompt streaming', {
-        promptId,
-      })
-      queue.close()
-    } else {
-      try {
-        sqlClient = postgres(connectionString, { max: 1 })
-        await sqlClient.listen('prompt_stream_events', (payload: string) => {
-          try {
-            const data = JSON.parse(payload) as PromptStreamNotification
-            if (data.promptId !== prompt.id) return
-
-            switch (data.type) {
-              case 'block_start': {
-                queue.push({
-                  type: 'block-start',
-                  blockId: data.blockId,
-                  blockType: data.blockType,
-                })
-                break
-              }
-              case 'block_delta': {
-                if (data.delta) {
-                  queue.push({
-                    type: 'block-delta',
-                    blockId: data.blockId,
-                    content: data.delta,
-                  })
-                }
-                break
-              }
-              case 'block_end': {
-                queue.push({
-                  type: 'block-end',
-                  blockId: data.blockId,
-                })
-                break
-              }
-            }
-          } catch (error) {
-            this.logger.error('Failed to parse prompt stream notification', {
-              error,
-              payload,
-            })
-          }
-        })
-      } catch (error) {
-        this.logger.error('Failed to subscribe to prompt stream events', {
-          error,
-          promptId: prompt.id,
-        })
-        queue.close()
-        if (sqlClient) {
-          try {
-            await sqlClient.end({ timeout: 5 })
-          } catch (closeError) {
-            this.logger.error('Failed to close prompt event client', {
-              error: closeError,
-            })
-          }
-        }
-        sqlClient = null
-      }
-    }
-
-    if (includeExistingBlocks) {
-      for (const block of streamingBlocks) {
-        queue.push({
-          type: 'block-start',
-          blockId: block.id,
-          blockType: block.type,
-        })
-        if (block.type === 'text' && block.content) {
-          queue.push({
-            type: 'block-delta',
-            blockId: block.id,
-            content: block.content,
-          })
-        }
-        queue.push({ type: 'block-end', blockId: block.id })
-      }
-    }
-
-    const service = this
-    const events = (async function* (): AsyncGenerator<PromptStreamEvent> {
-      try {
-        while (true) {
-          const { value, done } = await queue.next()
-          if (done) {
-            return
-          }
-          yield value
-        }
-      } finally {
-        queue.close()
-        if (sqlClient) {
-          try {
-            await sqlClient.end({ timeout: 5 })
-          } catch (error) {
-            if (error instanceof Error) {
-              service.logger.error('Failed to close prompt event client', {
-                error,
-                promptId: prompt.id,
-              })
-            }
-          }
-        }
-      }
-    })()
-
-    return {
-      prompt,
-      blocks: streamingBlocks,
-      events,
     }
   }
 
@@ -894,12 +740,5 @@ export class PromptService {
     }
 
     return history
-  }
-
-  private getConnectionString(): string | undefined {
-    if (process.env.NODE_ENV === 'test') {
-      return process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
-    }
-    return process.env.DATABASE_URL
   }
 }
