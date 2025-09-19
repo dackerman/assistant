@@ -108,25 +108,37 @@ export class BashSession implements BashSessionLike {
         this.ptyProcess = undefined
       })
 
+      // Set up data handler first
+      this.ptyProcess.onData((data: string) => {
+        this.handlePtyData(data)
+      })
+
       // Set up a custom prompt to make command completion detection reliable
       // Use a unique prompt that won't appear in normal output
       const promptMarker = '__PTY_PROMPT__'
       this.ptyProcess.write(`export PS1="${promptMarker}$ "\n`)
+      // Send an empty command to trigger the new prompt
+      this.ptyProcess.write('\n')
 
       // Wait for the prompt to appear
-      await new Promise<void>(resolve => {
-        const listener = (data: string) => {
-          if (data.includes(promptMarker)) {
-            this.ptyProcess?.onData(() => {}) // Remove temporary listener
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          this.logger.error('Timeout waiting for initial prompt', {
+            bufferLength: this.commandBuffer.length,
+            bufferSample: this.commandBuffer.substring(0, 200),
+            includesMarker: this.commandBuffer.includes(promptMarker),
+          })
+          reject(new Error('Timeout waiting for initial prompt'))
+        }, 5000)
+
+        const checkInterval = setInterval(() => {
+          if (this.commandBuffer.includes(promptMarker)) {
+            clearInterval(checkInterval)
+            clearTimeout(timeout)
+            this.commandBuffer = '' // Clear the initial buffer
             resolve()
           }
-        }
-        this.ptyProcess?.onData(listener)
-      })
-
-      // Set up permanent data handler
-      this.ptyProcess.onData((data: string) => {
-        this.handlePtyData(data)
+        }, 100)
       })
 
       this.logger.info('Bash session started successfully')
@@ -141,6 +153,9 @@ export class BashSession implements BashSessionLike {
    * Handle data from the PTY process
    */
   private handlePtyData(data: string): void {
+    // Always accumulate data in the buffer
+    this.commandBuffer += data
+
     // Stream data to the current command if one is being processed
     const currentCmd = this.commandQueue[0]
     if (currentCmd && this.isProcessingCommand) {
@@ -149,28 +164,51 @@ export class BashSession implements BashSessionLike {
         .replace(/__PTY_PROMPT__\$/g, '')
         .replace(/EXIT_CODE:\d+\n?/g, '')
 
-      if (cleanData && !data.includes('__PTY_PROMPT__')) {
+      // Only stream data that's not part of our internal markers
+      if (
+        cleanData &&
+        !data.includes('__PTY_PROMPT__') &&
+        !data.includes('EXIT_CODE:')
+      ) {
         currentCmd.callbacks.onStdout?.(cleanData)
+      }
+
+      // Always accumulate raw data for exit code extraction
+      if (!data.includes('__PTY_PROMPT__')) {
         currentCmd.stdout += data
       }
     }
 
-    this.commandBuffer += data
-
     // Check if we have a complete command response (prompt appeared)
     if (this.commandBuffer.includes('__PTY_PROMPT__')) {
+      this.logger.debug('Prompt detected in buffer', {
+        bufferLength: this.commandBuffer.length,
+        isProcessing: this.isProcessingCommand,
+        hasCurrentCmd: !!currentCmd,
+      })
       if (currentCmd && this.isProcessingCommand) {
-        // Extract exit code from the last command
-        const exitCodeMatch = currentCmd.stdout.match(/EXIT_CODE:(\d+)/)
+        // Extract exit code from the command buffer (includes PROMPT_COMMAND output)
+        const exitCodeMatch = this.commandBuffer.match(/EXIT_CODE:(\d+)/)
         const exitCode = exitCodeMatch?.[1]
           ? Number.parseInt(exitCodeMatch[1], 10)
           : 0
 
-        // Clean up the output
-        const cleanOutput = currentCmd.stdout
+        // Clean up the output - remove prompt markers, exit codes, ANSI codes, and the command echo
+        let cleanOutput = currentCmd.stdout
           .replace(/__PTY_PROMPT__\$/g, '')
-          .replace(/EXIT_CODE:\d+\n?/g, '')
-          .trim()
+          .replace(/EXIT_CODE:\d+\r?\n?/g, '')
+          .replace(/\r\n/g, '\n') // Normalize line endings
+          .replace(/\r/g, '\n')
+          // Remove ANSI escape sequences
+          .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '')
+          .replace(/\u001b\[\?[0-9]+[hl]/g, '')
+
+        // Remove the first line if it's the command echo (contains our modification)
+        const lines = cleanOutput.split('\n')
+        if (lines[0]?.includes('; echo "EXIT_CODE:$?"')) {
+          lines.shift() // Remove the command echo line
+        }
+        cleanOutput = lines.join('\n').trim()
 
         // Clear timeout
         if (currentCmd.timeoutHandle) {
@@ -233,7 +271,8 @@ export class BashSession implements BashSessionLike {
       this.processNextCommand()
     }, this.config.timeout)
 
-    // Execute command with exit code capture
+    // Execute command and capture exit code
+    // Send command first, then capture exit code after it completes
     this.ptyProcess.write(`${cmd.command}; echo "EXIT_CODE:$?"\n`)
   }
 
