@@ -326,6 +326,9 @@ export class PromptService {
                   type: 'text',
                   content: '',
                   order: nextBlockOrder++,
+                  metadata: {
+                    streamIndex: event.index,
+                  },
                 } as NewBlock)
                 .returning()
 
@@ -353,6 +356,7 @@ export class PromptService {
                   content: `Using ${event.content_block.name} tool...`,
                   order: nextBlockOrder++,
                   metadata: {
+                    streamIndex: event.index,
                     toolName: event.content_block.name,
                     toolUseId: event.content_block.id,
                   },

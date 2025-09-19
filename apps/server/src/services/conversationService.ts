@@ -346,6 +346,17 @@ export class ConversationService {
   }
 
   /**
+   * Get blocks for a specific message
+   */
+  async getBlocksForMessage(messageId: number) {
+    return await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.messageId, messageId))
+      .orderBy(blocks.order)
+  }
+
+  /**
    * Queue a user message for processing
    */
   async queueMessage(conversationId: number, content: string): Promise<number> {
@@ -925,27 +936,6 @@ export class ConversationService {
     return history
   }
 
-  /**
-   * Get active streaming state for a conversation (compatibility method)
-   */
-  async getActiveStream(conversationId: number) {
-    const activePrompt = await this.getActivePrompt(conversationId)
-    if (!activePrompt) {
-      return null
-    }
-
-    // Get blocks for the active prompt's message
-    const streamingBlocks = await this.db
-      .select()
-      .from(blocks)
-      .where(eq(blocks.messageId, activePrompt.messageId))
-      .orderBy(blocks.order)
-
-    return {
-      prompt: activePrompt,
-      blocks: streamingBlocks,
-    }
-  }
 
   async streamConversation(
     conversationId: number,
@@ -1096,8 +1086,17 @@ export class ConversationService {
       return null
     }
 
-    const activeStream = await this.getActiveStream(conversationId)
+    const activePrompt = await this.getActivePrompt(conversationId)
     const inflightBlockIds = new Set<number>()
+
+    let activeStream: { prompt: NonNullable<typeof activePrompt>; blocks: Block[] } | null = null
+    if (activePrompt) {
+      const streamingBlocks = await this.getBlocksForMessage(activePrompt.messageId)
+      activeStream = {
+        prompt: activePrompt,
+        blocks: streamingBlocks,
+      }
+    }
 
     if (activeStream?.blocks.length) {
       const promptEvents = await this.db
@@ -1233,24 +1232,6 @@ export class ConversationService {
     }
   }
 
-  /**
-   * Create user message and start assistant response (compatibility method)
-   */
-  async createUserMessage(
-    conversationId: number,
-    content: string
-  ): Promise<{ userMessageId: number; promptId: number }> {
-    // Queue the message and get the response
-    const userMessageId = await this.queueMessage(conversationId, content)
-
-    // Get the active prompt that should have been created
-    const activePrompt = await this.getActivePrompt(conversationId)
-
-    return {
-      userMessageId,
-      promptId: activePrompt?.id || 0, // Fallback for compatibility
-    }
-  }
 
   private async generateConversationTitle(
     conversationId: number,

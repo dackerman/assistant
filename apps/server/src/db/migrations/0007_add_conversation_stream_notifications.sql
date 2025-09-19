@@ -122,13 +122,25 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Try to match by streamIndex first (for new blocks with metadata)
   SELECT *
   INTO block_record
   FROM blocks
   WHERE message_id = prompt_record.message_id
-    AND "order" = (NEW.data->>'index')::INTEGER
+    AND (metadata->>'streamIndex')::INTEGER = (NEW.data->>'index')::INTEGER
   ORDER BY id DESC
   LIMIT 1;
+
+  -- If no match by streamIndex, fall back to order-based matching for legacy blocks
+  IF block_record IS NULL THEN
+    SELECT *
+    INTO block_record
+    FROM blocks
+    WHERE message_id = prompt_record.message_id
+      AND "order" = (NEW.data->>'index')::INTEGER
+    ORDER BY id DESC
+    LIMIT 1;
+  END IF;
 
   IF block_record IS NOT NULL THEN
     PERFORM pg_notify(

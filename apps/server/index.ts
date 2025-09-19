@@ -142,9 +142,20 @@ app.get('/api/conversations/:id', async c => {
 app.get('/api/conversations/:id/stream', async c => {
   const conversationId = Number.parseInt(c.req.param('id'), 10)
 
-  const activeStream = await conversationService.getActiveStream(conversationId)
+  const activePrompt = await conversationService.getActivePrompt(conversationId)
+  if (!activePrompt) {
+    return c.json({ activeStream: null })
+  }
 
-  return c.json({ activeStream })
+  // Get blocks for the active prompt's message
+  const streamingBlocks = await conversationService.getBlocksForMessage(activePrompt.messageId)
+
+  return c.json({
+    activeStream: {
+      prompt: activePrompt,
+      blocks: streamingBlocks,
+    },
+  })
 })
 
 app.post('/api/conversations/:id/messages', async c => {
@@ -163,12 +174,18 @@ app.post('/api/conversations/:id/messages', async c => {
     )
   }
 
-  const result = await conversationService.createUserMessage(
+  const userMessageId = await conversationService.queueMessage(
     conversationId,
     body.content
   )
 
-  return c.json(result)
+  // Get the active prompt that should have been created
+  const activePrompt = await conversationService.getActivePrompt(conversationId)
+
+  return c.json({
+    userMessageId,
+    promptId: activePrompt?.id || 0, // Fallback for compatibility
+  })
 })
 
 app.get('/api/conversations', async c => {
