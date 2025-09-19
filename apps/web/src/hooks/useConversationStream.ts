@@ -35,6 +35,7 @@ interface InternalBlockState {
   id: number
   type: SnapshotBlock['type']
   content: string
+  metadata?: Record<string, unknown> | null
 }
 
 interface InternalMessageState {
@@ -48,6 +49,23 @@ interface InternalMessageState {
   status?: SnapshotMessage['status']
   blocks: Map<number, InternalBlockState>
   blockOrder: number[]
+  toolCalls: Map<number, InternalToolCallState>
+  toolCallOrder: number[]
+}
+
+interface InternalToolCallState {
+  id: number
+  name: string
+  status: 'pending' | 'running' | 'completed' | 'error'
+  input: Record<string, unknown> | null
+  output?: string | null
+  error?: string | null
+  providerExecuted?: boolean
+  dynamic?: boolean
+  startedAt?: string
+  updatedAt?: string
+  completedAt?: string | null
+  blockId?: number | null
 }
 
 interface InternalConversationState {
@@ -60,6 +78,7 @@ function createInternalBlock(block: SnapshotBlock): InternalBlockState {
     id: block.id,
     type: block.type,
     content: block.content ?? '',
+    metadata: block.metadata ?? null,
   }
 }
 
@@ -96,6 +115,8 @@ function createInternalMessage(message: SnapshotMessage): InternalMessageState {
     status: message.status,
     blocks,
     blockOrder,
+    toolCalls: new Map(),
+    toolCallOrder: [],
   }
 }
 
@@ -196,6 +217,47 @@ function updateMessage(
   const nextMessages = state.messages.slice()
   nextMessages[index] = updated
   return { ...state, messages: nextMessages }
+}
+
+function updateMessageWhere(
+  state: InternalConversationState,
+  predicate: (message: InternalMessageState) => boolean,
+  updater: (message: InternalMessageState) => InternalMessageState
+): InternalConversationState {
+  const index = state.messages.findIndex(predicate)
+  if (index === -1) {
+    return state
+  }
+
+  const target = state.messages[index]
+  const updated = updater(target)
+  if (updated === target) {
+    return state
+  }
+
+  const nextMessages = state.messages.slice()
+  nextMessages[index] = updated
+  return { ...state, messages: nextMessages }
+}
+
+function mapToolStatus(state: string | undefined):
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'error' {
+  switch (state) {
+    case 'pending':
+      return 'pending'
+    case 'executing':
+      return 'running'
+    case 'completed':
+      return 'completed'
+    case 'timeout':
+    case 'error':
+      return 'error'
+    default:
+      return 'pending'
+  }
 }
 
 function ensureBlock(
@@ -300,10 +362,203 @@ function applyEvent(
       }))
     }
     case 'tool-call-started':
+      return updateMessageWhere(
+        state,
+        message => message.promptId === event.toolCall.promptId,
+        message => {
+          const toolCalls = new Map(message.toolCalls)
+          const existing = toolCalls.get(event.toolCall.id) ?? {
+            id: event.toolCall.id,
+            name: event.toolCall.name,
+            status: mapToolStatus(event.toolCall.state),
+            input:
+              (event.input ?? event.toolCall.input ?? {}) as Record<
+                string,
+                unknown
+              >,
+            output: event.toolCall.output ?? null,
+            error: event.toolCall.error ?? null,
+            providerExecuted: event.toolCall.providerExecuted ?? undefined,
+            dynamic: event.toolCall.dynamic ?? undefined,
+            startedAt: event.toolCall.createdAt,
+            updatedAt: event.toolCall.updatedAt,
+            completedAt: event.toolCall.completedAt ?? null,
+            blockId: event.toolCall.blockId ?? null,
+          }
+
+          toolCalls.set(event.toolCall.id, {
+            ...existing,
+            name: event.toolCall.name,
+            status: mapToolStatus(event.toolCall.state),
+            input:
+              (event.input ?? event.toolCall.input ?? existing.input ?? {}) as Record<
+                string,
+                unknown
+              >,
+            output: existing.output ?? event.toolCall.output ?? null,
+            error: event.toolCall.error ?? existing.error ?? null,
+            providerExecuted:
+              event.toolCall.providerExecuted ?? existing.providerExecuted,
+            dynamic: event.toolCall.dynamic ?? existing.dynamic,
+            updatedAt: event.toolCall.updatedAt ?? existing.updatedAt,
+            completedAt: event.toolCall.completedAt ?? existing.completedAt,
+            blockId: event.toolCall.blockId ?? existing.blockId ?? null,
+          })
+
+          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+            ? message.toolCallOrder
+            : [...message.toolCallOrder, event.toolCall.id]
+
+          return {
+            ...message,
+            toolCalls,
+            toolCallOrder,
+          }
+        }
+      )
     case 'tool-call-progress':
+      return updateMessageWhere(
+        state,
+        message =>
+          message.toolCalls.has(event.toolCallId) ||
+          (event.blockId != null && message.blockOrder.includes(event.blockId)),
+        message => {
+          const existing = message.toolCalls.get(event.toolCallId) ?? {
+            id: event.toolCallId,
+            name: 'tool',
+            status: 'running' as const,
+            input: null,
+            output: null,
+            error: null,
+            providerExecuted: undefined,
+            dynamic: undefined,
+            startedAt: message.createdAt,
+            updatedAt: new Date().toISOString(),
+            completedAt: null,
+            blockId: event.blockId ?? null,
+          }
+
+          const combinedOutput =
+            existing.output != null
+              ? `${existing.output}${event.output ?? ''}`
+              : event.output ?? null
+
+          const toolCalls = new Map(message.toolCalls)
+          toolCalls.set(event.toolCallId, {
+            ...existing,
+            status: 'running',
+            output: combinedOutput,
+            updatedAt: new Date().toISOString(),
+          })
+
+          const toolCallOrder = message.toolCallOrder.includes(event.toolCallId)
+            ? message.toolCallOrder
+            : [...message.toolCallOrder, event.toolCallId]
+
+          return {
+            ...message,
+            toolCalls,
+            toolCallOrder,
+          }
+        }
+      )
     case 'tool-call-completed':
+      return updateMessageWhere(
+        state,
+        message => message.promptId === event.toolCall.promptId,
+        message => {
+          const toolCalls = new Map(message.toolCalls)
+          const existing = toolCalls.get(event.toolCall.id) ?? {
+            id: event.toolCall.id,
+            name: event.toolCall.name,
+            status: mapToolStatus(event.toolCall.state),
+            input:
+              (event.toolCall.input ?? {}) as Record<string, unknown>,
+            output: null,
+            error: event.toolCall.error ?? null,
+            providerExecuted: event.toolCall.providerExecuted ?? undefined,
+            dynamic: event.toolCall.dynamic ?? undefined,
+            startedAt: event.toolCall.createdAt,
+            updatedAt: event.toolCall.updatedAt,
+            completedAt: event.toolCall.completedAt ?? null,
+            blockId: event.toolCall.blockId ?? null,
+          }
+
+          let output = event.toolCall.output ?? existing.output ?? null
+          if (output && existing.output && output !== existing.output) {
+            output = `${existing.output}${output}`
+          }
+
+          toolCalls.set(event.toolCall.id, {
+            ...existing,
+            name: event.toolCall.name,
+            status: 'completed',
+            output,
+            error: event.toolCall.error ?? existing.error ?? null,
+            providerExecuted:
+              event.toolCall.providerExecuted ?? existing.providerExecuted,
+            dynamic: event.toolCall.dynamic ?? existing.dynamic,
+            updatedAt: event.toolCall.updatedAt ?? existing.updatedAt,
+            completedAt: event.toolCall.completedAt ?? existing.completedAt,
+          })
+
+          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+            ? message.toolCallOrder
+            : [...message.toolCallOrder, event.toolCall.id]
+
+          return {
+            ...message,
+            toolCalls,
+            toolCallOrder,
+          }
+        }
+      )
     case 'tool-call-failed':
-      return state
+      return updateMessageWhere(
+        state,
+        message => message.promptId === event.toolCall.promptId,
+        message => {
+          const toolCalls = new Map(message.toolCalls)
+          const existing = toolCalls.get(event.toolCall.id) ?? {
+            id: event.toolCall.id,
+            name: event.toolCall.name,
+            status: 'error',
+            input:
+              (event.toolCall.input ?? {}) as Record<string, unknown>,
+            output: event.toolCall.output ?? null,
+            error: event.error ?? event.toolCall.error ?? null,
+            providerExecuted: event.toolCall.providerExecuted ?? undefined,
+            dynamic: event.toolCall.dynamic ?? undefined,
+            startedAt: event.toolCall.createdAt,
+            updatedAt: event.toolCall.updatedAt,
+            completedAt: event.toolCall.completedAt ?? null,
+            blockId: event.toolCall.blockId ?? null,
+          }
+
+          toolCalls.set(event.toolCall.id, {
+            ...existing,
+            name: event.toolCall.name,
+            status: 'error',
+            output: event.toolCall.output ?? existing.output ?? null,
+            error: event.error ?? event.toolCall.error ?? existing.error ?? null,
+            providerExecuted:
+              event.toolCall.providerExecuted ?? existing.providerExecuted,
+            dynamic: event.toolCall.dynamic ?? existing.dynamic,
+            updatedAt: event.toolCall.updatedAt ?? existing.updatedAt,
+            completedAt: event.toolCall.completedAt ?? existing.completedAt,
+          })
+
+          const toolCallOrder = message.toolCallOrder.includes(event.toolCall.id)
+            ? message.toolCallOrder
+            : [...message.toolCallOrder, event.toolCall.id]
+
+          return {
+            ...message,
+            toolCalls,
+            toolCallOrder,
+          }
+        }
+      )
     case 'conversation-updated':
       return {
         ...state,
@@ -341,12 +596,29 @@ function toUiMessage(message: InternalMessageState): Message {
   const metadata =
     metadataEntries.length > 0 ? Object.fromEntries(metadataEntries) : undefined
 
+  const toolCalls = message.toolCallOrder
+    .map(id => message.toolCalls.get(id))
+    .filter((toolCall): toolCall is InternalToolCallState => Boolean(toolCall))
+    .map(toolCall => ({
+      id: toolCall.id.toString(),
+      name: toolCall.name,
+      parameters: toolCall.input ?? {},
+      result: toolCall.output ?? undefined,
+      status: toolCall.status,
+      startTime: toolCall.startedAt ?? message.createdAt,
+      endTime: toolCall.completedAt ?? undefined,
+      providerExecuted: toolCall.providerExecuted,
+      dynamic: toolCall.dynamic,
+      error: toolCall.error ?? undefined,
+    }))
+
   return {
     id: message.id.toString(),
     type: message.role,
     content,
     timestamp: message.createdAt,
     metadata,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
   }
 }
 

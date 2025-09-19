@@ -534,6 +534,18 @@ export class PromptService {
               try {
                 const parsedInput = JSON.parse(toolData.input)
 
+                await this.db
+                  .update(blocks)
+                  .set({
+                    metadata: {
+                      toolName: toolData.toolName,
+                      toolUseId: toolData.toolUseId,
+                      input: parsedInput,
+                    },
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(blocks.id, toolData.blockId))
+
                 // Create tool call record
                 const [toolCall] = await this.db
                   .insert(toolCalls)
@@ -756,29 +768,100 @@ export class PromptService {
     const history: Anthropic.Messages.MessageParam[] = []
 
     for (const message of messageMap.values()) {
-      if (message.role === 'user') {
-        const content = message.blocks
-          .filter((b: Block) => b.type === 'text')
-          .map((b: Block) => b.content)
-          .join('')
+      const sortedBlocks: Block[] = [...message.blocks].sort((a, b) => {
+        const orderA = a.order ?? a.id
+        const orderB = b.order ?? b.id
+        if (orderA === orderB) return a.id - b.id
+        return orderA - orderB
+      })
 
-        if (content) {
-          history.push({
-            role: 'user',
-            content,
-          })
+      if (message.role === 'assistant') {
+        const contentParts: Anthropic.Messages.ContentBlockParam[] = []
+
+        for (const block of sortedBlocks) {
+          if (block.type === 'text' && block.content) {
+            contentParts.push({ type: 'text', text: block.content })
+          } else if (block.type === 'tool_use') {
+            const metadata = (block.metadata ?? {}) as {
+              toolUseId?: string
+              toolName?: string
+              input?: unknown
+            }
+            if (!metadata.toolUseId) continue
+
+            contentParts.push({
+              type: 'tool_use',
+              id: metadata.toolUseId,
+              name: String(metadata.toolName ?? 'tool'),
+              input:
+                typeof metadata.input === 'object' && metadata.input !== null
+                  ? (metadata.input as Record<string, unknown>)
+                  : {},
+            })
+          }
         }
-      } else if (message.role === 'assistant') {
-        const content = message.blocks
-          .filter((b: Block) => b.type === 'text')
-          .map((b: Block) => b.content)
-          .join('')
 
-        if (content) {
+        if (contentParts.length > 0) {
           history.push({
             role: 'assistant',
-            content,
+            content: contentParts,
           })
+        }
+      } else if (message.role === 'user') {
+        const hasToolResults = sortedBlocks.some(
+          (block: Block) => block.type === 'tool_result'
+        )
+
+        if (hasToolResults) {
+          const contentParts: Anthropic.Messages.ContentBlockParam[] = []
+          let textBuffer = ''
+
+          const flushText = () => {
+            if (textBuffer.length === 0) return
+            contentParts.push({ type: 'text', text: textBuffer })
+            textBuffer = ''
+          }
+
+          for (const block of sortedBlocks) {
+            if (block.type === 'text' && block.content) {
+              textBuffer += block.content
+            } else if (block.type === 'tool_result') {
+              flushText()
+              const metadata = (block.metadata ?? {}) as {
+                toolUseId?: string
+              }
+              if (!metadata.toolUseId) continue
+
+              contentParts.push({
+                type: 'tool_result',
+                tool_use_id: metadata.toolUseId,
+                content: block.content
+                  ? [{ type: 'text', text: block.content }]
+                  : [],
+              })
+            }
+          }
+
+          flushText()
+
+          if (contentParts.length > 0) {
+            history.push({
+              role: 'user',
+              content: contentParts,
+            })
+          }
+        } else {
+          const content = sortedBlocks
+            .filter((block: Block) => block.type === 'text' && block.content)
+            .map((block: Block) => block.content)
+            .join('')
+
+          if (content) {
+            history.push({
+              role: 'user',
+              content,
+            })
+          }
         }
       }
     }

@@ -5,6 +5,10 @@ import {
   proteinEvents,
   proteinSnapshot,
 } from '@/test/fixtures/proteinConversation'
+import {
+  bashEvents,
+  bashSnapshot,
+} from '@/test/fixtures/bashToolConversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -47,6 +51,15 @@ function ConversationHarness({ client }: HarnessProps) {
             <div data-testid={`message-${message.id}-content`}>
               {message.content}
             </div>
+            {message.toolCalls?.map(toolCall => (
+              <div
+                key={toolCall.id}
+                data-testid={`message-${message.id}-toolcall-${toolCall.id}`}
+                data-status={toolCall.status}
+              >
+                {toolCall.name}:{toolCall.status}:{String(toolCall.result ?? '')}
+              </div>
+            ))}
           </li>
         ))}
       </ul>
@@ -199,6 +212,36 @@ describe('useConversationStream', () => {
 
     expect(screen.getByTestId('conversation-title')).toHaveTextContent(
       'What Is A Protein'
+    )
+  })
+
+  it('tracks bash tool execution lifecycle', async () => {
+    const { payload, emit } = createStreamServiceStub(bashSnapshot)
+    const client: ConversationStreamClient = {
+      streamConversation: vi.fn(async () => payload),
+    }
+
+    render(<ConversationHarness client={client} />)
+
+    for (const event of bashEvents) {
+      await emit(event)
+    }
+
+    expect(screen.getByTestId('message-301-content')).toHaveTextContent(
+      'list the repository files'
+    )
+    expect(screen.getByTestId('message-302-content')).toHaveTextContent(
+      'Here are the repository files:'
+    )
+
+    const toolCallElement = screen.getByTestId(
+      'message-302-toolcall-901'
+    )
+    expect(toolCallElement.dataset.status).toBe('completed')
+    expect(toolCallElement).toHaveTextContent('bash:completed:README.md')
+
+    expect(screen.getByTestId('conversation-title')).toHaveTextContent(
+      'List Repository Files'
     )
   })
 })
