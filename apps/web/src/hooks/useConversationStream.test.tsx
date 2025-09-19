@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { createStreamServiceStub } from '@/test/conversationStreamTestUtils'
+import {
+  proteinEvents,
+  proteinSnapshot,
+} from '@/test/fixtures/proteinConversation'
 import type {
   ConversationSnapshot,
   ConversationStreamEvent,
@@ -151,6 +155,39 @@ describe('useConversationStream', () => {
 
     expect(screen.getByTestId('message-2-content')).toHaveTextContent(
       'Here is the latest forecast. Expect light rain this evening.'
+    )
+  })
+
+  it('preserves user and assistant content for recorded websocket stream', async () => {
+    const { payload, emit } = createStreamServiceStub(proteinSnapshot)
+    const client: ConversationStreamClient = {
+      streamConversation: vi.fn(async () => payload),
+    }
+
+    render(<ConversationHarness client={client} />)
+
+    expect(await screen.findByTestId('message-11-content')).toHaveTextContent(
+      'hello'
+    )
+
+    // After the first message-created event, the user bubble should render text immediately.
+    await emit(proteinEvents[0])
+    expect(screen.getByTestId('message-15-content')).toHaveTextContent(
+      'what is a protein'
+    )
+
+    for (const event of proteinEvents.slice(1, proteinEvents.length - 1)) {
+      await emit(event)
+    }
+
+    await emit(proteinEvents[proteinEvents.length - 1])
+
+    expect(screen.getByTestId('message-15-content')).toHaveTextContent(
+      'what is a protein'
+    )
+
+    expect(screen.getByTestId('message-16-content')).toHaveTextContent(
+      'A protein is a large, complex molecule made up of amino acids'
     )
   })
 })

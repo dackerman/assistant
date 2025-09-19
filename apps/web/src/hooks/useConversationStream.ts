@@ -42,6 +42,7 @@ interface InternalMessageState {
   role: SnapshotMessage['role']
   createdAt: string
   updatedAt: string
+  content: string
   promptId?: number
   model?: string | null
   status?: SnapshotMessage['status']
@@ -89,6 +90,7 @@ function createInternalMessage(message: SnapshotMessage): InternalMessageState {
     role: message.role,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
+    content: message.content ?? '',
     promptId: message.promptId ?? undefined,
     model: message.model ?? null,
     status: message.status,
@@ -162,6 +164,7 @@ function upsertMessage(
     return {
       ...message,
       updatedAt: incoming.updatedAt,
+      content: incoming.content != null ? incoming.content : message.content,
       status: incoming.status ?? message.status,
       promptId:
         incoming.promptId != null ? incoming.promptId : message.promptId,
@@ -247,6 +250,7 @@ function appendToBlock(
   return {
     ...target,
     blocks: nextBlocks,
+    content: target.content + delta,
   }
 }
 
@@ -315,6 +319,8 @@ function toUiMessage(message: InternalMessageState): Message {
     .map(block => block.content)
     .join('')
 
+  const content = textContent.length > 0 ? textContent : message.content
+
   const metadataEntries: Array<[string, number | string]> = []
   if (message.promptId != null) {
     metadataEntries.push(['promptId', message.promptId])
@@ -329,7 +335,7 @@ function toUiMessage(message: InternalMessageState): Message {
   return {
     id: message.id.toString(),
     type: message.role,
-    content: textContent,
+    content,
     timestamp: message.createdAt,
     metadata,
   }
