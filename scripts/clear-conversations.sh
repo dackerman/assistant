@@ -20,16 +20,17 @@ fi
 
 echo "📊 Current data counts:"
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "
-SELECT 
+SELECT
   (SELECT COUNT(*) FROM conversations) as conversations,
   (SELECT COUNT(*) FROM messages) as messages,
   (SELECT COUNT(*) FROM blocks) as blocks,
   (SELECT COUNT(*) FROM tool_calls) as tool_calls,
-  (SELECT COUNT(*) FROM prompts) as prompts;
+  (SELECT COUNT(*) FROM prompts) as prompts,
+  (SELECT COUNT(*) FROM prompt_events) as prompt_events;
 "
 
 echo ""
-echo "⚠️  This will DELETE ALL conversations, messages, blocks, tool calls, and prompts."
+echo "⚠️  This will DELETE ALL conversations, messages, blocks, tool calls, prompts, and prompt events."
 echo "   This action cannot be undone!"
 echo ""
 read -p "Are you sure you want to continue? (y/N): " -n 1 -r
@@ -49,6 +50,9 @@ docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM t
 echo "  → Clearing blocks..."
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM blocks;"
 
+echo "  → Clearing prompt_events..."
+docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM prompt_events;"
+
 echo "  → Clearing prompts..."
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM prompts;"
 
@@ -58,9 +62,6 @@ docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM m
 echo "  → Clearing conversations..."
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM conversations;"
 
-echo "  → Clearing events..."
-docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "DELETE FROM events;"
-
 echo "  → Resetting auto-increment sequences..."
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "
 SELECT setval(pg_get_serial_sequence('conversations', 'id'), 1, false);
@@ -68,19 +69,19 @@ SELECT setval(pg_get_serial_sequence('messages', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('blocks', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('tool_calls', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('prompts', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('events', 'id'), 1, false);
+SELECT setval(pg_get_serial_sequence('prompt_events', 'id'), 1, false);
 "
 
 echo ""
 echo "📊 Final data counts:"
 docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "
-SELECT 
+SELECT
   (SELECT COUNT(*) FROM conversations) as conversations,
   (SELECT COUNT(*) FROM messages) as messages,
   (SELECT COUNT(*) FROM blocks) as blocks,
   (SELECT COUNT(*) FROM tool_calls) as tool_calls,
   (SELECT COUNT(*) FROM prompts) as prompts,
-  (SELECT COUNT(*) FROM events) as events;
+  (SELECT COUNT(*) FROM prompt_events) as prompt_events;
 "
 
 echo ""
