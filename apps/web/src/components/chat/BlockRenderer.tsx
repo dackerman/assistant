@@ -131,7 +131,7 @@ export function BlockRenderer({ block, isUser }: BlockRendererProps) {
     )
   }
 
-  // Render tool use blocks
+  // Render tool use blocks (legacy format)
   if (block.type === 'tool_use' || block.type === 'tool_result') {
     // Convert block to tool call format for ToolCallDisplay
     const toolCall = {
@@ -147,6 +147,27 @@ export function BlockRenderer({ block, isUser }: BlockRendererProps) {
       endTime:
         block.type === 'tool_result' ? new Date().toISOString() : undefined,
       error: block.metadata?.error,
+    }
+
+    return (
+      <div className="block-tool my-2">
+        <ToolCallDisplay toolCall={toolCall} />
+      </div>
+    )
+  }
+
+  // Render tool call blocks (new simplified format)
+  if (block.type === 'tool_call') {
+    // Convert tool_call block to ToolCall format for ToolCallDisplay
+    const toolCall = {
+      id: block.toolCallId,
+      name: block.toolName,
+      parameters: block.input,
+      result: block.output,
+      status: (block.error ? 'error' : block.output ? 'completed' : 'pending') as 'pending' | 'running' | 'completed' | 'error',
+      startTime: new Date().toISOString(), // We don't have this info in blocks
+      endTime: block.output ? new Date().toISOString() : undefined,
+      error: block.error || undefined,
     }
 
     return (

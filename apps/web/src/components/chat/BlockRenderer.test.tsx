@@ -237,4 +237,26 @@ describe('BlockRenderer', () => {
       expect(link).toHaveClass('text-blue-600', 'hover:text-blue-700')
     })
   })
+
+  describe('tool_call blocks', () => {
+    it('renders tool_call blocks', () => {
+      const block: Block = {
+        id: 'block-1',
+        type: 'tool_call',
+        content: 'file1.txt\nfile2.txt\n',
+        toolName: 'bash',
+        toolUseId: 'tool-1',
+        toolCallId: 'call-1',
+        input: { command: 'ls' },
+        output: 'file1.txt\nfile2.txt\n',
+        error: '',
+      }
+
+      render(<BlockRenderer block={block} isUser={false} />)
+
+      // Should render tool call information, not unknown block type
+      expect(screen.queryByText(/Unknown block type/)).not.toBeInTheDocument()
+      expect(screen.getByText(/bash/)).toBeInTheDocument()
+    })
+  })
 })
