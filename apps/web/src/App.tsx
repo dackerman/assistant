@@ -1,5 +1,5 @@
 import { Menu } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar'
 import { ConversationView } from '@/components/chat/ConversationView'
@@ -54,10 +54,10 @@ function ConversationPage() {
     }
   }
 
-  const handleTitleUpdate = () => {
+  const handleTitleUpdate = useCallback(() => {
     // Trigger sidebar refresh when conversation title is updated
     setTitleUpdateTrigger(prev => prev + 1)
-  }
+  }, [])
 
   return (
     <div className="flex h-screen bg-background">

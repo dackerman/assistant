@@ -33,7 +33,7 @@ export function ConversationSidebar({
   onClose,
   isOpen,
   onConversationDelete,
-  titleUpdateTrigger,
+  titleUpdateTrigger = 0,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoading, setIsLoading] = useState(false)
