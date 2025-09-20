@@ -113,7 +113,7 @@ export function ConversationSidebar({
     if (isOpen) {
       loadConversations()
     }
-  }, [isOpen, loadConversations])
+  }, [isOpen, currentConversationId, loadConversations])
 
   const handleConversationClick = (conversationId: string) => {
     console.log('Sidebar: Conversation clicked:', conversationId)

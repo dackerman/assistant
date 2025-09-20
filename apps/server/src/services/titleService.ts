@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { Logger } from '../utils/logger'
 
 const DEFAULT_TITLE_MODEL =
-  process.env.TITLE_MODEL || 'claude-haiku-3-5-20241022'
+  process.env.TITLE_MODEL || 'claude-sonnet-4-20250514'
 
 const SYSTEM_PROMPT = `You are a helpful assistant that creates concise conversation titles.
 - Keep titles to 6 words or fewer
