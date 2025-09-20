@@ -96,16 +96,17 @@ export function ConversationView({
       ? streamConversation.title.trim()
       : 'Untitled Conversation'
 
-    if (
-      previousTitleRef.current &&
-      previousTitleRef.current !== incomingTitle
-    ) {
+    const titleChanged = previousTitleRef.current && previousTitleRef.current !== incomingTitle
+
+    if (titleChanged) {
       setShouldAnimateTitle(true)
+      // Notify parent when title changes (for sidebar refresh)
+      onTitleUpdate?.()
     }
 
     previousTitleRef.current = incomingTitle
     setConversationTitle(incomingTitle)
-  }, [streamConversation, currentConversationId, isEditingTitle])
+  }, [streamConversation, currentConversationId, isEditingTitle, onTitleUpdate])
 
   useEffect(() => {
     if (!shouldAnimateTitle) return

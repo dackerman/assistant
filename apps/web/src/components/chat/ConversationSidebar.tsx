@@ -23,6 +23,7 @@ interface ConversationSidebarProps {
   onClose?: () => void
   isOpen: boolean
   onConversationDelete?: (conversationId: number) => void // Add delete callback
+  titleUpdateTrigger?: number // Trigger sidebar refresh when titles update
 }
 
 export function ConversationSidebar({
@@ -32,6 +33,7 @@ export function ConversationSidebar({
   onClose,
   isOpen,
   onConversationDelete,
+  titleUpdateTrigger,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -113,7 +115,7 @@ export function ConversationSidebar({
     if (isOpen) {
       loadConversations()
     }
-  }, [isOpen, currentConversationId, loadConversations])
+  }, [isOpen, currentConversationId, titleUpdateTrigger, loadConversations])
 
   const handleConversationClick = (conversationId: string) => {
     console.log('Sidebar: Conversation clicked:', conversationId)

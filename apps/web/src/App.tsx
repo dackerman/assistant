@@ -13,6 +13,7 @@ function ConversationPage() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
+  const [titleUpdateTrigger, setTitleUpdateTrigger] = useState(0)
 
   // Handle responsive behavior
   useEffect(() => {
@@ -54,7 +55,8 @@ function ConversationPage() {
   }
 
   const handleTitleUpdate = () => {
-    // TODO: Implement title update handling if needed
+    // Trigger sidebar refresh when conversation title is updated
+    setTitleUpdateTrigger(prev => prev + 1)
   }
 
   return (
@@ -92,6 +94,7 @@ function ConversationPage() {
             onClose={() => setIsSidebarOpen(false)}
             isOpen={isSidebarOpen || isDesktop}
             onConversationDelete={handleConversationDelete}
+            titleUpdateTrigger={titleUpdateTrigger}
           />
         </div>
       </div>
