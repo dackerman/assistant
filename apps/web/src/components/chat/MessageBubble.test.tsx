@@ -7,9 +7,11 @@ import { MessageBubble } from './MessageBubble'
 vi.mock('./BlockRenderer', () => ({
   BlockRenderer: ({ block }: { block: any }) => (
     <div data-testid={`block-${block.id}`}>
-      {block.type === 'text'
+      {block.type === 'text' || block.type === 'thinking'
         ? block.content
-        : `Tool: ${block.metadata?.toolName || 'unknown'}`}
+        : block.type === 'tool_call'
+          ? `Tool: ${block.toolName || 'unknown'}`
+          : block.content}
     </div>
   ),
 }))
@@ -37,12 +39,14 @@ describe('MessageBubble', () => {
           },
           {
             id: 'block-2',
-            type: 'tool_use',
-            content: '',
-            metadata: {
-              toolName: 'bash',
-              input: { command: 'ls' },
-            },
+            type: 'tool_call',
+            content: 'file1.txt\nfile2.txt\n',
+            toolName: 'bash',
+            toolUseId: 'tool-1',
+            toolCallId: 'call-1',
+            input: { command: 'ls' },
+            output: 'file1.txt\nfile2.txt\n',
+            error: '',
           },
           {
             id: 'block-3',
@@ -84,22 +88,14 @@ describe('MessageBubble', () => {
           },
           {
             id: 'block-2',
-            type: 'tool_use',
-            content: '',
-            metadata: {
-              toolName: 'bash',
-              input: { command: 'pwd' },
-            },
-          },
-          {
-            id: 'block-3',
-            type: 'tool_result',
-            content: '',
-            metadata: {
-              toolName: 'bash',
-              toolUseId: 'tool-1',
-              output: '/home/user',
-            },
+            type: 'tool_call',
+            content: '/home/user',
+            toolName: 'bash',
+            toolUseId: 'tool-1',
+            toolCallId: 'call-1',
+            input: { command: 'pwd' },
+            output: '/home/user',
+            error: '',
           },
           {
             id: 'block-4',
@@ -113,47 +109,52 @@ describe('MessageBubble', () => {
       render(<MessageBubble message={message} />)
 
       const blocks = screen.getAllByTestId(/^block-block-\d+$/)
-      expect(blocks).toHaveLength(4)
+      expect(blocks).toHaveLength(3)
 
       // Verify order by checking the rendered content
       expect(blocks[0]).toHaveTextContent('Step 1: Analyze the problem')
       expect(blocks[1]).toHaveTextContent('Tool: bash')
-      expect(blocks[2]).toHaveTextContent('Tool: bash') // tool_result also shows tool name
-      expect(blocks[3]).toHaveTextContent(
+      expect(blocks[2]).toHaveTextContent(
         'Step 2: Now I know the current directory'
       )
     })
 
-    it('renders empty blocks array as legacy content', () => {
+    it('renders empty blocks array correctly', () => {
       const message: Message = {
         id: 'msg-1',
         type: 'assistant',
         blocks: [], // Empty blocks array
-        content: 'This is legacy content',
         timestamp: '2024-01-01T00:00:00Z',
       }
 
       render(<MessageBubble message={message} />)
 
-      // Should fall back to legacy content rendering
-      expect(screen.getByText('This is legacy content')).toBeInTheDocument()
+      // Should render empty blocks container
+      const contentDiv = document.querySelector('.blocks-container')
+      expect(contentDiv).toBeInTheDocument()
+      expect(contentDiv?.children).toHaveLength(0)
       expect(screen.queryByTestId(/^block-/)).not.toBeInTheDocument()
     })
 
-    it('renders undefined blocks as legacy content', () => {
+    it('renders messages with text blocks', () => {
       const message: Message = {
         id: 'msg-1',
         type: 'assistant',
-        blocks: [],
-        content: 'This is legacy content',
+        blocks: [
+          {
+            id: 'block-1',
+            type: 'text',
+            content: 'This is text content',
+          },
+        ],
         timestamp: '2024-01-01T00:00:00Z',
       }
 
       render(<MessageBubble message={message} />)
 
-      // Should fall back to legacy content rendering
-      expect(screen.getByText('This is legacy content')).toBeInTheDocument()
-      expect(screen.queryByTestId(/^block-/)).not.toBeInTheDocument()
+      // Should render text block
+      expect(screen.getByText('This is text content')).toBeInTheDocument()
+      expect(screen.getByTestId('block-block-1')).toBeInTheDocument()
     })
 
     it('renders empty content when no blocks or content', () => {
@@ -176,37 +177,22 @@ describe('MessageBubble', () => {
     })
   })
 
-  describe('legacy content rendering', () => {
-    it('renders legacy content when no blocks', () => {
+  describe('tool call rendering', () => {
+    it('renders tool call blocks', () => {
       const message: Message = {
         id: 'msg-1',
         type: 'assistant',
-        blocks: [],
-        content: 'This is **markdown** content with `code`',
-        timestamp: '2024-01-01T00:00:00Z',
-      }
-
-      render(<MessageBubble message={message} />)
-
-      // Should render markdown content
-      expect(screen.getByText(/This is/)).toBeInTheDocument()
-      expect(screen.queryByTestId(/^block-/)).not.toBeInTheDocument()
-    })
-
-    it('renders legacy tool calls when no blocks', () => {
-      const message: Message = {
-        id: 'msg-1',
-        type: 'assistant',
-        blocks: [],
-        content: 'Running a command',
-        toolCalls: [
+        blocks: [
           {
-            id: 'tool-1',
-            name: 'bash',
-            parameters: { command: 'ls' },
-            status: 'completed',
-            startTime: '2024-01-01T00:00:00Z',
-            endTime: '2024-01-01T00:00:01Z',
+            id: 'block-1',
+            type: 'tool_call',
+            content: 'README.md\npackage.json\n',
+            toolName: 'bash',
+            toolUseId: 'tool-1',
+            toolCallId: 'call-1',
+            input: { command: 'ls' },
+            output: 'README.md\npackage.json\n',
+            error: '',
           },
         ],
         timestamp: '2024-01-01T00:00:00Z',
@@ -214,15 +200,14 @@ describe('MessageBubble', () => {
 
       render(<MessageBubble message={message} />)
 
-      // Should render legacy tool calls
-      expect(screen.getByTestId('tool-call-tool-1')).toHaveTextContent(
-        'Tool Call: bash'
-      )
+      // Should render tool call block
+      expect(screen.getByTestId('block-block-1')).toBeInTheDocument()
+      expect(screen.getByText('Tool: bash')).toBeInTheDocument()
     })
   })
 
   describe('mixed scenarios', () => {
-    it('renders blocks even when legacy content exists', () => {
+    it('renders multiple blocks correctly', () => {
       const message: Message = {
         id: 'msg-1',
         type: 'assistant',
@@ -230,20 +215,26 @@ describe('MessageBubble', () => {
           {
             id: 'block-1',
             type: 'text',
-            content: 'Block content',
+            content: 'First block content',
+          },
+          {
+            id: 'block-2',
+            type: 'text',
+            content: 'Second block content',
           },
         ],
-        content: 'Legacy content (should not be rendered)', // This should be ignored
         timestamp: '2024-01-01T00:00:00Z',
       }
 
       render(<MessageBubble message={message} />)
 
-      // Should render blocks, not legacy content
+      // Should render both blocks
       expect(screen.getByTestId('block-block-1')).toHaveTextContent(
-        'Block content'
+        'First block content'
       )
-      expect(screen.queryByText('Legacy content')).not.toBeInTheDocument()
+      expect(screen.getByTestId('block-block-2')).toHaveTextContent(
+        'Second block content'
+      )
     })
 
     it('handles blocks with different types correctly', () => {
@@ -263,24 +254,17 @@ describe('MessageBubble', () => {
           },
           {
             id: 'block-3',
-            type: 'tool_use',
-            content: '',
-            metadata: {
-              toolName: 'search',
-              input: { query: 'test' },
-            },
+            type: 'tool_call',
+            content: 'results',
+            toolName: 'search',
+            toolUseId: 'tool-1',
+            toolCallId: 'call-1',
+            input: { query: 'test' },
+            output: 'results',
+            error: '',
           },
           {
             id: 'block-4',
-            type: 'tool_result',
-            content: '',
-            metadata: {
-              toolName: 'search',
-              output: 'results',
-            },
-          },
-          {
-            id: 'block-5',
             type: 'text',
             content: 'Based on the results...',
           },
@@ -295,15 +279,12 @@ describe('MessageBubble', () => {
         'Thinking about this...'
       )
       expect(screen.getByTestId('block-block-2')).toHaveTextContent(
-        'Tool: unknown'
-      ) // thinking blocks show as unknown
+        'Internal reasoning'
+      ) // thinking blocks show their content
       expect(screen.getByTestId('block-block-3')).toHaveTextContent(
         'Tool: search'
       )
       expect(screen.getByTestId('block-block-4')).toHaveTextContent(
-        'Tool: search'
-      )
-      expect(screen.getByTestId('block-block-5')).toHaveTextContent(
         'Based on the results...'
       )
     })

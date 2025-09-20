@@ -78,41 +78,29 @@ export interface StreamPart {
   dynamic?: boolean
 }
 
-export interface Block {
+export type Block = {
   id: string
-  type: 'text' | 'tool_use' | 'tool_result' | 'thinking'
   content: string
-  metadata?: {
-    toolName?: string
-    toolUseId?: string
-    toolCallId?: string
-    input?: Record<string, unknown>
-    output?: unknown
-    error?: string
-  }
-}
+} & (
+  | {
+      type: 'text' | 'thinking'
+    }
+  | {
+      type: 'tool_call'
+      toolName: string
+      toolUseId: string
+      toolCallId: string
+      input: Record<string, unknown>
+      output: unknown
+      error: string
+    }
+)
 
 export interface Message {
   id: string
   type: 'user' | 'assistant' | 'system'
   blocks: Block[] // Ordered array of blocks
   timestamp: string
-  // Deprecated - use blocks instead
-  content?: string
-  toolCalls?: ToolCall[]
-  toolResults?: ToolResult[]
-  toolErrors?: ToolError[]
-  sources?: StreamSource[]
-  files?: StreamFile[]
-  reasoning?: string
-  metadata?: {
-    model?: string
-    tokens?: number
-    cost?: number
-    finishReason?: string
-    usage?: Record<string, unknown>
-    promptId?: number
-  }
 }
 
 export interface Conversation {

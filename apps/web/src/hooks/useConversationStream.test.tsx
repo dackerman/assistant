@@ -32,6 +32,7 @@ function ConversationHarness({ client }: HarnessProps) {
     return <div data-testid="status">loading</div>
   }
 
+
   return (
     <div>
       <div data-testid="conversation-title">
@@ -46,23 +47,22 @@ function ConversationHarness({ client }: HarnessProps) {
           >
             <div data-testid={`message-${message.id}-role`}>{message.type}</div>
             <div data-testid={`message-${message.id}-content`}>
-              {message.blocks && message.blocks.length > 0
-                ? message.blocks
-                    .filter(block => block.type === 'text')
-                    .map(block => block.content)
-                    .join('')
-                : message.content}
+              {message.blocks
+                .filter(block => block.type === 'text' || block.type === 'thinking')
+                .map(block => block.content)
+                .join('')}
             </div>
-            {message.toolCalls?.map(toolCall => (
-              <div
-                key={toolCall.id}
-                data-testid={`message-${message.id}-toolcall-${toolCall.id}`}
-                data-status={toolCall.status}
-              >
-                {toolCall.name}:{toolCall.status}:
-                {String(toolCall.result ?? '')}
-              </div>
-            ))}
+            {message.blocks
+              .filter(block => block.type === 'tool_call')
+              .map(block => (
+                <div
+                  key={block.id}
+                  data-testid={`message-${message.id}-toolcall-${block.type === 'tool_call' ? block.toolCallId : block.id}`}
+                  data-status={block.output ? 'completed' : 'pending'}
+                >
+                  {block.type === 'tool_call' ? `${block.toolName}:${block.output ? 'completed' : 'pending'}:${String(block.output ?? '')}` : ''}
+                </div>
+              ))}
           </li>
         ))}
       </ul>
